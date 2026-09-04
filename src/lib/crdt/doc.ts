@@ -283,9 +283,13 @@ function compact(doc: SheetDoc, now: number): void {
 // ---------------------------------------------------------------- rev control
 
 export class RevisionConflictError extends Error {
-  constructor(public expected: number, public actual: number) {
+  readonly expected: number
+  readonly actual: number
+  constructor(expected: number, actual: number) {
     super(`Revision conflict: client is on r${expected}, server is on r${actual}`)
     this.name = 'RevisionConflictError'
+    this.expected = expected
+    this.actual = actual
   }
 }
 

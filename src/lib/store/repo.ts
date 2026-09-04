@@ -35,9 +35,13 @@ export type MutateResult = {
 }
 
 export class ConflictError extends Error {
-  constructor(public conflicts: string[], public current: SheetDoc) {
+  readonly conflicts: string[]
+  readonly current: SheetDoc
+  constructor(conflicts: string[], current: SheetDoc) {
     super('Some of these edits touch cells that changed since you loaded them')
     this.name = 'ConflictError'
+    this.conflicts = conflicts
+    this.current = current
   }
 }
 
@@ -49,7 +53,11 @@ export class NotFoundError extends Error {
 }
 
 export class Repo {
-  constructor(private readonly user: { id: string; backend: 'drive' | 'kv' }) {}
+  private readonly user: { id: string; backend: 'drive' | 'kv' }
+
+  constructor(user: { id: string; backend: 'drive' | 'kv' }) {
+    this.user = user
+  }
 
   private get uid() {
     return this.user.id
