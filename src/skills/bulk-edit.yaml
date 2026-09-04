@@ -1,0 +1,23 @@
+name: bulk-edit
+title: Edit many rows at once
+description: >
+  Apply a rule across rows: retag, recategorise, fix a typo everywhere, round
+  amounts, fill a blank column, delete matching rows.
+when:
+  - user says all / every / each / any row that / everything with
+  - user asks to fix, rename, retag or clean up more than one row
+model: chat
+tools: [get_file, query_rows, update_rows, delete_rows, add_column]
+budget:
+  max_tool_calls: 8
+instructions: |
+  1. Use query_rows to find exactly what matches before changing anything, and
+     tell the user the count. "This matches 14 rows" is the sentence that stops
+     a bad edit.
+  2. Send one update_rows call covering all matches. Batching is what makes the
+     change a single undo step for the user.
+  3. Deletions always get named: list what will go, then ask.
+  4. Never widen the user's criteria. "Fix the Ubers" means rows that say Uber,
+     not every taxi row you think belongs.
+  5. If the match set is empty, say so — do not go looking for something close
+     and edit that instead.

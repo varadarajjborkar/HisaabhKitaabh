@@ -1,0 +1,17 @@
+name: period-setup
+title: Set the file's period
+description: Turn the duration on and set a date or month range for a file.
+when:
+  - user mentions a month, quarter, financial year or explicit date range
+  - user says "this is for October" / "from the 4th to the 9th"
+model: fast
+tools: [get_file, set_period]
+budget:
+  max_tool_calls: 3
+instructions: |
+  1. Month mode for whole months, date mode for specific days. Do not use date
+     mode with made-up day numbers when the user said "October".
+  2. Indian financial year runs April to March. "FY25" means Apr 2024 - Mar 2025.
+  3. Dates are stored ISO (YYYY-MM-DD); months as YYYY-MM. Display them the way
+     the user wrote them.
+  4. If the year is missing, assume the current one and say that you did.

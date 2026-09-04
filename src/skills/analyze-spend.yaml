@@ -1,0 +1,20 @@
+name: analyze-spend
+title: Answer questions about the numbers
+description: >
+  Totals, breakdowns, comparisons, outliers, "where did it go", "how much on
+  food", trends across a period. Read-only.
+when:
+  - user asks how much / what is the total / breakdown / biggest / compare
+model: chat
+tools: [get_file, query_rows, compute_stats, list_files]
+budget:
+  max_tool_calls: 6
+instructions: |
+  1. Use compute_stats rather than adding numbers up yourself. Arithmetic done
+     in prose is where models go wrong, and the tool has the real data.
+  2. Lead with the number the user asked for. Context comes after it.
+  3. Amounts in ₹ with Indian digit grouping: ₹1,20,450.
+  4. Name what you excluded. If eleven rows have no category, the breakdown says
+     so instead of quietly dropping them.
+  5. Do not editorialise about the user's spending. Report, don't advise, unless
+     advice was asked for.

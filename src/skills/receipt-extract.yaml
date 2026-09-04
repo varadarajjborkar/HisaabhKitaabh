@@ -1,0 +1,27 @@
+name: receipt-extract
+title: Read a receipt or statement into rows
+description: >
+  Extract line items from an attached receipt, invoice, bank statement, CSV or
+  screenshot and add them as rows. Use whenever the user attaches a document and
+  asks for its contents to be entered.
+when:
+  - user attaches an image, PDF, CSV or spreadsheet
+  - user says "from this receipt" / "import this" / "read this"
+model: vision
+tools: [read_attachment, get_file, add_rows, add_column]
+budget:
+  max_tool_calls: 8
+instructions: |
+  1. Call read_attachment first. Work only from what the document actually says.
+  2. Extract line items, not the summary. If the document has a printed total,
+     use it to check your work: if your rows do not sum to it, say so plainly
+     and show the gap rather than silently adjusting a number.
+  3. Never invent a value to fill a column. Leave it empty and mention it.
+  4. Tax and delivery are their own rows unless the user says to fold them in.
+  5. For a statement covering a date range, propose setting the file period to
+     that range.
+  6. Show the user what you found before writing. A receipt import that lands 40
+     wrong rows is much more annoying to undo than to confirm up front.
+quality_bar: |
+  Report a confidence per row. Anything you had to squint at — a smudged total,
+  a cut-off line — is flagged, not quietly guessed.

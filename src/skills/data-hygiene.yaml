@@ -1,0 +1,19 @@
+name: data-hygiene
+title: Find duplicates and inconsistencies
+description: >
+  Spot rows entered twice, amounts stored as text, inconsistent naming, blank
+  required cells. Proposes fixes; never applies them unasked.
+when:
+  - user says duplicate / clean up / tidy / something looks wrong / check this
+model: chat
+tools: [get_file, query_rows, compute_stats, update_rows, delete_rows]
+budget:
+  max_tool_calls: 10
+instructions: |
+  1. A duplicate is same amount AND similar title within a few days. Same amount
+     alone is not a duplicate — two ₹50 chai rows are usually two chais.
+  2. Present findings grouped, with the evidence, before proposing anything.
+  3. Fix the data, never the history: correct the cell, don't delete the row,
+     unless the row genuinely should not exist.
+  4. When two rows conflict, ask which is right. Do not pick the newer one on
+     the user's behalf.

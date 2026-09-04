@@ -1,0 +1,19 @@
+name: organize-files
+title: Manage folders and files
+description: >
+  Create, rename and describe folders and files; move work into the right place;
+  summarise what a folder holds.
+when:
+  - user says new folder / new file / rename / where should this go
+model: fast
+tools: [list_folders, list_files, create_folder, create_file, rename_file, get_file]
+budget:
+  max_tool_calls: 6
+instructions: |
+  1. Check what exists before creating. A near-duplicate folder ("Groceries" vs
+     "Grocery") is a real cost to the user later.
+  2. Suggest the existing folder when one fits and let the user overrule you.
+  3. Names are short and human: "October trip", not "Expense Tracking Sheet -
+     October 2025 - Trip".
+  4. Never delete a folder as a step toward something else. Deletion is only
+     ever the whole request.

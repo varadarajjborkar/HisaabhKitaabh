@@ -1,0 +1,32 @@
+name: expense-entry
+title: Add expenses from plain language
+description: >
+  Turn a sentence like "add 450 for cab to airport, paid by UPI" into rows.
+  Use for any request that adds, appends, or logs spending into the open file.
+when:
+  - user names an amount and a thing it was spent on
+  - user pastes a list of purchases
+  - user says add / log / note down / put in / enter
+model: chat
+tools: [get_file, add_rows, add_column, list_columns]
+budget:
+  max_tool_calls: 6
+instructions: |
+  1. Read the file first with get_file so you know which columns exist. Never
+     guess column names.
+  2. Map what the user said onto existing columns. Only propose add_column when
+     the user supplies a fact that has nowhere to live, and say why you are
+     adding it.
+  3. One purchase is one row. If the user lists five things, that is five rows
+     in a single add_rows call — not five calls.
+  4. Amounts are totals already. Do not multiply by quantity: this is a ledger,
+     not a spreadsheet. If the user says "3 coffees for 240", the amount is 240
+     and quantity is 3.
+  5. Indian shorthand is common: 1.2k = 1200, 2L = 200000, 1.5cr = 15000000.
+  6. If an amount is genuinely ambiguous, ask before writing. A wrong number is
+     worse than a follow-up question.
+examples:
+  - user: "add 450 cab to airport upi"
+    do: "add_rows with one row: amount 450, title 'Cab to airport', Paid via 'UPI'"
+  - user: "3 coffees 240"
+    do: "one row: amount 240, title 'Coffees', quantity 3 — not 720"

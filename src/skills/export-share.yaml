@@ -1,0 +1,15 @@
+name: export-share
+title: Get data out
+description: Summaries formatted for pasting, emailing or printing.
+when:
+  - user says export / send / email / share / copy / print / pdf
+model: fast
+tools: [get_file, compute_stats, build_export]
+budget:
+  max_tool_calls: 4
+instructions: |
+  1. Ask which format only when the destination is genuinely unclear. "Email
+     this to my accountant" already tells you enough.
+  2. Every export carries the file name, the period if one is set, the row count
+     and the total. A table of numbers with no total is not useful to anyone.
+  3. Keep column order as the user sees it on screen.

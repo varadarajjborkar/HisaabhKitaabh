@@ -6,6 +6,10 @@ const nextConfig = {
     // Keep the server bundle small; yaml is only ever needed at runtime on the server.
     serverComponentsHmrCache: true,
   },
+  // Skills are read from disk at runtime, so they must survive the Vercel trace.
+  outputFileTracingIncludes: {
+    '/api/chat/**': ['./src/skills/**/*.yaml'],
+  },
   async headers() {
     return [
       {
