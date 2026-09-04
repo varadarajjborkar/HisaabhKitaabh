@@ -75,3 +75,29 @@ export function humanSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
+
+/**
+ * The content type we are willing to *serve back*.
+ *
+ * The attachment reference travels through the client, so its declared MIME
+ * type is user-controlled. Echoing it into a response header would let someone
+ * have their own upload served as text/html from this origin — stored XSS
+ * against their own session, and a foothold worth not granting. Anything
+ * outside this list is served as an opaque download instead.
+ */
+const INLINE_SAFE = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff',
+  'application/pdf', 'text/plain', 'text/csv',
+])
+
+export function safeServeType(mime: string): { type: string; disposition: 'inline' | 'attachment' } {
+  const base = (mime || '').split(';')[0].trim().toLowerCase()
+  if (INLINE_SAFE.has(base)) return { type: base, disposition: 'inline' }
+  // SVG is an image that can carry script, so it downloads rather than renders.
+  return { type: 'application/octet-stream', disposition: 'attachment' }
+}
+
+/** Strip anything that could break out of a Content-Disposition filename. */
+export function safeFilename(name: string): string {
+  return name.replace(/[\r\n"\\]/g, '').replace(/[^\w\s.\-()\[\]]/g, '_').slice(0, 120) || 'attachment'
+}

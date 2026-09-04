@@ -168,8 +168,14 @@ export function Gauge({
         </ul>
       )}
 
-      {segments.length === 0 && (
+      {/* Only say "empty" when it genuinely is. A total with no breakdown is
+          not the same thing as no data, and saying so contradicts the figure
+          printed directly above it. */}
+      {total === 0 && rowCount === 0 && (
         <p className="text-[12px] text-faint mt-2">Add a row and this fills in.</p>
+      )}
+      {total !== 0 && segments.length === 0 && (
+        <p className="text-[12px] text-faint mt-2">No breakdown column yet.</p>
       )}
     </div>
   )

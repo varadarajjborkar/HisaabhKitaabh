@@ -48,14 +48,22 @@ assistant is switched off and everything else works.
 ## Tests
 
 ```bash
-node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/engine.test.mjs
-npx next dev -p 3111 &         # the two below need a running server
-node tests/e2e.test.mjs
-node tests/chat.test.mjs       # calls the real model; ~40s
+npx next dev -p 3111 &         # everything but the engine suite needs this
+npm test                       # all four suites
+npm run test:engine            # or one at a time
 ```
 
-83 tests: 40 on the document engine, 27 on the HTTP surface, 16 driving the
-assistant against the live model and the live write path.
+111 tests in four layers:
+
+| Suite | Tests | What it exercises |
+|---|---|---|
+| `test:engine` | 40 | The document engine in-process — ordering, merge, idempotency, the revision gate, undo, totals |
+| `test:e2e` | 30 | The HTTP surface with a real session — parallel writers, conflicts, attachment refusal |
+| `test:chat` | 16 | The assistant against the live model and the live write path |
+| `test:ui` | 25 | A real browser — editing, saving, undo/redo, the approval card, the phone layout |
+
+Each layer exists because it caught something the one below it structurally
+could not. See [tests/README.md](tests/README.md).
 
 ---
 

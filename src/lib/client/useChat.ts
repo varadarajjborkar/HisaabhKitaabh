@@ -130,6 +130,17 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
             break
 
           case 'permission':
+            // A write tool hands off to the approval card instead of returning
+            // a result, so its "working…" line would otherwise spin forever.
+            setTurns((t) => {
+              const i = t.map((x) => x.kind).lastIndexOf('tool')
+              if (i < 0) return t
+              const prev = t[i] as Extract<Turn, { kind: 'tool' }>
+              if (prev.status !== 'running') return t
+              const copy = [...t]
+              copy[i] = { ...prev, status: 'ok', detail: 'waiting for you' }
+              return copy
+            })
             push({
               id: `perm_${shortId(8)}`,
               kind: 'permission',
@@ -158,6 +169,9 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
             break
 
           case 'done':
+            setTurns((t) =>
+              t.map((x) => (x.kind === 'tool' && x.status === 'running' ? { ...x, status: 'ok' } : x)),
+            )
             setTurns((t) =>
               t.map((x) =>
                 x.id === assistantId && x.kind === 'assistant' ? { ...x, streaming: false, thinking: false } : x,

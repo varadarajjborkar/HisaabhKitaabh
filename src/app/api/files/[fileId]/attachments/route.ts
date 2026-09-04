@@ -1,5 +1,5 @@
 import { ok, fail, withAuth } from '@/lib/http/route'
-import { checkAttachment } from '@/lib/util/mime'
+import { checkAttachment, safeFilename, safeServeType } from '@/lib/util/mime'
 import { env } from '@/lib/env'
 
 type Params = { params: Promise<{ fileId: string }> }
@@ -36,11 +36,15 @@ export const GET = withAuth(async ({ repo }, req: Request) => {
   if (!raw) return fail('invalid', 'Missing attachment reference.', 400)
   const ref = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'))
   const { bytes, mime, name } = await repo.getAttachment(ref)
+  const served = safeServeType(mime)
   return new Response(new Uint8Array(bytes), {
     headers: {
-      'content-type': mime,
-      'content-disposition': `inline; filename="${name.replace(/"/g, '')}"`,
+      'content-type': served.type,
+      'content-disposition': `${served.disposition}; filename="${safeFilename(name)}"`,
       'cache-control': 'private, max-age=3600',
+      'x-content-type-options': 'nosniff',
+      // Belt and braces: even if something renders, it can do nothing.
+      'content-security-policy': "default-src 'none'; sandbox",
     },
   })
 })

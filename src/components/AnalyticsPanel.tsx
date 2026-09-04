@@ -107,7 +107,13 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
             <div className="card p-4 flex items-center justify-center">
               <Gauge
                 total={data.summary.total}
-                slices={data.categories.map((c) => ({ key: c.key, total: c.total }))}
+                // Categories when there are any; otherwise the files themselves,
+                // which is a real breakdown rather than one undifferentiated arc.
+                slices={
+                  data.categories.length >= 2
+                    ? data.categories.map((c) => ({ key: c.key, total: c.total }))
+                    : data.perFile.map((f) => ({ key: f.name, total: f.total }))
+                }
                 rowCount={data.summary.rows}
                 label="Selected"
               />
