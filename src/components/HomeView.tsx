@@ -51,7 +51,7 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
   return (
     <>
       <TopBar
-        title="Khata"
+        title="HisaabKitaab"
         subtitle={`${folders.length} folder${folders.length === 1 ? '' : 's'} · ${total} file${total === 1 ? '' : 's'}`}
         actions={
           <>

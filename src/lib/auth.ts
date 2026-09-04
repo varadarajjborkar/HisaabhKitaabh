@@ -6,7 +6,7 @@ import type { Session, User } from './model/types'
 import { hashPassword, verifyPassword } from './util/hash'
 import { ulid } from './util/ids'
 
-const COOKIE = 'khata_session'
+const COOKIE = 'hisaabkitaab_session'
 const MAX_AGE = 60 * 60 * 24 * 30
 
 function secret(): Uint8Array {
@@ -153,7 +153,7 @@ export async function loginAsDev(username: string, password: string): Promise<Us
 
   const user = baseUser({
     id,
-    email: `${env.dev.username}@khata.local`,
+    email: `${env.dev.username}@hisaabkitaab.local`,
     name: env.dev.username,
     provider: 'dev',
     backend: 'kv',

@@ -76,7 +76,7 @@ export function LoginForm({
             Continue with Google
           </a>
           <p className="text-[11.5px] text-faint mt-2 leading-snug">
-            Your files are stored in a folder in your own Drive. Khata can only see
+            Your files are stored in a folder in your own Drive. HisaabKitaab can only see
             files it created there.
           </p>
 

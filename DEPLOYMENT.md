@@ -1,4 +1,4 @@
-# Deploying Khata
+# Deploying HisaabKitaab
 
 Written for someone who has not done this before. Follow it top to bottom and
 you will have a working production deployment in about half an hour, most of it
@@ -170,7 +170,7 @@ it on a 5-minute interval — free, and you hear about an outage before your use
 do.
 
 **Logs.** Vercel → Deployments → Logs. Everything the app logs is prefixed
-`[khata]`. For retention beyond a day, Vercel's Log Drains send to
+`[hisaabkitaab]`. For retention beyond a day, Vercel's Log Drains send to
 Better Stack or Axiom.
 
 **Drive integrity.** `POST /api/maintenance/drive` sweeps a user's Drive for

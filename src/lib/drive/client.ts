@@ -202,7 +202,7 @@ export const drive = {
   },
 
   async createFile(userId: string, params: { name: string; parentId: string; mime: string; content: Buffer | string; appProperties?: Record<string, string> }): Promise<string> {
-    const boundary = `khata${Math.random().toString(36).slice(2)}`
+    const boundary = `hisaabkitaab${Math.random().toString(36).slice(2)}`
     const metadata = JSON.stringify({
       name: params.name,
       parents: [params.parentId],

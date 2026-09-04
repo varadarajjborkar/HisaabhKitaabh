@@ -1,4 +1,4 @@
-# Khata
+# HisaabKitaab
 
 An expense ledger built around folders, files and rows — with an assistant that
 can edit your data, but never without asking first.
@@ -201,7 +201,7 @@ schemas).
 
 Two backends behind one repository interface:
 
-- **Google Drive** for Google sign-ins. Files live in a `Khata/` folder you own;
+- **Google Drive** for Google sign-ins. Files live in a `HisaabKitaab/` folder you own;
   the app requests `drive.file`, so it can only ever see files it created
   itself. Zero storage cost, and the data is yours outright.
 - **Redis** for password accounts, and as the cache tier for Drive accounts.

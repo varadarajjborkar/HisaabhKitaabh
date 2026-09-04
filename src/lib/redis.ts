@@ -57,8 +57,8 @@ type Entry = { value: unknown; expiresAt?: number }
  * between serverless instances. That is what `kv().durable` reports and why
  * Upstash is the answer for anything real.
  */
-const globalMem = globalThis as typeof globalThis & { __khataMem?: Map<string, Entry> }
-const mem: Map<string, Entry> = (globalMem.__khataMem ??= new Map<string, Entry>())
+const globalMem = globalThis as typeof globalThis & { __hisaabMem?: Map<string, Entry> }
+const mem: Map<string, Entry> = (globalMem.__hisaabMem ??= new Map<string, Entry>())
 
 function memGet(key: string): unknown | null {
   const e = mem.get(key)
@@ -216,13 +216,13 @@ function upstashKV(r: Redis): KV {
   }
 }
 
-const globalKV = globalThis as typeof globalThis & { __khataKV?: KV }
+const globalKV = globalThis as typeof globalThis & { __hisaabKV?: KV }
 
 export function kv(): KV {
-  if (globalKV.__khataKV) return globalKV.__khataKV
+  if (globalKV.__hisaabKV) return globalKV.__hisaabKV
   const r = client()
-  globalKV.__khataKV = r ? upstashKV(r) : memoryKV
-  return globalKV.__khataKV
+  globalKV.__hisaabKV = r ? upstashKV(r) : memoryKV
+  return globalKV.__hisaabKV
 }
 
 export const K = {

@@ -10,7 +10,7 @@
 import { chromium } from 'playwright'
 
 const BASE = process.env.BASE ?? 'http://localhost:3111'
-const SHOTS = process.env.SHOTS ?? '/tmp/khata-shots'
+const SHOTS = process.env.SHOTS ?? '/tmp/hisaabkitaab-shots'
 
 let pass = 0, fail = 0
 const failures = []

@@ -7,19 +7,19 @@ import { drive, type DriveFile } from './client'
  * Document layout inside the user's Drive:
  *
  *   My Drive/
- *     Khata/                         appProperties: khata=root
- *       _index.json                  appProperties: khata=index
- *       Groceries/                   appProperties: khata=folder, fid=<folderId>
- *         <fileId>.khata.json        appProperties: khata=sheet, sid=<fileId>
- *         attachments/               appProperties: khata=attachments
- *           <attachmentId>-name.pdf  appProperties: khata=attachment, aid=<id>
+ *     HisaabKitaab/                  appProperties: hisaab=root
+ *       _index.json                  appProperties: hisaab=index
+ *       Groceries/                   appProperties: hisaab=folder, fid=<folderId>
+ *         <fileId>.hisaab.json       appProperties: hisaab=sheet, sid=<fileId>
+ *         attachments/               appProperties: hisaab=attachments
+ *           <attachmentId>-name.pdf  appProperties: hisaab=attachment, aid=<id>
  *
- * Every object carries a `khataKey` in appProperties. That key — not the file
+ * Every object carries a `hisaabKey` in appProperties. That key — not the file
  * name, not the path — is the identity. Names can be edited by the user in
  * Drive without breaking anything, and duplicates are detectable by key.
  */
 
-const ROOT_NAME = 'Khata'
+const ROOT_NAME = 'HisaabKitaab'
 const SHEET_MIME = 'application/json'
 
 type Resolved = { id: string; duplicates: string[] }
@@ -38,7 +38,7 @@ async function forgetId(userId: string, key: string): Promise<void> {
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 
 /**
- * Find-or-create by khataKey, exactly once.
+ * Find-or-create by hisaabKey, exactly once.
  *
  * This is the single choke point for object creation in Drive, and the reason
  * duplicate folders can't accumulate: the whole find-then-create sequence runs
@@ -59,7 +59,7 @@ async function resolveOrCreate(
     const again = await cachedId(userId, key)
     if (again) return { id: again, duplicates: [] }
 
-    const found = await drive.list(userId, `appProperties has { key='khataKey' and value='${esc(key)}' } and trashed=false`)
+    const found = await drive.list(userId, `appProperties has { key='hisaabKey' and value='${esc(key)}' } and trashed=false`)
     if (found.length > 0) {
       // Oldest wins — `drive.list` orders by createdTime.
       const [winner, ...rest] = found
@@ -75,7 +75,7 @@ async function resolveOrCreate(
 
 export async function rootFolderId(userId: string): Promise<string> {
   const { id, duplicates } = await resolveOrCreate(userId, 'root', () =>
-    drive.createFolder(userId, ROOT_NAME, null, { khataKey: 'root', khata: 'root' }),
+    drive.createFolder(userId, ROOT_NAME, null, { hisaabKey: 'root', hisaab: 'root' }),
   )
   await reconcileDuplicates(userId, duplicates, 'root')
   return id
@@ -85,7 +85,7 @@ export async function folderDirId(userId: string, folder: FolderMeta): Promise<s
   const root = await rootFolderId(userId)
   const key = `folder:${folder.id}`
   const { id, duplicates } = await resolveOrCreate(userId, key, () =>
-    drive.createFolder(userId, safeName(folder.name), root, { khataKey: key, khata: 'folder', fid: folder.id }),
+    drive.createFolder(userId, safeName(folder.name), root, { hisaabKey: key, hisaab: 'folder', fid: folder.id }),
   )
   await reconcileDuplicates(userId, duplicates, key)
   return id
@@ -97,7 +97,7 @@ async function attachmentsDirId(userId: string, folderId: string): Promise<strin
   })
   const key = `attachments:${folderId}`
   const { id, duplicates } = await resolveOrCreate(userId, key, () =>
-    drive.createFolder(userId, 'attachments', parent.id, { khataKey: key, khata: 'attachments' }),
+    drive.createFolder(userId, 'attachments', parent.id, { hisaabKey: key, hisaab: 'attachments' }),
   )
   await reconcileDuplicates(userId, duplicates, key)
   return id
@@ -106,7 +106,7 @@ async function attachmentsDirId(userId: string, folderId: string): Promise<strin
 /**
  * Duplicate reconciliation.
  *
- * Extra objects sharing a khataKey are stamped as duplicates and trashed (not
+ * Extra objects sharing a hisaabKey are stamped as duplicates and trashed (not
  * hard-deleted) so nothing is ever irrecoverably lost — the user can restore
  * from Drive's own trash if a reconciliation was wrong.
  */
@@ -114,7 +114,7 @@ async function reconcileDuplicates(userId: string, ids: string[], key: string): 
   for (const id of ids) {
     try {
       await drive.updateMetadata(userId, id, {
-        appProperties: { khataKey: `dup:${key}:${id}`, khataDuplicateOf: key },
+        appProperties: { hisaabKey: `dup:${key}:${id}`, hisaabDuplicateOf: key },
         name: `(duplicate) ${key}`,
       })
       await drive.trash(userId, id)
@@ -144,7 +144,7 @@ async function indexFileId(userId: string): Promise<string> {
       parentId: root,
       mime: SHEET_MIME,
       content: JSON.stringify(EMPTY_INDEX),
-      appProperties: { khataKey: 'index', khata: 'index' },
+      appProperties: { hisaabKey: 'index', hisaab: 'index' },
     }),
   )
   await reconcileDuplicates(userId, duplicates, 'index')
@@ -210,7 +210,7 @@ export async function readSheet(userId: string, fileId: string): Promise<SheetDo
   let driveId = entry?.driveId ?? (await cachedId(userId, key))
 
   if (!driveId) {
-    const found = await drive.list(userId, `appProperties has { key='khataKey' and value='${esc(key)}' } and trashed=false`)
+    const found = await drive.list(userId, `appProperties has { key='hisaabKey' and value='${esc(key)}' } and trashed=false`)
     if (found.length === 0) return null
     driveId = found[0].id
     await reconcileDuplicates(userId, found.slice(1).map((f) => f.id), key)
@@ -234,11 +234,11 @@ export async function writeSheet(userId: string, doc: SheetDoc, folder: FolderMe
   const parent = await folderDirId(userId, folder)
   const { id, duplicates } = await resolveOrCreate(userId, key, () =>
     drive.createFile(userId, {
-      name: `${safeName(doc.name)}.khata.json`,
+      name: `${safeName(doc.name)}.hisaab.json`,
       parentId: parent,
       mime: SHEET_MIME,
       content: JSON.stringify(doc),
-      appProperties: { khataKey: key, khata: 'sheet', sid: doc.id, fid: doc.folderId },
+      appProperties: { hisaabKey: key, hisaab: 'sheet', sid: doc.id, fid: doc.folderId },
     }),
   )
   await reconcileDuplicates(userId, duplicates, key)
@@ -254,19 +254,19 @@ export async function writeSheet(userId: string, doc: SheetDoc, folder: FolderMe
 
 export async function deleteSheet(userId: string, fileId: string): Promise<void> {
   const key = `sheet:${fileId}`
-  const id = (await cachedId(userId, key)) ?? (await drive.list(userId, `appProperties has { key='khataKey' and value='${esc(key)}' } and trashed=false`))[0]?.id
+  const id = (await cachedId(userId, key)) ?? (await drive.list(userId, `appProperties has { key='hisaabKey' and value='${esc(key)}' } and trashed=false`))[0]?.id
   if (id) await drive.trash(userId, id)
   await forgetId(userId, key)
 }
 
 export async function renameSheetFile(userId: string, fileId: string, name: string): Promise<void> {
   const id = await cachedId(userId, `sheet:${fileId}`)
-  if (id) await drive.updateMetadata(userId, id, { name: `${safeName(name)}.khata.json` })
+  if (id) await drive.updateMetadata(userId, id, { name: `${safeName(name)}.hisaab.json` })
 }
 
 export async function deleteFolderDir(userId: string, folderId: string): Promise<void> {
   const key = `folder:${folderId}`
-  const id = (await cachedId(userId, key)) ?? (await drive.list(userId, `appProperties has { key='khataKey' and value='${esc(key)}' } and trashed=false`))[0]?.id
+  const id = (await cachedId(userId, key)) ?? (await drive.list(userId, `appProperties has { key='hisaabKey' and value='${esc(key)}' } and trashed=false`))[0]?.id
   if (id) await drive.trash(userId, id)
   await forgetId(userId, key)
 }
@@ -286,7 +286,7 @@ export async function putAttachment(
       parentId: parent,
       mime: file.mime,
       content: file.bytes,
-      appProperties: { khataKey: key, khata: 'attachment', aid: file.id },
+      appProperties: { hisaabKey: key, hisaab: 'attachment', aid: file.id },
     }),
   )
   return { id: file.id, name: file.name, mime: file.mime, size: file.bytes.length, backend: 'drive', ref: id, uploadedAt: Date.now() }
@@ -308,15 +308,15 @@ export async function quota(userId: string): Promise<{ used: number; limit: numb
 }
 
 /**
- * Health sweep: find objects sharing a khataKey and reconcile them.
+ * Health sweep: find objects sharing a hisaabKey and reconcile them.
  * Exposed through /api/maintenance/drive so the user can run it if Drive was
  * edited by hand or a write was interrupted mid-flight.
  */
 export async function auditDrive(userId: string): Promise<{ scanned: number; duplicates: number; repaired: string[] }> {
-  const all = await drive.list(userId, `appProperties has { key='khata' and value='sheet' } and trashed=false`)
+  const all = await drive.list(userId, `appProperties has { key='hisaab' and value='sheet' } and trashed=false`)
   const byKey = new Map<string, DriveFile[]>()
   for (const f of all) {
-    const key = f.appProperties?.khataKey
+    const key = f.appProperties?.hisaabKey
     if (!key) continue
     byKey.set(key, [...(byKey.get(key) ?? []), f])
   }

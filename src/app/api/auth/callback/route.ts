@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     await setSessionCookie(toSession(user))
     return NextResponse.redirect(new URL(stored.next || '/home', env.appUrl))
   } catch (err) {
-    console.error('[khata] google callback', err)
+    console.error('[hisaabkitaab] google callback', err)
     return NextResponse.redirect(new URL('/login?error=oauth_failed', env.appUrl))
   }
 }

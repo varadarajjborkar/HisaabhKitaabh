@@ -87,7 +87,7 @@ export function toEmail(doc: SheetDoc): { subject: string; body: string } {
   const period = doc.duration.enabled && doc.duration.from ? ` (${formatDate(doc.duration.from)}${doc.duration.to ? ` — ${formatDate(doc.duration.to)}` : ''})` : ''
   return {
     subject: `${title}${period}`,
-    body: [`${title}`, '', ...lines, '', toPlainText(doc).split('\n').slice(lines.length + 3).join('\n'), '', '— sent from Khata'].join('\n'),
+    body: [`${title}`, '', ...lines, '', toPlainText(doc).split('\n').slice(lines.length + 3).join('\n'), '', '— sent from HisaabKitaab'].join('\n'),
   }
 }
 

@@ -43,4 +43,4 @@ conflict rather than an overwrite.
   first run's rows until the assertions contradicted each other.
 - The UI suite treats any console error or 4xx/5xx API call as a failure. That
   is how the duplicate-React-key bug surfaced.
-- Screenshots land in `/tmp/khata-shots` (override with `SHOTS`).
+- Screenshots land in `/tmp/hisaabkitaab-shots` (override with `SHOTS`).

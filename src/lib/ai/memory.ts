@@ -143,7 +143,7 @@ export async function maybeCompact(userId: string, threadId: string): Promise<vo
       if (typeof fact === 'string') await rememberFact(userId, { text: fact, kind: 'preference' })
     }
   } catch (err) {
-    console.warn('[khata] compaction skipped:', err)
+    console.warn('[hisaabkitaab] compaction skipped:', err)
   }
 }
 

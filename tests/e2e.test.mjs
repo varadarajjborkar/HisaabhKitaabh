@@ -60,7 +60,7 @@ await check('developer login works', async () => {
   eq(r.status, 200)
   eq(r.body.devLogin, true)
   eq(r.body.user.role, 'admin')
-  ok(cookie.includes('khata_session'), 'no session cookie was set')
+  ok(cookie.includes('hisaabkitaab_session'), 'no session cookie was set')
 })
 await check('session reads back', async () => {
   const r = await get('/api/auth/session')
@@ -76,13 +76,13 @@ await check('session reads back', async () => {
  * left the sample file edited and these assertions started failing on state
  * that had nothing to do with the code under test.
  */
-const freshEmail = `e2e-${uid().toLowerCase()}@khata.test`
+const freshEmail = `e2e-${uid().toLowerCase()}@hisaab.test`
 await check('sign up creates a working account', async () => {
   cookie = ''
   const r = await post('/api/auth/signup', { email: freshEmail, password: 'a-good-password', name: 'E2E' })
   eq(r.status, 200)
   eq(r.body.user.email, freshEmail)
-  ok(cookie.includes('khata_session'), 'sign-up did not start a session')
+  ok(cookie.includes('hisaabkitaab_session'), 'sign-up did not start a session')
 })
 await check('a duplicate sign-up is refused', async () => {
   const saved = cookie
@@ -92,7 +92,7 @@ await check('a duplicate sign-up is refused', async () => {
 })
 await check('a short password is refused', async () => {
   const saved = cookie
-  const r = await post('/api/auth/signup', { email: `x-${uid().toLowerCase()}@khata.test`, password: 'short' })
+  const r = await post('/api/auth/signup', { email: `x-${uid().toLowerCase()}@hisaab.test`, password: 'short' })
   eq(r.status, 400)
   cookie = saved
 })
