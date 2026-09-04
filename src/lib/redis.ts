@@ -43,7 +43,22 @@ function client(): Redis | null {
 
 // ---------------------------------------------------------------- memory shim
 type Entry = { value: unknown; expiresAt?: number }
-const mem = new Map<string, Entry>()
+
+/**
+ * The fallback map lives on globalThis, not in module scope.
+ *
+ * Next gives each route handler its own module registry, so a module-scoped Map
+ * would be a *different map per route* — a folder written by POST /api/folders
+ * would be invisible to GET /api/folders/[id], which 404s for no apparent
+ * reason. Hanging it off globalThis makes one map per process, which is what
+ * "in-memory" should mean.
+ *
+ * It is still per-process: nothing survives a restart, and nothing is shared
+ * between serverless instances. That is what `kv().durable` reports and why
+ * Upstash is the answer for anything real.
+ */
+const globalMem = globalThis as typeof globalThis & { __khataMem?: Map<string, Entry> }
+const mem: Map<string, Entry> = (globalMem.__khataMem ??= new Map<string, Entry>())
 
 function memGet(key: string): unknown | null {
   const e = mem.get(key)
@@ -201,12 +216,13 @@ function upstashKV(r: Redis): KV {
   }
 }
 
-let cached: KV | null = null
+const globalKV = globalThis as typeof globalThis & { __khataKV?: KV }
+
 export function kv(): KV {
-  if (cached) return cached
+  if (globalKV.__khataKV) return globalKV.__khataKV
   const r = client()
-  cached = r ? upstashKV(r) : memoryKV
-  return cached
+  globalKV.__khataKV = r ? upstashKV(r) : memoryKV
+  return globalKV.__khataKV
 }
 
 export const K = {
