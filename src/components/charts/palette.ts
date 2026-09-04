@@ -53,9 +53,18 @@ export function withOther<T extends { key: string; total: number }>(
   items: T[],
   max = MAX_SERIES - 1,
 ): Array<{ key: string; total: number; isOther: boolean }> {
-  const sorted = [...items].sort((a, b) => b.total - a.total)
-  if (sorted.length <= max + 1) return sorted.map((s) => ({ key: s.key, total: s.total, isOther: false }))
-  const head = sorted.slice(0, max).map((s) => ({ key: s.key, total: s.total, isOther: false }))
+  // Merge repeats first. Two rows both titled "Coffee" are one slice of the
+  // composition, not two identical legend entries competing for the same colour.
+  const merged = new Map<string, number>()
+  for (const item of items) merged.set(item.key, (merged.get(item.key) ?? 0) + item.total)
+
+  const sorted = [...merged.entries()]
+    .map(([key, total]) => ({ key, total }))
+    .sort((a, b) => b.total - a.total)
+
+  if (sorted.length <= max + 1) return sorted.map((s) => ({ ...s, isOther: false }))
+
+  const head = sorted.slice(0, max).map((s) => ({ ...s, isOther: false }))
   const rest = sorted.slice(max)
   return [...head, { key: `Other (${rest.length})`, total: rest.reduce((s, r) => s + r.total, 0), isOther: true }]
 }

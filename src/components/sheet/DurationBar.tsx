@@ -17,17 +17,12 @@ export function DurationBar({ duration, onChange }: { duration: Duration; onChan
 
   return (
     <div className="card px-3 py-2.5 no-print">
-      <div className="flex items-center gap-3">
+      {/* The toggle and label share a row; the mode switch wraps below it when
+          the card is narrow, rather than crushing the date range into a
+          three-word-per-line column. */}
+      <div className="flex items-center gap-2.5">
         <Toggle checked={duration.enabled} onChange={() => set({ enabled: !duration.enabled })} label="Period" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-medium">Period</p>
-          {!duration.enabled && <p className="text-[11.5px] text-faint">Off — turn on to record what this file covers.</p>}
-          {duration.enabled && (duration.from || duration.to) && (
-            <p className="text-[11.5px] text-muted">
-              {formatDate(duration.from ?? '')} {duration.to && `— ${formatDate(duration.to)}`}
-            </p>
-          )}
-        </div>
+        <p className="text-[12.5px] font-medium flex-1 min-w-0">Period</p>
 
         {duration.enabled && (
           <div className="flex rounded-lg border border-line overflow-hidden shrink-0">
@@ -35,7 +30,7 @@ export function DurationBar({ duration, onChange }: { duration: Duration; onChan
               <button
                 key={m}
                 onClick={() => set({ mode: m, from: undefined, to: undefined })}
-                className={`px-2.5 h-7 text-[11.5px] transition-colors ${
+                className={`px-2 h-6 text-[11px] transition-colors ${
                   duration.mode === m ? 'bg-accent text-white' : 'text-muted hover:bg-raised'
                 }`}
                 aria-pressed={duration.mode === m}
@@ -47,8 +42,19 @@ export function DurationBar({ duration, onChange }: { duration: Duration; onChan
         )}
       </div>
 
+      {!duration.enabled && (
+        <p className="text-[11.5px] text-faint mt-1.5 leading-snug">
+          Off — turn on to record what this file covers.
+        </p>
+      )}
+      {duration.enabled && (duration.from || duration.to) && (
+        <p className="text-[11.5px] text-muted mt-1.5 leading-snug">
+          {formatDate(duration.from ?? '')}{duration.to && ` — ${formatDate(duration.to)}`}
+        </p>
+      )}
+
       {duration.enabled && (
-        <div className="flex items-center gap-2 mt-2.5 animate-rise">
+        <div className="flex items-center gap-1.5 mt-2.5 animate-rise">
           <input
             type={duration.mode === 'month' ? 'month' : 'date'}
             value={duration.from ?? ''}

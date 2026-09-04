@@ -68,10 +68,26 @@ const summarise = (events) => events.map((e) => e.type === 'tool_start' ? `tool:
 
 // ------------------------------------------------------------------ setup
 
-await post('/api/auth/login', { identifier: 'varad', password: 'varad[123]' })
-const folders = (await get('/api/folders')).body.folders
-const folderId = (await post('/api/folders', { name: 'Chat drills', icon: '🤖', id: uid() })).body.folder.id
-const fileId = (await post('/api/files', { folderId, name: 'Agent test sheet', id: uid() })).body.doc.id
+const login = await post('/api/auth/login', { identifier: 'varad', password: 'varad[123]' })
+if (login.status !== 200) {
+  log(`SETUP FAILED: login returned ${login.status} — ${login.body.message ?? ''}`)
+  log('(If this says "too many failed attempts", wait five minutes or restart the server.)')
+  process.exit(1)
+}
+
+const folderRes = await post('/api/folders', { name: 'Chat drills', icon: '🤖', id: uid() })
+if (folderRes.status !== 201) {
+  log(`SETUP FAILED: could not create a folder (${folderRes.status}) — ${folderRes.body.message ?? ''}`)
+  process.exit(1)
+}
+const folderId = folderRes.body.folder.id
+
+const fileRes = await post('/api/files', { folderId, name: 'Agent test sheet', id: uid() })
+if (fileRes.status !== 201) {
+  log(`SETUP FAILED: could not create a file (${fileRes.status}) — ${fileRes.body.message ?? ''}`)
+  process.exit(1)
+}
+const fileId = fileRes.body.doc.id
 
 const A = 'c_amount', T = 'c_title'
 let rev = 0

@@ -68,6 +68,35 @@ await check('session reads back', async () => {
   eq(r.body.ai, true, 'AI should be configured:')
 })
 
+/**
+ * Everything below runs as a brand-new account.
+ *
+ * The seeding assertions describe a *pristine* account, and the shared dev
+ * account accumulates whatever the other suites did to it — an earlier run
+ * left the sample file edited and these assertions started failing on state
+ * that had nothing to do with the code under test.
+ */
+const freshEmail = `e2e-${uid().toLowerCase()}@khata.test`
+await check('sign up creates a working account', async () => {
+  cookie = ''
+  const r = await post('/api/auth/signup', { email: freshEmail, password: 'a-good-password', name: 'E2E' })
+  eq(r.status, 200)
+  eq(r.body.user.email, freshEmail)
+  ok(cookie.includes('khata_session'), 'sign-up did not start a session')
+})
+await check('a duplicate sign-up is refused', async () => {
+  const saved = cookie
+  const r = await post('/api/auth/signup', { email: freshEmail, password: 'a-good-password' })
+  ok(r.status >= 400, `a duplicate email was accepted (${r.status})`)
+  cookie = saved
+})
+await check('a short password is refused', async () => {
+  const saved = cookie
+  const r = await post('/api/auth/signup', { email: `x-${uid().toLowerCase()}@khata.test`, password: 'short' })
+  eq(r.status, 400)
+  cookie = saved
+})
+
 // -------------------------------------------------------------- folders
 
 log('\nFolders and the sample seed')

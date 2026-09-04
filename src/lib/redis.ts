@@ -233,6 +233,7 @@ export const K = {
   googleTokens: (userId: string) => `gtok:${userId}`,
 
   folders: (userId: string) => `d:${userId}:folders`,
+  seeded: (userId: string) => `d:${userId}:seeded`,
   files: (userId: string, folderId: string) => `d:${userId}:f:${folderId}:files`,
   doc: (userId: string, fileId: string) => `d:${userId}:doc:${fileId}`,
   docIndex: (userId: string) => `d:${userId}:docs`,

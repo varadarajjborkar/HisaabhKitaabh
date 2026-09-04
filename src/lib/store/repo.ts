@@ -103,6 +103,7 @@ export class Repo {
       fileCount: 0,
       ...(input.sample ? { sample: true } : {}),
     }
+    await this.markStarted()
     await this.withFolders((folders) => {
       // Idempotent by id: a retried create returns the existing folder.
       if (folders.some((f) => f.id === folder.id)) return folders
@@ -419,17 +420,35 @@ export class Repo {
     return { backend: kv().durable ? 'Managed Redis' : 'In-memory (not durable)', durable: kv().durable }
   }
 
+  /**
+   * Seed the sample folder — exactly once per account, ever.
+   *
+   * Gated on a persistent marker rather than "the folder list is empty", which
+   * was wrong in both directions: a user whose first action was creating a
+   * folder never got the sample at all, and a user who deleted everything had
+   * it silently reappear on their next visit, as though the app had undone
+   * their cleanup.
+   */
   private async ensureSample(): Promise<boolean> {
     return withLock(`seed:${this.uid}`, async () => {
+      if (await kv().get<number>(K.seeded(this.uid))) return false
+      await kv().set(K.seeded(this.uid), Date.now())
+
       const backend = await this.backend()
       const existing =
         backend === 'drive'
           ? (await driveStore.readIndex(this.uid)).folders
           : (await kv().get<FolderMeta[]>(K.folders(this.uid))) ?? []
       if (existing.length > 0) return false
+
       await seedSampleFolder(this)
       return true
     }, { ttlMs: 30_000, waitMs: 20_000 })
+  }
+
+  /** Someone who makes their own folder has started; they don't need the sample. */
+  private async markStarted(): Promise<void> {
+    await kv().set(K.seeded(this.uid), Date.now())
   }
 }
 

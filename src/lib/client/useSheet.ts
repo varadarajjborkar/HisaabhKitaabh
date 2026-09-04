@@ -47,6 +47,17 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
   const docRef = useRef<SheetDoc | null>(null)
   docRef.current = doc
 
+  /**
+   * The last revision the SERVER acknowledged.
+   *
+   * Kept apart from `doc.rev` on purpose: applying an operation locally bumps
+   * the local revision immediately, so the document in state is always one or
+   * more revisions ahead of the server while edits are queued. Sending that
+   * number as `baseRev` would tell the server the client is from the future,
+   * and every single save would come back 409.
+   */
+  const serverRev = useRef<number>(initialDoc?.rev ?? 0)
+
   const actor = useRef(`local:${shortId(6)}`)
 
   // ------------------------------------------------------------- loading
@@ -57,6 +68,7 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
       const res = await get<{ doc: SheetDoc }>(`/api/files/${fileId}${opts.fresh ? '?fresh=1' : ''}`, { quiet: opts.quiet })
       if (res.doc) {
         setDoc(res.doc)
+        serverRev.current = res.doc.rev
         setError(null)
         if (state === 'conflict') setState('idle')
       }
@@ -76,8 +88,7 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
 
   const flush = useCallback(async () => {
     if (inFlight.current || queue.current.length === 0) return
-    const current = docRef.current
-    if (!current) return
+    if (!docRef.current) return
 
     const ops = queue.current
     queue.current = []
@@ -88,15 +99,17 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
       const res = await post<{ doc: SheetDoc; rejected: Array<{ reason: string }> }>(
         `/api/files/${fileId}/mutate`,
         {
-          // The revision these ops were built against, minus anything still
-          // queued locally — the server needs the base we actually branched from.
-          baseRev: current.rev - 0,
+          // The last revision the server confirmed — not the local one, which
+          // optimistic edits have already advanced.
+          baseRev: serverRev.current,
           ops,
           // Makes a retried POST collapse instead of applying twice.
           requestId: shortId(20),
         },
         { quiet: true },
       )
+
+      serverRev.current = res.doc.rev
 
       setDoc((prev) => {
         if (!prev) return res.doc
@@ -118,7 +131,10 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
         queue.current = [...ops, ...queue.current]
         setState('conflict')
         const current = (err.body as { current?: SheetDoc }).current
-        if (current) setDoc((prev) => (prev && current.rev > prev.rev ? current : prev))
+        if (current) {
+          serverRev.current = current.rev
+          setDoc((prev) => (prev && current.rev > prev.rev ? current : prev))
+        }
         setError('Someone else changed this file while you were editing.')
       } else if (err instanceof ApiError && err.status === 0) {
         queue.current = [...ops, ...queue.current]

@@ -69,17 +69,32 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
   const { actions, totals } = sheet
   const gridRef = useRef<HTMLDivElement>(null)
 
-  /** Keyboard movement between cells — Tab/Enter/arrows land where you expect. */
+  /**
+   * Keyboard movement between cells.
+   *
+   * Enter moves down and stops at the last row. Tab past the final cell of the
+   * final row is what adds a new one — that gesture reads as "keep going",
+   * where Enter reads as "done with this value".
+   *
+   * The distinction matters for undo. When Enter auto-appended a row, the last
+   * thing on the undo stack after editing the bottom cell was a phantom empty
+   * row, so Ctrl+Z removed a row the user never knowingly created instead of
+   * reversing the edit they had just made. It also quietly accumulated blank
+   * rows in the file.
+   */
   const navigate = (rowIndex: number, colIndex: number, dir: 'up' | 'down' | 'next' | 'prev') => {
     let r = rowIndex
     let c = colIndex
+    let append = false
+
     if (dir === 'up') r--
     else if (dir === 'down') r++
-    else if (dir === 'next') { c++; if (c >= columns.length) { c = 0; r++ } }
+    else if (dir === 'next') { c++; if (c >= columns.length) { c = 0; r++; append = true } }
     else { c--; if (c < 0) { c = columns.length - 1; r-- } }
+
     if (r < 0 || c < 0) return
     if (r >= rows.length) {
-      // Falling off the bottom adds a row — the fastest way to enter a list.
+      if (!append) return // Enter at the bottom simply commits and stays put.
       const id = actions.addRow()
       if (id) requestAnimationFrame(() => focusCell(gridRef.current, id, columns[0].id))
       return
@@ -155,7 +170,9 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
             ))}
 
             {rows.length === 0 && (
-              <tr>
+              /* Marked so it is never mistaken for a data row — by a screen
+                 reader, by a test, or by anything else counting rows. */
+              <tr data-placeholder="empty">
                 <td colSpan={columns.length + 2} className="px-4 py-10 text-center text-[13px] text-faint">
                   No rows yet. Add one below, or ask the assistant.
                 </td>

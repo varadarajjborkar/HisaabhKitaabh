@@ -99,20 +99,32 @@ export function SheetView({
   const amountCol = doc.columns.find((c) => c.kind === 'amount')
   const slices = (() => {
     if (!amountCol) return []
-    if (groupCol) {
-      const map = new Map<string, number>()
-      for (const r of sheet.rows) {
-        const raw = r.cells[groupCol.id]
-        const key = raw == null || raw === '' ? 'Not set' : Array.isArray(raw) ? 'Files' : String(raw).slice(0, 30)
-        map.set(key, (map.get(key) ?? 0) + numeric(r.cells[amountCol.id]))
-      }
-      return [...map.entries()].map(([key, total]) => ({ key, total }))
-    }
     const titleCol = doc.columns.find((c) => c.kind === 'text' && c.system)
-    return sheet.rows.map((r) => ({
-      key: String(r.cells[titleCol?.id ?? ''] ?? 'Untitled').slice(0, 30),
-      total: numeric(r.cells[amountCol.id]),
-    }))
+    const byRow = () =>
+      sheet.rows.map((r) => ({
+        key: String(r.cells[titleCol?.id ?? ''] ?? 'Untitled').slice(0, 30) || 'Untitled',
+        total: numeric(r.cells[amountCol.id]),
+      }))
+
+    if (!groupCol) return byRow()
+
+    const map = new Map<string, number>()
+    let categorised = 0
+    for (const r of sheet.rows) {
+      const raw = r.cells[groupCol.id]
+      const filled = raw != null && raw !== '' && !Array.isArray(raw)
+      if (filled) categorised++
+      const key = filled ? String(raw).slice(0, 30) : 'Not set'
+      map.set(key, (map.get(key) ?? 0) + numeric(r.cells[amountCol.id]))
+    }
+
+    // One slice fills the whole arc, which reads as a progress bar at 100% and
+    // tells the user nothing. If the grouping column isn't earning its place
+    // yet, show the composition by row instead.
+    const distinctFilled = [...map.keys()].filter((k) => k !== 'Not set').length
+    if (categorised === 0 || distinctFilled < 2) return byRow()
+
+    return [...map.entries()].map(([key, total]) => ({ key, total }))
   })()
 
   return (

@@ -266,7 +266,7 @@ export function ChatPanel({
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
             }}
             rows={1}
-            placeholder={scope.fileId ? 'Add 450 for a cab, or ask about this file…' : 'Ask about your files…'}
+            placeholder={scope.fileId ? 'Ask, or add a row…' : 'Ask about your files…'}
             className="input h-9 min-h-9 py-2 resize-none text-[13px] leading-snug"
             disabled={chat.busy}
           />

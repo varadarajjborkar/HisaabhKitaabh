@@ -105,7 +105,7 @@ export function Gauge({
 
           {segments.map((s) => (
             <path
-              key={s.key}
+              key={`seg-${s.index}`}
               d={arcPath(s.start, s.end, R_OUTER, R_INNER)}
               fill={s.color}
               opacity={hover === null || hover === s.index ? 1 : 0.32}
@@ -155,7 +155,7 @@ export function Gauge({
         <ul className="flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 mt-3 px-2 max-w-[300px]">
           {segments.map((s) => (
             <li
-              key={s.key}
+              key={`leg-${s.index}`}
               className="flex items-center gap-1.5 text-[11.5px] cursor-default"
               onMouseEnter={() => setHover(s.index)}
               onMouseLeave={() => setHover(null)}

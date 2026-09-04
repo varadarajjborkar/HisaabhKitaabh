@@ -48,8 +48,18 @@ export function Modal({
     <dialog
       ref={ref}
       onClick={(e) => { if (e.target === ref.current) onClose() }}
-      className={`backdrop:bg-black/45 backdrop:backdrop-blur-[2px] bg-transparent p-0 m-0 w-full h-full max-w-none max-h-none
-                  flex items-end sm:items-center justify-center`}
+      /*
+       * `hidden open:flex`, not plain `flex`.
+       *
+       * The UA stylesheet hides a closed dialog with `dialog:not([open])
+       * { display: none }`, but cascade *origin* outranks specificity: any
+       * author-level `display: flex` beats it. A bare `flex` here left every
+       * closed modal as a full-viewport, invisible element that swallowed every
+       * click on the page behind it.
+       */
+      className={`hidden open:flex backdrop:bg-black/45 backdrop:backdrop-blur-[2px]
+                  bg-transparent p-0 m-0 w-full h-full max-w-none max-h-none
+                  items-end sm:items-center justify-center`}
     >
       <div className={`card shadow-pop w-full ${width} max-h-[88vh] flex flex-col animate-rise
                        rounded-b-none sm:rounded-b-xl2 mb-0 sm:mb-0`}>

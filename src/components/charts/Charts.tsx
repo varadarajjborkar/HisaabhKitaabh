@@ -54,7 +54,7 @@ export function BarChart({
           const color = seriesColor(i, dark)
           return (
             <li
-              key={r.key}
+              key={`${i}-${r.key}`}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
               onClick={() => onSelect?.(r.key)}

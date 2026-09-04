@@ -108,8 +108,31 @@ export function sleep(ms: number): Promise<void> {
 /** Fixed-window rate limit. Cheap, and good enough to keep an agent loop honest. */
 export async function rateLimit(userId: string, bucket: string, limit: number, windowSec: number): Promise<{ ok: boolean; remaining: number }> {
   const store = kv()
-  const key = K.rate(userId, `${bucket}:${Math.floor(Date.now() / 1000 / windowSec)}`)
+  const n = await store.incr(rateKey(userId, bucket, windowSec))
+  if (n === 1) await store.expire(rateKey(userId, bucket, windowSec), windowSec)
+  return { ok: n <= limit, remaining: Math.max(0, limit - n) }
+}
+
+function rateKey(userId: string, bucket: string, windowSec: number): string {
+  return K.rate(userId, `${bucket}:${Math.floor(Date.now() / 1000 / windowSec)}`)
+}
+
+/**
+ * Read a counter without touching it.
+ *
+ * Sign-in uses this so that only *failed* attempts count toward a lockout. A
+ * counter that also ticks on success punishes the person with four devices and
+ * a browser that re-authenticates, which is not who the limit is for.
+ */
+export async function rateCheck(userId: string, bucket: string, limit: number, windowSec: number): Promise<{ ok: boolean; remaining: number }> {
+  const n = Number((await kv().get<number>(rateKey(userId, bucket, windowSec))) ?? 0)
+  return { ok: n < limit, remaining: Math.max(0, limit - n) }
+}
+
+/** Record one failed attempt against the window. */
+export async function rateNote(userId: string, bucket: string, windowSec: number): Promise<void> {
+  const store = kv()
+  const key = rateKey(userId, bucket, windowSec)
   const n = await store.incr(key)
   if (n === 1) await store.expire(key, windowSec)
-  return { ok: n <= limit, remaining: Math.max(0, limit - n) }
 }
