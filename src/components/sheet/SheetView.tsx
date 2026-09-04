@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSheet } from '@/lib/client/useSheet'
+import type { SheetDoc } from '@/lib/model/types'
 import { Grid } from './Grid'
 import { DurationBar } from './DurationBar'
 import { Toolbar } from './Toolbar'
@@ -29,12 +30,14 @@ export function SheetView({
   fileId,
   folderId,
   folderName,
+  initialDoc,
 }: {
   fileId: string
   folderId: string
   folderName: string
+  initialDoc?: SheetDoc | null
 }) {
-  const sheet = useSheet(fileId)
+  const sheet = useSheet(fileId, initialDoc)
   const { session, aiEnabled } = useShell()
   const router = useRouter()
 

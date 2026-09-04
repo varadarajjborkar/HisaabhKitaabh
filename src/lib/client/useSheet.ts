@@ -30,9 +30,9 @@ type UndoEntry = { label: string; undo: Op[]; redo: Op[] }
 const FLUSH_DELAY = 700
 const MAX_HISTORY = 60
 
-export function useSheet(fileId: string) {
-  const [doc, setDoc] = useState<SheetDoc | null>(null)
-  const [loading, setLoading] = useState(true)
+export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
+  const [doc, setDoc] = useState<SheetDoc | null>(initialDoc ?? null)
+  const [loading, setLoading] = useState(!initialDoc)
   const [state, setState] = useState<SaveState>('idle')
   const [error, setError] = useState<string | null>(null)
   /** Row ids touched by the assistant, so the UI can flash what changed. */
@@ -67,7 +67,10 @@ export function useSheet(fileId: string) {
     }
   }, [fileId, state])
 
-  useEffect(() => { void load() }, [fileId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The page already fetched this document server-side for its own 404 check,
+  // so the first paint has real rows rather than a skeleton. Revalidate quietly
+  // in the background in case it changed between render and hydration.
+  useEffect(() => { void load({ quiet: Boolean(initialDoc), fresh: Boolean(initialDoc) }) }, [fileId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // -------------------------------------------------------------- saving
 

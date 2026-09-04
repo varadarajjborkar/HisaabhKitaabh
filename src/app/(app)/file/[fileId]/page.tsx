@@ -14,5 +14,12 @@ export default async function FilePage({ params }: { params: Promise<{ fileId: s
   if (!doc) notFound()
   const folder = await repo.getFolder(doc.folderId).catch(() => null)
 
-  return <SheetView fileId={fileId} folderId={doc.folderId} folderName={folder?.name ?? 'Folder'} />
+  return (
+    <SheetView
+      fileId={fileId}
+      folderId={doc.folderId}
+      folderName={folder?.name ?? 'Folder'}
+      initialDoc={doc}
+    />
+  )
 }
