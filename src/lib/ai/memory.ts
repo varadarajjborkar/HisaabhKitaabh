@@ -1,6 +1,6 @@
 import { K, kv } from '../redis'
 import { shortId } from '../util/ids'
-import { chatJson } from './ollama'
+import { chatStructured } from './ollama'
 import { env } from '../env'
 
 /**
@@ -101,10 +101,24 @@ export async function maybeCompact(userId: string, threadId: string): Promise<vo
   const prior = await getSummary(userId, threadId)
 
   try {
-    const result = await chatJson<{ summary: string; facts: string[] }>({
+    const result = await chatStructured<{ summary?: string; facts?: unknown }>({
       model: env.ollama.fastModel,
       temperature: 0,
-      maxTokens: 700,
+      maxTokens: 2000,
+      toolName: 'save_summary',
+      description: 'Save the compacted conversation summary. Call exactly once.',
+      schema: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string', description: 'Under 200 words, third person.' },
+          facts: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Durable user preferences worth remembering beyond this thread. Empty array if none.',
+          },
+        },
+        required: ['summary', 'facts'],
+      },
       messages: [
         {
           role: 'system',
@@ -118,20 +132,15 @@ export async function maybeCompact(userId: string, threadId: string): Promise<vo
             .join('\n')}`,
         },
       ],
-      schema: {
-        type: 'object',
-        properties: {
-          summary: { type: 'string' },
-          facts: { type: 'array', items: { type: 'string' }, description: 'Durable user preferences worth remembering beyond this thread' },
-        },
-        required: ['summary', 'facts'],
-      },
     })
+
+    if (!result?.summary) return
 
     await kv().set(K.chatSummary(userId, threadId), result.summary, { ex: 60 * 60 * 24 * 60 })
     await kv().ltrim(K.chat(userId, threadId), 0, L1_LIMIT - 1)
-    for (const fact of (result.facts ?? []).slice(0, 3)) {
-      await rememberFact(userId, { text: fact, kind: 'preference' })
+    const facts = Array.isArray(result.facts) ? result.facts : []
+    for (const fact of facts.slice(0, 3)) {
+      if (typeof fact === 'string') await rememberFact(userId, { text: fact, kind: 'preference' })
     }
   } catch (err) {
     console.warn('[khata] compaction skipped:', err)

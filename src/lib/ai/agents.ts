@@ -1,5 +1,5 @@
 import { env } from '../env'
-import { chatJson, type Msg } from './ollama'
+import { chatStructured, type Msg } from './ollama'
 import type { ToolCtx, ToolDef, ToolResult } from './tools'
 import { computeTotals, findColumn, liveRows } from '../crdt/doc'
 import { formatINR } from '../util/format'
@@ -138,31 +138,80 @@ export type ExtractionResult = {
 }
 
 const EXTRACTION_SCHEMA = {
-  type: 'object',
+  type: 'object' as const,
   properties: {
     rows: {
       type: 'array',
+      description: 'Every line item, in the order they appear on the document.',
       items: {
         type: 'object',
         properties: {
-          amount: { type: ['number', 'null'] },
-          title: { type: 'string' },
+          amount: { type: 'number', description: 'Plain number. No currency symbol, no thousands separators. Negative for discounts.' },
+          title: { type: 'string', description: 'What was bought, as printed.' },
           notes: { type: 'string' },
-          date: { type: 'string' },
+          date: { type: 'string', description: 'YYYY-MM-DD, only if legible.' },
           quantity: { type: 'number' },
           category: { type: 'string' },
           confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-          concern: { type: 'string' },
+          concern: { type: 'string', description: 'Why this row is uncertain, if it is.' },
         },
         required: ['amount', 'title', 'confidence'],
       },
     },
-    documentTotal: { type: ['number', 'null'] },
-    currency: { type: ['string', 'null'] },
-    period: { type: ['object', 'null'], properties: { from: { type: 'string' }, to: { type: 'string' } } },
-    notes: { type: 'array', items: { type: 'string' } },
+    documentTotal: { type: 'number', description: 'The total printed on the document, if there is one.' },
+    currency: { type: 'string' },
+    periodFrom: { type: 'string', description: 'YYYY-MM-DD if the document covers a range.' },
+    periodTo: { type: 'string' },
+    notes: { type: 'array', items: { type: 'string' }, description: 'Anything the user should know about this extraction.' },
   },
   required: ['rows', 'documentTotal', 'notes'],
+}
+
+/**
+ * Coerce whatever the model returned into ExtractedRow.
+ *
+ * Models drift on nested field names even when the tool schema spells them out
+ * — `description` for `title`, `price` for `amount` — so the shape is mapped
+ * rather than trusted. Anything that cannot be read as a number becomes null
+ * with low confidence, which surfaces in the approval card instead of silently
+ * becoming a zero in someone's total.
+ */
+function coerceRow(raw: unknown): ExtractedRow | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const pick = (...keys: string[]) => {
+    for (const k of keys) {
+      const hit = Object.keys(r).find((key) => key.toLowerCase() === k)
+      if (hit && r[hit] != null && r[hit] !== '') return r[hit]
+    }
+    return undefined
+  }
+
+  const rawAmount = pick('amount', 'price', 'value', 'total', 'cost', 'inr', 'sum')
+  let amount: number | null = null
+  if (typeof rawAmount === 'number' && Number.isFinite(rawAmount)) amount = rawAmount
+  else if (typeof rawAmount === 'string') {
+    const n = parseFloat(rawAmount.replace(/[^0-9.\-]/g, ''))
+    amount = Number.isFinite(n) ? n : null
+  }
+
+  const title = String(pick('title', 'description', 'item', 'name', 'particulars', 'label') ?? '').trim()
+  if (!title && amount == null) return null
+
+  const qty = pick('quantity', 'qty', 'count')
+  const confidence = String(pick('confidence') ?? '').toLowerCase()
+
+  return {
+    amount,
+    title: title || '(untitled line)',
+    notes: pick('notes', 'note', 'remark') ? String(pick('notes', 'note', 'remark')) : undefined,
+    date: /^\d{4}-\d{2}-\d{2}/.test(String(pick('date') ?? '')) ? String(pick('date')).slice(0, 10) : undefined,
+    quantity: typeof qty === 'number' ? qty : qty ? Number(qty) || undefined : undefined,
+    category: pick('category', 'type') ? String(pick('category', 'type')) : undefined,
+    // An unreadable amount is never "high" confidence, whatever the model said.
+    confidence: amount == null ? 'low' : confidence === 'high' || confidence === 'medium' || confidence === 'low' ? (confidence as ExtractedRow['confidence']) : 'medium',
+    concern: pick('concern', 'issue', 'warning') ? String(pick('concern', 'issue', 'warning')) : amount == null ? 'The amount could not be read.' : undefined,
+  }
 }
 
 /**
@@ -170,8 +219,8 @@ const EXTRACTION_SCHEMA = {
  *
  * Text-shaped files are parsed deterministically first and the model only maps
  * columns — no vision pass, no hallucinated digits. Images go to the vision
- * model with a schema, and every row comes back with a confidence so the
- * approval card can flag the ones worth a second look.
+ * model. Structure comes from a tool call rather than `format`, because this
+ * endpoint ignores `format` (verified, not assumed).
  */
 export async function runExtractor(input: {
   name: string
@@ -181,19 +230,30 @@ export async function runExtractor(input: {
   columns: string[]
 }): Promise<ExtractionResult> {
   const isText = isTabularText(input.name, input.mime)
+  const image = isImage(input.mime)
+
+  if (!isText && !image) {
+    return {
+      rows: [],
+      documentTotal: null,
+      currency: null,
+      period: null,
+      notes: [`${input.name} is a format that cannot be read here. Ask the user for a CSV or a photo of the document.`],
+    }
+  }
 
   const messages: Msg[] = [
     {
       role: 'system',
       content: [
-        'You read financial documents into structured rows.',
+        'You read financial documents and report their line items by calling report_line_items exactly once.',
         'Rules:',
-        '- Transcribe. Never infer a number that is not printed. If a figure is unreadable, set amount to null, confidence "low", and describe the problem in `concern`.',
+        '- Transcribe. Never infer a number that is not printed. If a figure is unreadable, set confidence "low" and describe the problem in `concern`.',
         '- One line item per row. Do not merge or split what the document shows.',
         '- Tax, tip, delivery and discounts are their own rows unless the instruction says otherwise. A discount is a negative amount.',
-        '- Strip currency symbols; amounts are plain numbers. Indian formats like 1,20,450.50 are one number.',
-        '- If the document prints a total, put it in documentTotal so the sum can be checked. Do not adjust line items to make them agree.',
-        '- Dates as YYYY-MM-DD when the year is legible, otherwise omit.',
+        '- Strip currency symbols; amounts are plain numbers. Indian formats like 1,20,450.50 are the single number 120450.50.',
+        '- Put the printed grand total in documentTotal so the sum can be checked. Never adjust line items to make them agree.',
+        '- Use the field names exactly as given: amount, title, notes, date, quantity, category, confidence, concern.',
         `- The destination file has these columns: ${input.columns.join(', ')}. Prefer titles and categories that fit them.`,
       ].join('\n'),
     },
@@ -215,46 +275,59 @@ export async function runExtractor(input: {
           : `Raw contents:\n${text.slice(0, 20000)}`,
       ].join('\n\n'),
     })
-  } else if (isImage(input.mime)) {
+  } else {
     messages.push({
       role: 'user',
       content: `Instruction: ${input.instruction}\nRead every line item from this document.`,
       images: [input.bytes.toString('base64')],
     })
-  } else {
-    return {
-      rows: [],
-      documentTotal: null,
-      currency: null,
-      period: null,
-      notes: [`${input.name} is a format that cannot be read here. Ask the user for a CSV or a photo of the document.`],
-    }
   }
 
-  const result = await chatJson<ExtractionResult>({
-    model: isText ? env.ollama.chatModel : env.ollama.visionModel,
+  const raw = await chatStructured<Record<string, unknown>>({
+    model: image ? env.ollama.visionModel : env.ollama.extractModel,
     messages,
+    toolName: 'report_line_items',
+    description: 'Report every line item transcribed from the document. Call exactly once.',
     schema: EXTRACTION_SCHEMA,
     temperature: 0,
     numCtx: 32768,
-    maxTokens: 4000,
+    maxTokens: 6000,
   })
 
-  const rows = (result.rows ?? []).filter((r) => r.title || r.amount != null)
-  const notes = [...(result.notes ?? [])]
+  if (!raw) {
+    return { rows: [], documentTotal: null, currency: null, period: null, notes: ['The document reader could not produce a usable result. Ask the user to paste the figures instead.'] }
+  }
 
-  // Arithmetic check we can do ourselves, so a mis-read is caught before approval.
-  if (result.documentTotal != null && rows.length > 0) {
+  const rows = (Array.isArray(raw.rows) ? raw.rows : [])
+    .map(coerceRow)
+    .filter((r): r is ExtractedRow => r !== null)
+
+  const documentTotal = typeof raw.documentTotal === 'number' && Number.isFinite(raw.documentTotal) ? raw.documentTotal : null
+  const notes = (Array.isArray(raw.notes) ? raw.notes : []).map(String)
+
+  const from = typeof raw.periodFrom === 'string' ? raw.periodFrom : undefined
+  const to = typeof raw.periodTo === 'string' ? raw.periodTo : undefined
+
+  // An arithmetic check we can do ourselves, so a mis-read surfaces before approval.
+  if (documentTotal != null && rows.length > 0) {
     const sum = rows.reduce((s, r) => s + (r.amount ?? 0), 0)
-    const gap = Math.round((result.documentTotal - sum) * 100) / 100
+    const gap = Math.round((documentTotal - sum) * 100) / 100
     if (Math.abs(gap) > 0.5) {
       notes.push(
-        `The extracted rows add up to ${formatINR(sum)} but the document says ${formatINR(result.documentTotal)} — a gap of ${formatINR(Math.abs(gap))}. Something was probably missed or misread.`,
+        `The extracted rows add up to ${formatINR(sum)} but the document says ${formatINR(documentTotal)} — a gap of ${formatINR(Math.abs(gap))}. Something was probably missed or misread.`,
       )
     }
   }
+  const lowConfidence = rows.filter((r) => r.confidence === 'low').length
+  if (lowConfidence > 0) notes.push(`${lowConfidence} row(s) were hard to read — check them before approving.`)
 
-  return { ...result, rows, notes }
+  return {
+    rows,
+    documentTotal,
+    currency: typeof raw.currency === 'string' ? raw.currency : null,
+    period: from || to ? { from, to } : null,
+    notes,
+  }
 }
 
 // -------------------------------------------------------------------- analyst

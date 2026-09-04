@@ -45,6 +45,8 @@ export type ChatOptions = {
 
 export type ChatChunk =
   | { kind: 'text'; text: string }
+  /** Reasoning models stream a separate `thinking` channel; it is never shown as the answer. */
+  | { kind: 'thinking'; text: string }
   | { kind: 'tool_call'; call: ToolCall }
   | { kind: 'done'; reason: string; usage?: { promptTokens: number; completionTokens: number; ms: number } }
 
@@ -79,7 +81,10 @@ function body(opts: ChatOptions, stream: boolean) {
     options: {
       temperature: opts.temperature ?? 0.2,
       num_ctx: opts.numCtx ?? 16384,
-      ...(opts.maxTokens ? { num_predict: opts.maxTokens } : {}),
+      // Reasoning models spend tokens on `thinking` before writing a single
+      // token of answer. A budget sized only for the answer returns an empty
+      // string, so the floor here is deliberately generous.
+      num_predict: opts.maxTokens ?? 4096,
     },
   })
 }
@@ -117,7 +122,7 @@ export async function* streamChat(opts: ChatOptions): AsyncGenerator<ChatChunk> 
       if (!line) continue
 
       let evt: {
-        message?: { content?: string; tool_calls?: ToolCall[] }
+        message?: { content?: string; thinking?: string; tool_calls?: ToolCall[] }
         done?: boolean
         done_reason?: string
         error?: string
@@ -131,6 +136,7 @@ export async function* streamChat(opts: ChatOptions): AsyncGenerator<ChatChunk> 
       }
       if (evt.error) throw new AiError(evt.error)
 
+      if (evt.message?.thinking) yield { kind: 'thinking', text: evt.message.thinking }
       if (evt.message?.content) yield { kind: 'text', text: evt.message.content }
       for (const call of evt.message?.tool_calls ?? []) {
         yield { kind: 'tool_call', call: normalizeCall(call) }
@@ -149,7 +155,7 @@ export async function* streamChat(opts: ChatOptions): AsyncGenerator<ChatChunk> 
 }
 
 /** One-shot chat. Used by the sub-agents that don't need to stream. */
-export async function chat(opts: ChatOptions): Promise<{ content: string; toolCalls: ToolCall[] }> {
+export async function chat(opts: ChatOptions): Promise<{ content: string; thinking: string; toolCalls: ToolCall[] }> {
   if (!env.ollama.enabled) throw new AiNotConfiguredError()
   const res = await fetch(`${env.ollama.host}/api/chat`, {
     method: 'POST',
@@ -158,37 +164,97 @@ export async function chat(opts: ChatOptions): Promise<{ content: string; toolCa
     signal: opts.signal,
   })
   if (!res.ok) throw new AiError(await describeFailure(res), res.status)
-  const data = (await res.json()) as { message?: { content?: string; tool_calls?: ToolCall[] }; error?: string }
+  const data = (await res.json()) as { message?: { content?: string; thinking?: string; tool_calls?: ToolCall[] }; error?: string }
   if (data.error) throw new AiError(data.error)
   return {
     content: data.message?.content ?? '',
+    thinking: data.message?.thinking ?? '',
     toolCalls: (data.message?.tool_calls ?? []).map(normalizeCall),
   }
 }
 
-/** Schema-constrained JSON. The reliable way to get structured data out. */
-export async function chatJson<T>(opts: ChatOptions & { schema: Record<string, unknown> }): Promise<T> {
-  const { content } = await chat({ ...opts, format: opts.schema, temperature: opts.temperature ?? 0 })
-  try {
-    return JSON.parse(content) as T
-  } catch {
-    // Some models wrap JSON in prose or a fence even under `format`.
-    const match = content.match(/\{[\s\S]*\}|\[[\s\S]*\]/)
-    if (!match) throw new AiError('The model did not return usable JSON')
-    return JSON.parse(match[0]) as T
+/**
+ * Structured output, via a tool call.
+ *
+ * Measured behaviour on this endpoint, not a guess: the `format` parameter —
+ * both a JSON Schema and plain `"json"` — is accepted and then ignored. Models
+ * answer with markdown-fenced JSON whose field names are their own invention.
+ * Tool-call arguments, by contrast, come back as real objects that respect the
+ * top-level schema.
+ *
+ * So structured extraction is a tool call the model is told to make exactly
+ * once. Nested item keys still drift between models (`description` where the
+ * schema said `title`), so every caller runs the result through a coercion
+ * step rather than trusting the shape.
+ */
+export async function chatStructured<T>(opts: ChatOptions & {
+  toolName: string
+  schema: { type: 'object'; properties: Record<string, unknown>; required?: string[] }
+  description?: string
+}): Promise<T | null> {
+  const tool: ToolSpec = {
+    type: 'function',
+    function: {
+      name: opts.toolName,
+      description: opts.description ?? 'Report the result in structured form. Call this exactly once.',
+      parameters: opts.schema,
+    },
   }
+  const { toolCalls, content } = await chat({ ...opts, tools: [tool], temperature: opts.temperature ?? 0 })
+
+  const call = toolCalls.find((c) => c.function.name === opts.toolName) ?? toolCalls[0]
+  if (call?.function?.arguments && typeof call.function.arguments === 'object') {
+    return call.function.arguments as T
+  }
+  // Some models answer in prose instead of calling the tool. Salvage what we can.
+  const salvaged = extractJson(content)
+  return (salvaged as T) ?? null
 }
 
-export async function embed(texts: string[]): Promise<number[][]> {
-  if (!env.ollama.enabled) throw new AiNotConfiguredError()
-  const res = await fetch(`${env.ollama.host}/api/embed`, {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ model: env.ollama.embedModel, input: texts }),
-  })
-  if (!res.ok) throw new AiError(await describeFailure(res), res.status)
-  const data = (await res.json()) as { embeddings: number[][] }
-  return data.embeddings
+/**
+ * Pull a JSON value out of a model response.
+ * Handles fenced blocks, leading prose, and trailing commentary — all of which
+ * this endpoint produces even when asked not to.
+ */
+export function extractJson(text: string): unknown | null {
+  if (!text) return null
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  const candidates = [fenced?.[1], text].filter(Boolean) as string[]
+
+  for (const candidate of candidates) {
+    const trimmed = candidate.trim()
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      /* try to locate a balanced value inside it */
+    }
+    const start = trimmed.search(/[{[]/)
+    if (start < 0) continue
+    const open = trimmed[start]
+    const close = open === '{' ? '}' : ']'
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let i = start; i < trimmed.length; i++) {
+      const ch = trimmed[i]
+      if (escaped) { escaped = false; continue }
+      if (ch === '\\') { escaped = true; continue }
+      if (ch === '"') { inString = !inString; continue }
+      if (inString) continue
+      if (ch === open) depth++
+      else if (ch === close) {
+        depth--
+        if (depth === 0) {
+          try {
+            return JSON.parse(trimmed.slice(start, i + 1))
+          } catch {
+            break
+          }
+        }
+      }
+    }
+  }
+  return null
 }
 
 /** Arguments sometimes arrive as a JSON string rather than an object. */

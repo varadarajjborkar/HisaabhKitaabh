@@ -46,6 +46,8 @@ export type RunState = {
 export type AgentEvent =
   | { type: 'run'; runId: string; skills: string[] }
   | { type: 'text'; delta: string }
+  /** Reasoning models emit a separate channel before the answer. Shown as a status, never as the reply. */
+  | { type: 'thinking' }
   | { type: 'tool_start'; name: string; label: string }
   | { type: 'tool_result'; name: string; ok: boolean; summary: string }
   | { type: 'permission'; action: PendingAction }
@@ -287,12 +289,21 @@ async function* runLoop(
   try {
     for (let turn = 0; turn < 8; turn++) {
       let text = ''
+      let announcedThinking = false
       const calls: ToolCall[] = []
 
       for await (const chunk of streamChat({ messages: state.messages, tools: specs, temperature: 0.2, numCtx: 24576 })) {
         if (chunk.kind === 'text') {
           text += chunk.text
           yield { type: 'text', delta: chunk.text }
+        } else if (chunk.kind === 'thinking') {
+          // The reasoning channel is not the answer, and showing it as one
+          // would put half-formed conclusions in front of the user. It becomes
+          // a single "thinking" status instead.
+          if (!announcedThinking) {
+            announcedThinking = true
+            yield { type: 'thinking' }
+          }
         } else if (chunk.kind === 'tool_call') {
           calls.push(chunk.call)
         }

@@ -189,7 +189,8 @@ function upstashKV(r: Redis): KV {
     smembers: (key) => r.smembers(key),
     hset: async (key, field, value) => { await r.hset(key, { [field]: value as never }) },
     hget: <T>(key: string, field: string) => r.hget<T>(key, field).then((v) => v ?? null),
-    hgetall: <T>(key: string) => r.hgetall<T>(key).then((v) => (v ?? {}) as Record<string, T>),
+    hgetall: <T>(key: string) =>
+      r.hgetall<Record<string, T>>(key).then((v) => (v ?? {}) as Record<string, T>),
     hdel: async (key, ...fields) => { await r.hdel(key, ...fields) },
     zadd: async (key, score, member) => { await r.zadd(key, { score, member }) },
     zrange: <T = string>(key: string, start: number, stop: number, rev?: boolean) =>

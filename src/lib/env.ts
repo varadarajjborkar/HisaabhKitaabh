@@ -35,10 +35,16 @@ export const env = {
     /** Ollama Cloud: https://ollama.com  — self-hosted: http://127.0.0.1:11434 */
     host: (opt('OLLAMA_HOST') ?? 'https://ollama.com').replace(/\/+$/, ''),
     apiKey: opt('OLLAMA_API_KEY'),
+    /**
+     * Model tiers, verified reachable on a free Ollama Cloud key.
+     * `gemma4` is the only image-capable model in that set, and in testing it
+     * also followed nested tool-call schemas most faithfully — so it does
+     * double duty as the vision model and the extraction model.
+     */
     chatModel: opt('OLLAMA_CHAT_MODEL') ?? 'gpt-oss:120b',
     fastModel: opt('OLLAMA_FAST_MODEL') ?? 'gpt-oss:20b',
-    visionModel: opt('OLLAMA_VISION_MODEL') ?? 'qwen2.5vl:32b',
-    embedModel: opt('OLLAMA_EMBED_MODEL') ?? 'embeddinggemma',
+    visionModel: opt('OLLAMA_VISION_MODEL') ?? 'gemma4:31b',
+    extractModel: opt('OLLAMA_EXTRACT_MODEL') ?? 'gemma4:31b',
     get enabled() {
       return Boolean(opt('OLLAMA_API_KEY') || (opt('OLLAMA_HOST') ?? '').includes('localhost') || (opt('OLLAMA_HOST') ?? '').includes('127.0.0.1'))
     },

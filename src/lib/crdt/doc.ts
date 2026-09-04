@@ -66,8 +66,8 @@ function stampKey(op: Op): string | null {
     case 'row.delete':
     case 'row.restore': return `row:${op.rowId}`
     case 'row.move': return `roword:${op.rowId}`
-    case 'column.insert':
-    case 'column.delete': return `col:${op.column ? op.column.id : (op as { columnId: string }).columnId}`
+    case 'column.insert': return `col:${op.column.id}`
+    case 'column.delete': return `col:${op.columnId}`
     case 'column.rename': return `colname:${op.columnId}`
     case 'column.retype': return `colkind:${op.columnId}`
     case 'doc.rename': return 'doc:name'
