@@ -2,7 +2,7 @@ import type { CellValue, Column, Duration, Row, SheetDoc, Stamp } from '../model
 import { orderAfter, orderBetween, sortByOrder } from '../util/order'
 import { ulid } from '../util/ids'
 import type { Op, OpBatch, StampedOp } from './ops'
-import { contentHash } from '../util/hash'
+import { contentHash } from '../util/stable'
 
 /** How many recent op ids we remember for dedupe. Covers retries, not history. */
 const DEDUPE_WINDOW = 400

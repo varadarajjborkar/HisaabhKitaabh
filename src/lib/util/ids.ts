@@ -1,12 +1,18 @@
-import { randomBytes, randomUUID } from 'node:crypto'
-
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+/** Web Crypto — present in browsers and in Node 19+, so ids work on both sides. */
+function randomBytes(n: number): Uint8Array {
+  const bytes = new Uint8Array(n)
+  globalThis.crypto.getRandomValues(bytes)
+  return bytes
+}
 
 /**
  * ULID: 48-bit timestamp + 80 bits of randomness, lexicographically sortable.
- * IDs are minted by whoever *originates* a row (browser or agent), which is what
- * makes row creation idempotent — a retried "add row" carries the same id and
- * collapses instead of producing a duplicate.
+ *
+ * IDs are minted by whoever *originates* a row — the browser, or an agent —
+ * which is what makes row creation idempotent. A retried "add row" carries the
+ * same id and collapses into the existing row instead of producing a duplicate.
  */
 export function ulid(now = Date.now()): string {
   let ts = ''
@@ -22,7 +28,7 @@ export function ulid(now = Date.now()): string {
 }
 
 export function uuid(): string {
-  return randomUUID()
+  return globalThis.crypto.randomUUID()
 }
 
 export function shortId(n = 8): string {

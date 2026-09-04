@@ -1,5 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 
+/** Server-only. Password hashing and real digests; see util/stable.ts for the isomorphic pair. */
+
 const N = 16384, r = 8, p = 1, KEYLEN = 64
 
 export function hashPassword(password: string): string {
@@ -21,20 +23,8 @@ export function verifyPassword(password: string, stored: string): boolean {
   }
 }
 
-/** Stable content hash — used as the ETag / dedupe key for documents. */
-export function contentHash(value: unknown): string {
-  return createHash('sha256').update(stableStringify(value)).digest('base64url').slice(0, 22)
-}
-
 export function sha256(input: string | Buffer): string {
   return createHash('sha256').update(input).digest('hex')
 }
 
-/** Deterministic JSON: key order can't change the hash. */
-export function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
-  const obj = value as Record<string, unknown>
-  const keys = Object.keys(obj).sort()
-  return '{' + keys.map((k) => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}'
-}
+export { stableStringify, contentHash } from './stable'
