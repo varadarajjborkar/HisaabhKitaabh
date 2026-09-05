@@ -51,11 +51,11 @@ export function loadSkills(): Skill[] {
           examples: raw.examples,
         })
       } catch (err) {
-        console.warn(`[hisaabkitaab] skill ${entry} failed to parse:`, err)
+        console.warn(`[hisaabhkitaabh] skill ${entry} failed to parse:`, err)
       }
     }
   } catch (err) {
-    console.warn('[hisaabkitaab] no skills directory found:', err)
+    console.warn('[hisaabhkitaabh] no skills directory found:', err)
   }
   cache = skills.sort((a, b) => a.name.localeCompare(b.name))
   return cache

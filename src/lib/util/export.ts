@@ -171,7 +171,7 @@ export function toEmail(doc: SheetDoc, options: ExportOptions = {}): { subject: 
     '',
     ...(grid.length ? grid : ['No rows yet.']),
     '',
-    'made from HisaabKitaab',
+    'made from HisaabhKitaabh',
   ].join('\n')
 
   return { subject: `${doc.name}${period ? ` (${period})` : ''}`, body }
@@ -215,6 +215,6 @@ export function toPrintableHtml(doc: SheetDoc): string {
       )
       .join('')}</tr></tfoot>
   </table>
-  <p class="foot">made from HisaabKitaab</p>
+  <p class="foot">made from HisaabhKitaabh</p>
   </body></html>`
 }

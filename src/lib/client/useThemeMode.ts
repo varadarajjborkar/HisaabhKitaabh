@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-export const THEME_KEY = 'hisaabkitaab-theme'
+export const THEME_KEY = 'hisaabhkitaabh-theme'
 
 /**
  * The theme preference.

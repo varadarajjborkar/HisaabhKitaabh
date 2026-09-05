@@ -122,7 +122,7 @@ const KEYS: Key[] = [
 ]
 
 const PANEL = { w: 272, h: 430 }
-const POS_KEY = 'hisaabkitaab-calc-pos'
+const POS_KEY = 'hisaabhkitaabh-calc-pos'
 
 /** Keep the panel wholly on screen after a drag, a resize, or a stale saved position. */
 function clamp(p: { x: number; y: number }): { x: number; y: number } {

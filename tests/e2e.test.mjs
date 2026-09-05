@@ -60,7 +60,7 @@ await check('developer login works', async () => {
   eq(r.status, 200)
   eq(r.body.devLogin, true)
   eq(r.body.user.role, 'admin')
-  ok(cookie.includes('hisaabkitaab_session'), 'no session cookie was set')
+  ok(cookie.includes('hisaabhkitaabh_session'), 'no session cookie was set')
 })
 await check('session reads back', async () => {
   const r = await get('/api/auth/session')
@@ -82,7 +82,7 @@ await check('sign up creates a working account', async () => {
   const r = await post('/api/auth/signup', { email: freshEmail, password: 'a-good-password', name: 'E2E' })
   eq(r.status, 200)
   eq(r.body.user.email, freshEmail)
-  ok(cookie.includes('hisaabkitaab_session'), 'sign-up did not start a session')
+  ok(cookie.includes('hisaabhkitaabh_session'), 'sign-up did not start a session')
 })
 await check('a duplicate sign-up is refused', async () => {
   const saved = cookie

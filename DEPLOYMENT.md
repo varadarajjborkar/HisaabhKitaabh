@@ -1,4 +1,4 @@
-# Deploying HisaabKitaab
+# Deploying HisaabhKitaabh
 
 Written for someone who has not done this before. Follow it top to bottom and
 you will have a working production deployment in about half an hour, most of it
@@ -244,7 +244,7 @@ lists what is misconfigured; it does not say that publicly, because an endpoint
 that announces "sessions are signed with a default key" is an invitation.
 
 **Logs.** Vercel → Deployments → Logs. Everything the app logs is prefixed
-`[hisaabkitaab]`. For retention beyond a day, Vercel's Log Drains send to
+`[hisaabhkitaabh]`. For retention beyond a day, Vercel's Log Drains send to
 Better Stack or Axiom.
 
 **Backups.** Neon and Supabase both keep point-in-time restore on the free tier;

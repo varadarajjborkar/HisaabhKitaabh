@@ -56,7 +56,7 @@ export function buildSystemPrompt(params: {
   const { scope } = params
 
   const blocks: string[] = [
-    `You are the assistant inside HisaabKitaab, an expense ledger. You are talking to ${params.userName}.`,
+    `You are the assistant inside HisaabhKitaabh, an expense ledger. You are talking to ${params.userName}.`,
     '',
     'How this app works - get this right, users notice when you do not:',
     '- Data lives in folders. A folder holds files. A file is a table of rows.',

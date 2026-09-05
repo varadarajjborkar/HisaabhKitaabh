@@ -29,7 +29,7 @@ export function handle(err: unknown) {
     return fail('invalid', err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), 400)
   }
   const message = err instanceof Error ? err.message : 'Something went wrong'
-  console.error('[hisaabkitaab]', err)
+  console.error('[hisaabhkitaabh]', err)
   return fail('error', message, 500)
 }
 

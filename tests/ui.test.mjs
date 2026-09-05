@@ -10,7 +10,7 @@
 import { chromium } from 'playwright'
 
 const BASE = process.env.BASE ?? 'http://localhost:3111'
-const SHOTS = process.env.SHOTS ?? '/tmp/hisaabkitaab-shots'
+const SHOTS = process.env.SHOTS ?? '/tmp/hisaabhkitaabh-shots'
 
 let pass = 0, fail = 0
 const failures = []
@@ -294,7 +294,7 @@ await check('the theme switch stamps the document and can go back to system', as
   await page.click('button[role=radio]:has-text("Dark")')
   await page.waitForTimeout(200)
   eq(await page.getAttribute('html', 'data-theme'), 'dark', 'dark was not stamped:')
-  eq(await page.evaluate(() => localStorage.getItem('hisaabkitaab-theme')), 'dark', 'the choice was not stored:')
+  eq(await page.evaluate(() => localStorage.getItem('hisaabhkitaabh-theme')), 'dark', 'the choice was not stored:')
   await page.click('button[role=radio]:has-text("System")')
   await page.waitForTimeout(200)
   ok((await page.getAttribute('html', 'data-theme')) === null, 'system left an explicit stamp behind')

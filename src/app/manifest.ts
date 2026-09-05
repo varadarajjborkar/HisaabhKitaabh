@@ -8,8 +8,8 @@ import type { MetadataRoute } from 'next'
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'HisaabKitaab',
-    short_name: 'HisaabKitaab',
+    name: 'HisaabhKitaabh',
+    short_name: 'HisaabhKitaabh',
     description: 'Folders, files, rows. An expense ledger that stays out of your way.',
     start_url: '/',
     display: 'standalone',

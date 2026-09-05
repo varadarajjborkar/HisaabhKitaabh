@@ -7,7 +7,7 @@ import { drive, type DriveFile } from './client'
  * Document layout inside the user's Drive:
  *
  *   My Drive/
- *     HisaabKitaab/                  appProperties: hisaab=root
+ *     HisaabhKitaabh/                  appProperties: hisaab=root
  *       _index.json                  appProperties: hisaab=index
  *       Groceries/                   appProperties: hisaab=folder, fid=<folderId>
  *         <fileId>.hisaab.json       appProperties: hisaab=sheet, sid=<fileId>
@@ -19,7 +19,7 @@ import { drive, type DriveFile } from './client'
  * Drive without breaking anything, and duplicates are detectable by key.
  */
 
-const ROOT_NAME = 'HisaabKitaab'
+const ROOT_NAME = 'HisaabhKitaabh'
 const SHEET_MIME = 'application/json'
 
 type Resolved = { id: string; duplicates: string[] }

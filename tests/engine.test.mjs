@@ -417,7 +417,7 @@ check('the mail keeps the period, the count and the sign-off', () => {
   ok(subject.includes('4 Oct 2025') && subject.includes('9 Oct 2025'), `subject lost the period: ${subject}`)
   ok(body.includes('Rows: 2'), 'no row count')
   ok(body.includes('Period: 4 Oct 2025 to 9 Oct 2025'), 'no period line')
-  ok(body.trimEnd().endsWith('made from HisaabKitaab'), `wrong sign-off:\n${body}`)
+  ok(body.trimEnd().endsWith('made from HisaabhKitaabh'), `wrong sign-off:\n${body}`)
   // Written as an escape so the file that forbids the character does not
   // contain it, and a repo-wide grep for em dashes stays at zero.
   ok(!body.includes('\u2014'), 'an em dash survived into the draft')

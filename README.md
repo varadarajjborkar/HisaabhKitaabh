@@ -1,4 +1,4 @@
-# HisaabKitaab
+# HisaabhKitaabh
 
 An expense ledger built around folders, files and rows - with an assistant that
 can edit your data, but never without asking first.
@@ -64,8 +64,8 @@ To run it against a real database locally:
 
 ```bash
 brew install postgresql@16 && brew services start postgresql@16
-createdb hisaabkitaab
-echo "DATABASE_URL=postgres://$(whoami)@localhost:5432/hisaabkitaab" >> .env.local
+createdb hisaabhkitaabh
+echo "DATABASE_URL=postgres://$(whoami)@localhost:5432/hisaabhkitaabh" >> .env.local
 ```
 
 Tables are created on first boot. There is no migration step.
@@ -320,7 +320,7 @@ rather than a consequence of the sign-in button you pressed:
   `bytea` rather than base64 inside JSON. Nothing to connect, and no Google
   account anywhere in the path.
 - **Google Drive**, opt-in from Account → Storage. Files live in a
-  `HisaabKitaab/` folder you own; the app requests `drive.file`, so it can only
+  `HisaabhKitaabh/` folder you own; the app requests `drive.file`, so it can only
   ever see files it created itself. Zero storage cost to the host, and the data
   is yours outright.
 

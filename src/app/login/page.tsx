@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section className="hidden lg:flex flex-col justify-between p-12 xl:p-14 auth-bg border-r border-line relative overflow-hidden">
         <div className="flex items-center gap-3 relative">
           <Logo size={34} />
-          <span className="text-[16px] font-semibold tracking-tight">HisaabKitaab</span>
+          <span className="text-[16px] font-semibold tracking-tight">HisaabhKitaabh</span>
         </div>
 
         <div className="max-w-[420px] relative">
@@ -60,7 +60,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <Logo size={34} />
-            <span className="text-[16px] font-semibold tracking-tight">HisaabKitaab</span>
+            <span className="text-[16px] font-semibold tracking-tight">HisaabhKitaabh</span>
           </div>
           <LoginForm google={env.google.enabled} devLogin={env.dev.enabled} next={params.next} oauthError={params.error} />
         </div>

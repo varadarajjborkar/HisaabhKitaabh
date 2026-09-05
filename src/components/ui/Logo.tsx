@@ -27,7 +27,7 @@ export function Wordmark({ size = 30, className = '' }: { size?: number; classNa
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <Logo size={size} />
-      <span className="text-[15px] font-semibold tracking-tight">HisaabKitaab</span>
+      <span className="text-[15px] font-semibold tracking-tight">HisaabhKitaabh</span>
     </span>
   )
 }

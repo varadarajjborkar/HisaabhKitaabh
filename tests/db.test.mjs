@@ -8,7 +8,7 @@
  * receipt survives a round trip through `bytea` byte for byte.
  *
  * Point DATABASE_URL at a throwaway database and run:
- *   DATABASE_URL=postgres://localhost/hisaabkitaab \
+ *   DATABASE_URL=postgres://localhost/hisaabhkitaabh \
  *     node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/db.test.mjs
  *
  * Without DATABASE_URL the suite skips rather than fails - nothing else in the

@@ -5,10 +5,10 @@ import './globals.css'
 import { Toaster } from '@/components/ui/Toast'
 
 export const metadata: Metadata = {
-  title: 'HisaabKitaab',
+  title: 'HisaabhKitaabh',
   description: 'Folders, files, rows. Track what you spend without fighting a spreadsheet.',
-  applicationName: 'HisaabKitaab',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'HisaabKitaab' },
+  applicationName: 'HisaabhKitaabh',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'HisaabhKitaabh' },
   formatDetection: { telephone: false },
 }
 
@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Applied before first paint so a dark-theme user never sees a white flash. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('hisaabkitaab-theme');if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t)}catch(e){}`,
+            __html: `try{var t=localStorage.getItem('hisaabhkitaabh-theme');if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t)}catch(e){}`,
           }}
         />
       </head>

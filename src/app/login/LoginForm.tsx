@@ -77,7 +77,7 @@ export function LoginForm({
             Continue with Google
           </a>
           <p className="text-[11.5px] text-faint mt-2 leading-snug">
-            Used for signing in only. Your files stay in HisaabKitaab unless you
+            Used for signing in only. Your files stay in HisaabhKitaabh unless you
             choose to keep them in your own Drive later.
           </p>
 

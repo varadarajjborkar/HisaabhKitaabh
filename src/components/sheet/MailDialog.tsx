@@ -8,7 +8,7 @@ import { exportableColumns, toEmail } from '@/lib/util/export'
 import { copyToClipboard, openMailDraft } from '@/lib/client/exports'
 import { displayWidth } from '@/lib/util/textTable'
 
-const KEY = (fileId: string) => `hisaabkitaab-mail-columns:${fileId}`
+const KEY = (fileId: string) => `hisaabhkitaabh-mail-columns:${fileId}`
 
 /**
  * Choosing what goes in the mail.
