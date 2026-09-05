@@ -421,7 +421,12 @@ await check('a made-up file id costs one correction, not a cascade', async () =>
   const failed = of(ev, 'tool_result').filter((e) => !e.ok)
   ok(failed.length <= 2, `${failed.length} failed tool calls in a row: ${failed.map((f) => f.summary).join(' | ')}`)
   ok(of(ev, 'tool_start').length <= 4, `it made ${of(ev, 'tool_start').length} tool calls chasing a bad id`)
-  ok(text(ev).length > 0, 'it never came back with an answer')
+  // Answering in prose and asking which file was meant are both "coming back to
+  // the user"; only silence, or a pile of retries, would be the failure here.
+  ok(
+    text(ev).length > 0 || of(ev, 'ask').length > 0,
+    'it never came back to the user, in prose or with a question',
+  )
 })
 
 await check('the file name is accepted where the id belongs', async () => {

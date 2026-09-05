@@ -6,7 +6,7 @@ import { PermissionCard } from './PermissionCard'
 import { RecentPanel, type Thread } from './RecentPanel'
 import type { ChatScope } from '@/lib/client/useChat'
 import { useChat } from '@/lib/client/useChat'
-import { formatINR, humanSizeSafe } from '@/lib/util/uiformat'
+import { formatMoney, humanSizeSafe } from '@/lib/util/uiformat'
 import { get } from '@/lib/client/api'
 
 /**
@@ -279,7 +279,7 @@ export function ChatPanel({
                   <Icon.Check size={14} className="mt-px shrink-0" />
                   <span>
                     {turn.summary}
-                    <span className="text-muted"> · now {turn.rowCount} row{turn.rowCount === 1 ? '' : 's'}, {formatINR(turn.total, { decimals: false })}</span>
+                    <span className="text-muted"> · now {turn.rowCount} row{turn.rowCount === 1 ? '' : 's'}, {formatMoney(turn.total, turn.currency, { decimals: false })}</span>
                   </span>
                 </div>
               )

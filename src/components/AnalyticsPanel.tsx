@@ -5,11 +5,11 @@ import type { FolderMeta } from '@/lib/model/types'
 import { get } from '@/lib/client/api'
 import { BarChart, DataTable, LineChart, StatTile } from './charts/Charts'
 import { Gauge } from './charts/Gauge'
-import { compactINR, formatINR } from '@/lib/util/format'
+import { compactMoney, formatMoney } from '@/lib/util/format'
 import { Icon } from './ui/Icons'
 
 type Analytics = {
-  summary: { total: number; files: number; rows: number; average: number }
+  summary: { total: number; files: number; rows: number; average: number; currency: string | null }
   files: Array<{ id: string; name: string; folderId: string; total: number; rows: number }>
   perFile: Array<{ fileId: string; name: string; total: number; rows: number }>
   categories: Array<{ key: string; total: number; count: number }>
@@ -59,6 +59,16 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
   if (!data) return null
 
   const hasData = data.summary.rows > 0
+
+  /*
+   * The selection can span files kept in different currencies, and a sum across
+   * those has no symbol that would be true. When they disagree the figures are
+   * printed bare - a number without a unit is at least not a lie about which
+   * unit it is.
+   */
+  const code = data.summary.currency
+  const money = (n: number, opts?: { decimals?: boolean }) => formatMoney(n, code ?? 'INR', { ...opts, symbol: !!code })
+  const short = (n: number) => (code ? compactMoney(n, code) : formatMoney(n, 'INR', { decimals: false, symbol: false }))
 
   return (
     <div className="space-y-3 animate-rise">
@@ -116,36 +126,39 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
                 }
                 rowCount={data.summary.rows}
                 label="Selected"
+                currency={data.summary.currency ?? undefined}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3 content-start">
-              <StatTile label="Total" value={formatINR(data.summary.total, { decimals: false })} hint={`${data.summary.files} file${data.summary.files === 1 ? '' : 's'}`} />
-              <StatTile label="Rows" value={String(data.summary.rows)} hint={`avg ${compactINR(data.summary.average)}`} />
+              <StatTile label="Total" value={money(data.summary.total, { decimals: false })} hint={`${data.summary.files} file${data.summary.files === 1 ? '' : 's'}`} />
+              <StatTile label="Rows" value={String(data.summary.rows)} hint={`avg ${short(data.summary.average)}`} />
               <StatTile
                 label="Largest single row"
-                value={data.topRows[0] ? compactINR(data.topRows[0].amount) : 'None yet'}
+                value={data.topRows[0] ? short(data.topRows[0].amount) : 'None yet'}
                 hint={data.topRows[0]?.title.slice(0, 28)}
               />
               <StatTile
                 label="Busiest file"
-                value={data.perFile[0] ? compactINR(data.perFile[0].total) : 'None yet'}
+                value={data.perFile[0] ? short(data.perFile[0].total) : 'None yet'}
                 hint={data.perFile[0]?.name.slice(0, 28)}
               />
             </div>
           </div>
 
-          <LineChart data={data.timeline} title="Spend over time" cumulative />
+          <LineChart data={data.timeline} title="Spend over time" cumulative currency={code} />
 
           <div className="grid lg:grid-cols-2 gap-3">
             <BarChart
               data={data.categories}
               title="By category"
               emptyHint="Add a select or text column to see a breakdown."
+              currency={code}
             />
             <BarChart
               data={data.perFile.map((f) => ({ key: f.name, total: f.total, count: f.rows }))}
               title="By file"
+              currency={code}
             />
           </div>
 
@@ -164,6 +177,7 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
                 <DataTable
                   columns={['Item', 'Amount', 'Rows']}
                   rows={data.categories.map((c) => ({ Item: c.key, Amount: c.total, Rows: c.count }))}
+                  currency={code}
                 />
               </div>
             )}

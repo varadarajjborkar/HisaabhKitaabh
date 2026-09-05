@@ -7,7 +7,7 @@ import type { FileMeta, FolderMeta } from '@/lib/model/types'
 import { Icon } from './ui/Icons'
 import { AccountMenu, TopBar, useShell } from './AppShell'
 import { del, get, post } from '@/lib/client/api'
-import { formatINR, relativeTime } from '@/lib/util/format'
+import { formatMoney, relativeTime } from '@/lib/util/format'
 import { Modal, ConfirmModal } from './ui/Modal'
 import { toast } from './ui/Toast'
 import { ChatDock } from './chat/ChatDock'
@@ -75,6 +75,14 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
   }, [files, query, sort])
 
   const folderTotal = files.reduce((s, f) => s + f.total, 0)
+  /*
+   * A folder total only means something when its files agree on a currency.
+   * Adding a rupee file to a dollar file produces a number with no unit, so
+   * when they disagree the subtitle drops the total rather than printing a
+   * figure that is confidently wrong.
+   */
+  const currencies = new Set(files.map((f) => (f.currency || 'INR').toUpperCase()))
+  const folderCurrency = currencies.size === 1 ? [...currencies][0] : null
   const allSelected = visible.length > 0 && visible.every((f) => selected.has(f.id))
 
   const toggle = (id: string) => {
@@ -113,7 +121,11 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
       <TopBar
         back="/home"
         title={<span className="flex items-center gap-2"><span>{folder.icon}</span>{folder.name}</span>}
-        subtitle={`${files.length} file${files.length === 1 ? '' : 's'} · ${formatINR(folderTotal, { decimals: false })}`}
+        subtitle={
+          folderCurrency
+            ? `${files.length} file${files.length === 1 ? '' : 's'} · ${formatMoney(folderTotal, folderCurrency, { decimals: false })}`
+            : `${files.length} file${files.length === 1 ? '' : 's'} · mixed currencies`
+        }
         actions={
           <>
             <button onClick={refresh} className="btn-ghost h-9 w-9 px-0 pressable" aria-label="Refresh">
@@ -210,11 +222,11 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
                         <div className="min-w-0 flex-1">
                           <p className="text-[13.5px] font-medium truncate">{file.name}</p>
                           <p className="text-[11.5px] text-muted sm:hidden mt-0.5">
-                            {file.rowCount} rows · {formatINR(file.total, { decimals: false })} · {relativeTime(file.updatedAt)}
+                            {file.rowCount} rows · {formatMoney(file.total, file.currency, { decimals: false })} · {relativeTime(file.updatedAt)}
                           </p>
                         </div>
                         <span className="hidden sm:block w-20 text-right text-[12.5px] text-muted tnum">{file.rowCount}</span>
-                        <span className="hidden sm:block w-28 text-right text-[13px] tnum font-medium">{formatINR(file.total, { decimals: false })}</span>
+                        <span className="hidden sm:block w-28 text-right text-[13px] tnum font-medium">{formatMoney(file.total, file.currency, { decimals: false })}</span>
                         <span className="hidden sm:block w-24 text-right text-[11.5px] text-faint">{relativeTime(file.updatedAt)}</span>
                       </Link>
                     </div>

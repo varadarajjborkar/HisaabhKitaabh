@@ -60,7 +60,7 @@ export type AgentEvent =
   | { type: 'tool_result'; name: string; ok: boolean; summary: string }
   | { type: 'permission'; action: PendingAction }
   | { type: 'ask'; question: string; options: string[] }
-  | { type: 'applied'; fileId: string; rev: number; total: number; rowCount: number; summary: string }
+  | { type: 'applied'; fileId: string; rev: number; total: number; rowCount: number; summary: string; currency?: string }
   | { type: 'conflict'; message: string; fileId: string }
   | { type: 'error'; message: string; fatal: boolean }
   | { type: 'done'; reason: 'complete' | 'awaiting_permission' | 'awaiting_answer' | 'budget' | 'error' }
@@ -258,6 +258,7 @@ async function applyPlan(
       rev: result.doc.rev,
       total: totals.total,
       rowCount: totals.count,
+      currency: result.doc.currency,
       summary: pending.summary,
     })
 
@@ -330,6 +331,21 @@ async function* runLoop(
       state.messages.push({ role: 'assistant', content: text, ...(calls.length ? { tool_calls: calls } : {}) })
 
       if (calls.length === 0) {
+        /*
+         * A turn is allowed to end without calling anything. It is not allowed
+         * to end without saying anything: the model occasionally stops after a
+         * tool result with no closing message, and what the user sees then is a
+         * spinner that quietly stopped and no reply. Whatever else happened,
+         * there is always an answer in the box.
+         */
+        if (!state.assistantText.trim()) {
+          const fallback = state.toolCallsUsed > 0
+            ? 'I read what I could but did not get to an answer. Tell me which file you mean and I will try again.'
+            : 'I did not follow that. Say it another way and I will have another go.'
+          state.assistantText = fallback
+          state.messages[state.messages.length - 1].content = fallback
+          yield { type: 'text', delta: fallback }
+        }
         await finish(state, session, repo)
         yield { type: 'done', reason: 'complete' }
         return
@@ -546,6 +562,7 @@ async function describeScope(repo: Repo, fileId: string | null, folderId: string
         columns: doc.columns.map((c) => `${c.name} (${c.kind})`),
         rowCount: totals.count,
         total: totals.total,
+        currency: doc.currency,
         period: doc.duration.enabled ? `${doc.duration.from ?? '?'} → ${doc.duration.to ?? '?'}` : null,
       }
     }

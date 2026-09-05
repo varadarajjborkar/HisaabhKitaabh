@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { compactINR, formatDate, formatINR } from '@/lib/util/format'
+import { compactMoney, formatDate, formatMoney } from '@/lib/util/format'
 import { niceTicks, seriesColor } from './palette'
 import { useIsDark } from './useTheme'
 
@@ -23,12 +23,15 @@ export function BarChart({
   emptyHint = 'Nothing to show yet.',
   maxBars = 10,
   onSelect,
+  currency,
 }: {
   data: Array<{ key: string; total: number; count?: number }>
   title?: string
   emptyHint?: string
   maxBars?: number
   onSelect?: (key: string) => void
+  /** Omitted when the selection spans currencies: figures print without a symbol. */
+  currency?: string | null
 }) {
   const dark = useIsDark()
   const [hover, setHover] = useState<number | null>(null)
@@ -64,7 +67,7 @@ export function BarChart({
                 <span className="text-[12.5px] text-ink truncate min-w-0" title={r.key}>{r.key}</span>
                 {/* Direct label on every bar: the light palette needs the relief. */}
                 <span className="text-[12.5px] text-muted tnum shrink-0">
-                  {formatINR(r.total, { decimals: false })}
+                  {formatMoney(r.total, currency ?? 'INR', { decimals: false, symbol: !!currency })}
                   {r.count != null && <span className="text-faint ml-1.5">·{r.count}</span>}
                 </span>
               </div>
@@ -96,10 +99,12 @@ export function LineChart({
   data,
   title,
   cumulative = false,
+  currency,
 }: {
   data: Array<{ day: string; total: number }>
   title?: string
   cumulative?: boolean
+  currency?: string | null
 }) {
   const dark = useIsDark()
   const [hover, setHover] = useState<number | null>(null)
@@ -143,7 +148,7 @@ export function LineChart({
         <figcaption className="flex items-baseline justify-between mb-2">
           <span className="text-[13px] font-medium">{title}</span>
           <span className="text-[12px] text-muted tnum">
-            {active ? `${formatDate(active.day)} · ${formatINR(active.value, { decimals: false })}` : `${formatINR(last.value, { decimals: false })} latest`}
+            {active ? `${formatDate(active.day)} · ${formatMoney(active.value, currency ?? 'INR', { decimals: false, symbol: !!currency })}` : `${formatMoney(last.value, currency ?? 'INR', { decimals: false, symbol: !!currency })} latest`}
           </span>
         </figcaption>
       )}
@@ -163,7 +168,7 @@ export function LineChart({
             <g key={t}>
               <line x1={PAD_L} x2={W - PAD_R} y1={y(t)} y2={y(t)} className="stroke-line" strokeWidth={1} />
               <text x={PAD_L - 8} y={y(t) + 4} textAnchor="end" className="fill-faint text-[10px] tnum">
-                {compactINR(t).replace('₹', '')}
+                {compactMoney(t, currency ?? 'INR').replace(/^[^\d-]+/, '')}
               </text>
             </g>
           ))}
@@ -219,7 +224,7 @@ export function StatTile({
 // -------------------------------------------------------------- table fallback
 
 /** The relief the light palette owes: every charted number, readable as text. */
-export function DataTable({ rows, columns }: { rows: Array<Record<string, string | number>>; columns: string[] }) {
+export function DataTable({ rows, columns, currency }: { rows: Array<Record<string, string | number>>; columns: string[]; currency?: string | null }) {
   if (rows.length === 0) return null
   return (
     <div className="card overflow-x-auto">
@@ -238,7 +243,7 @@ export function DataTable({ rows, columns }: { rows: Array<Record<string, string
             <tr key={i} className="border-b border-line last:border-0">
               {columns.map((c, j) => (
                 <td key={c} className={`px-3.5 py-2 ${j > 0 ? 'text-right tnum text-muted' : 'text-ink'}`}>
-                  {typeof r[c] === 'number' ? formatINR(r[c] as number, { decimals: false }) : r[c]}
+                  {typeof r[c] === 'number' ? formatMoney(r[c] as number, currency ?? 'INR', { decimals: false, symbol: !!currency }) : r[c]}
                 </td>
               ))}
             </tr>

@@ -6,10 +6,10 @@ import { orderAfter, orderBetween, sortByOrder } from '../util/order'
 import { shortId, ulid } from '../util/ids'
 import type { Repo } from '../store/repo'
 import type { ToolSpec } from './ollama'
-import { formatINR } from '../util/format'
+import { formatMoney } from '../util/format'
 import { isImage, isTabularText } from '../util/mime'
 import { parseTable } from '../util/table'
-import { convertAmount, currencyCode, describeConversion, describeRate, rateFor } from '../util/currency'
+import { convertAmount, currencyCode, describeConversion, describeRate, knownCurrency, rateFor } from '../util/currency'
 
 /**
  * Tools available to the assistant.
@@ -126,7 +126,7 @@ function renderRow(doc: SheetDoc, rowId: string): string {
     .map((c) => {
       const v = row.cells[c.id]
       if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) return null
-      return `${c.name}: ${c.kind === 'amount' ? formatINR(numeric(v)) : Array.isArray(v) ? `${v.length} file(s)` : v}`
+      return `${c.name}: ${c.kind === 'amount' ? formatMoney(numeric(v), doc.currency) : Array.isArray(v) ? `${v.length} file(s)` : v}`
     })
     .filter(Boolean)
     .join(' · ')
@@ -180,7 +180,14 @@ function mapCells(doc: SheetDoc, input: Record<string, unknown>): { cells: Recor
     if (value === undefined) continue
     const direct = findColumn(doc, key)
     const aliased = !direct ? doc.columns.find((c) => c.id === aliases[key.trim().toLowerCase()]) : undefined
-    const col = direct ?? aliased
+    // A key that names a currency names the money column - models routinely
+    // key the amount by whatever currency the user said ("USD": 890) rather
+    // than by the column's name, and dropping that leaves a row with a title
+    // and no figure in it.
+    const byCurrency = !direct && !aliased && knownCurrency(key)
+      ? doc.columns.find((c) => c.kind === 'amount')
+      : undefined
+    const col = direct ?? aliased ?? byCurrency
     if (!col) {
       unmatched.push(key)
       continue
@@ -539,6 +546,17 @@ const addRows: ToolDef = {
 
       let cells = mapped.cells
       if (currency) {
+        const amountCols = doc.columns.filter((c) => c.kind === 'amount')
+        const hasAmount = amountCols.some((c) => cells[c.id] != null && cells[c.id] !== '')
+        // Naming a currency and then sending no money is a call that lost its
+        // figure on the way out. Proposing a row with a title and no amount
+        // would look like it worked; an error gets the number back.
+        if (!hasAmount) {
+          return {
+            kind: 'error',
+            message: `You set currency to ${currency} but the row has no amount. Send the figure the user gave, unconverted, under "${amountCols[0]?.name ?? 'the amount column'}".`,
+          }
+        }
         try {
           const applied = await applyCurrency(doc, cells, currency)
           cells = applied.cells
@@ -553,7 +571,7 @@ const addRows: ToolDef = {
       preview.push(
         doc.columns
           .filter((c) => cells[c.id] != null && cells[c.id] !== '')
-          .map((c) => `${c.name}: ${c.kind === 'amount' ? formatINR(numeric(cells[c.id])) : cells[c.id]}`)
+          .map((c) => `${c.name}: ${c.kind === 'amount' ? formatMoney(numeric(cells[c.id]), doc.currency) : cells[c.id]}`)
           .join(' · '),
       )
     }
@@ -571,7 +589,7 @@ const addRows: ToolDef = {
       plan: {
         fileId: doc.id,
         ops,
-        summary: `Add ${ops.length} row${ops.length === 1 ? '' : 's'} to "${doc.name}"${added ? `, ${formatINR(added)} in total` : ''}${conversion ? ` - converted from ${conversion}` : ''}${unmatchedAll.size ? ` - ignoring unknown field${unmatchedAll.size === 1 ? '' : 's'}: ${[...unmatchedAll].join(', ')}` : ''}`,
+        summary: `Add ${ops.length} row${ops.length === 1 ? '' : 's'} to "${doc.name}"${added ? `, ${formatMoney(added, doc.currency)} in total` : ''}${conversion ? ` - converted from ${conversion}` : ''}${unmatchedAll.size ? ` - ignoring unknown field${unmatchedAll.size === 1 ? '' : 's'}: ${[...unmatchedAll].join(', ')}` : ''}`,
         preview,
       },
     }
@@ -633,8 +651,8 @@ const updateRows: ToolDef = {
         ops.push({ id: shortId(12), type: 'cell.set', rowId: u.rowId, columnId, value })
         diff.push({
           label: `${renderRow(doc, u.rowId).slice(0, 60)} - ${col.name}`,
-          before: before == null || before === '' ? '(empty)' : String(col.kind === 'amount' ? formatINR(numeric(before)) : before),
-          after: value == null || value === '' ? '(empty)' : String(col.kind === 'amount' ? formatINR(numeric(value)) : value),
+          before: before == null || before === '' ? '(empty)' : String(col.kind === 'amount' ? formatMoney(numeric(before), doc.currency) : before),
+          after: value == null || value === '' ? '(empty)' : String(col.kind === 'amount' ? formatMoney(numeric(value), doc.currency) : value),
         })
       }
     }
@@ -685,7 +703,7 @@ const deleteRows: ToolDef = {
       plan: {
         fileId: doc.id,
         ops: ids.map((rowId) => ({ id: shortId(12), type: 'row.delete', rowId }) as Op),
-        summary: `Delete ${ids.length} row${ids.length === 1 ? '' : 's'} from "${doc.name}"${removed ? `, removing ${formatINR(removed)} from the total` : ''}`,
+        summary: `Delete ${ids.length} row${ids.length === 1 ? '' : 's'} from "${doc.name}"${removed ? `, removing ${formatMoney(removed, doc.currency)} from the total` : ''}`,
         preview: ids.map((id) => renderRow(doc, id)),
       },
     }

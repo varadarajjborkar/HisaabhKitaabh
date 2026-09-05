@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { compactINR, formatINR } from '@/lib/util/format'
+import { compactMoney, formatMoney } from '@/lib/util/format'
 import { seriesColor, withOther } from './palette'
 import { useIsDark } from './useTheme'
 
@@ -52,6 +52,7 @@ export function Gauge({
   budget,
   label = 'Total',
   compact = false,
+  currency = 'INR',
 }: {
   total: number
   slices: Slice[]
@@ -59,6 +60,7 @@ export function Gauge({
   budget?: number | null
   label?: string
   compact?: boolean
+  currency?: string
 }) {
   const dark = useIsDark()
   const [hover, setHover] = useState<number | null>(null)
@@ -96,7 +98,7 @@ export function Gauge({
     <div className="flex flex-col items-center">
       <div className={`relative w-[220px] ${size}`}>
         <svg viewBox="0 0 220 118" className="w-full h-full overflow-visible" role="img"
-             aria-label={`${label} ${formatINR(total)} across ${rowCount} rows`}>
+             aria-label={`${label} ${formatMoney(total, currency)} across ${rowCount} rows`}>
           {/* Track - one step off the surface, recessive. */}
           <path
             d={arcPath(0, 180, R_OUTER, R_INNER)}
@@ -113,7 +115,7 @@ export function Gauge({
               onMouseLeave={() => setHover(null)}
               className="transition-opacity duration-150 cursor-default"
             >
-              <title>{`${s.key}: ${formatINR(s.total)} (${Math.round(s.share * 100)}%)`}</title>
+              <title>{`${s.key}: ${formatMoney(s.total, currency)} (${Math.round(s.share * 100)}%)`}</title>
             </path>
           ))}
 
@@ -135,7 +137,7 @@ export function Gauge({
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pointer-events-none">
           {/* Hero figure: proportional digits, not tabular - tabular looks loose at display size. */}
           <span className={`font-semibold leading-none tracking-tight ${compact ? 'text-[24px]' : 'text-[30px]'}`}>
-            {hover !== null && segments[hover] ? compactINR(segments[hover].total) : formatINR(total, { decimals: false })}
+            {hover !== null && segments[hover] ? compactMoney(segments[hover].total, currency) : formatMoney(total, currency, { decimals: false })}
           </span>
           <span className="text-[11.5px] text-muted mt-1.5 max-w-[180px] truncate">
             {hover !== null && segments[hover]
@@ -144,8 +146,8 @@ export function Gauge({
           </span>
           {budgetPct != null && hover === null && (
             <span className={`text-[11px] mt-1 font-medium ${overBudget ? 'text-bad' : 'text-muted'}`}>
-              {Math.round(budgetPct * 100)}% of {compactINR(budget!)}
-              {overBudget && ` · over by ${compactINR(total - budget!)}`}
+              {Math.round(budgetPct * 100)}% of {compactMoney(budget!, currency)}
+              {overBudget && ` · over by ${compactMoney(total - budget!, currency)}`}
             </span>
           )}
         </div>

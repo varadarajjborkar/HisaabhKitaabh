@@ -12,7 +12,7 @@ import { AccountMenu, TopBar, useShell } from '../AppShell'
 import { Icon } from '../ui/Icons'
 import { ChatPanel } from '../chat/ChatPanel'
 import { AnimatedNumber } from '../ui/AnimatedNumber'
-import { formatINR } from '@/lib/util/format'
+import { formatMoney } from '@/lib/util/format'
 import { ConfirmModal } from '../ui/Modal'
 import { Calculator } from '../ui/Calculator'
 import { numeric } from '@/lib/crdt/doc'
@@ -169,7 +169,7 @@ export function SheetView({
           <span className="flex items-center gap-1.5">
             <span className="hidden sm:inline truncate">{folderName}</span>
             <span className="hidden sm:inline text-faint">·</span>
-            <span className="sm:hidden font-semibold text-ink tnum">{formatINR(totals.total, { decimals: false })}</span>
+            <span className="sm:hidden font-semibold text-ink tnum">{formatMoney(totals.total, doc.currency, { decimals: false })}</span>
             <span className="sm:hidden text-faint">·</span>
             <span className="sm:hidden">{totals.count} row{totals.count === 1 ? '' : 's'}</span>
             {/*
@@ -250,15 +250,16 @@ export function SheetView({
                     slices={slices}
                     rowCount={totals.count}
                     label="This file"
+                    currency={doc.currency}
                     compact
                   />
                 </div>
 
                 <div className="card divide-y divide-line">
-                  <Stat label="Total" value={<AnimatedNumber value={totals.total} format={(n) => formatINR(n)} className="font-semibold" />} />
+                  <Stat label="Total" value={<AnimatedNumber value={totals.total} format={(n) => formatMoney(n, doc.currency)} className="font-semibold" />} />
                   <Stat label="Rows" value={<AnimatedNumber value={totals.count} format={(n) => String(Math.round(n))} />} />
-                  <Stat label="Average" value={formatINR(totals.mean, { decimals: false })} />
-                  <Stat label="Largest" value={formatINR(totals.max, { decimals: false })} />
+                  <Stat label="Average" value={formatMoney(totals.mean, doc.currency, { decimals: false })} />
+                  <Stat label="Largest" value={formatMoney(totals.max, doc.currency, { decimals: false })} />
                 </div>
 
                 <DurationBar duration={doc.duration} onChange={actions.setDuration} />

@@ -20,13 +20,14 @@ export type Op =
   | { id: string; type: 'column.delete'; columnId: string }
   | { id: string; type: 'doc.rename'; name: string }
   | { id: string; type: 'doc.duration'; duration: Duration }
+  | { id: string; type: 'doc.currency'; currency: string }
 
 export type OpType = Op['type']
 
 export const WRITE_OPS: OpType[] = [
   'row.insert', 'cell.set', 'row.move', 'row.delete', 'row.restore',
   'column.insert', 'column.rename', 'column.retype', 'column.delete',
-  'doc.rename', 'doc.duration',
+  'doc.rename', 'doc.duration', 'doc.currency',
 ]
 
 /** An op plus the provenance we need for stamping and for the audit trail. */
@@ -63,6 +64,7 @@ export function describeOp(op: Op, columns: Column[], rows: Row[]): string {
     case 'column.delete': return `Delete column ${col(op.columnId)}`
     case 'doc.rename': return `Rename this file to "${op.name}"`
     case 'doc.duration': return op.duration.enabled ? `Set period to ${op.duration.from ?? '…'} → ${op.duration.to ?? '…'}` : `Turn off the period`
+    case 'doc.currency': return `Record amounts in ${op.currency}`
   }
 }
 
@@ -73,7 +75,7 @@ function formatValue(v: CellValue): string {
 }
 
 /** Build the inverse of an op against the pre-state - the basis of undo. */
-export function invertOp(op: Op, before: { rows: Row[]; columns: Column[]; name: string; duration: Duration }, nextId: () => string): Op | null {
+export function invertOp(op: Op, before: { rows: Row[]; columns: Column[]; name: string; duration: Duration; currency: string }, nextId: () => string): Op | null {
   const row = before.rows.find((r) => r.id === (op as { rowId?: string }).rowId)
   switch (op.type) {
     case 'row.insert':
@@ -104,5 +106,7 @@ export function invertOp(op: Op, before: { rows: Row[]; columns: Column[]; name:
       return { id: nextId(), type: 'doc.rename', name: before.name }
     case 'doc.duration':
       return { id: nextId(), type: 'doc.duration', duration: before.duration }
+    case 'doc.currency':
+      return { id: nextId(), type: 'doc.currency', currency: before.currency }
   }
 }

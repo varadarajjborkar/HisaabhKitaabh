@@ -189,7 +189,7 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
       const inverse = ops
         .slice()
         .reverse()
-        .map((op) => invertOp(op, { rows: before.rows, columns: before.columns, name: before.name, duration: before.duration }, () => shortId(12)))
+        .map((op) => invertOp(op, { rows: before.rows, columns: before.columns, name: before.name, duration: before.duration, currency: before.currency }, () => shortId(12)))
         .filter((op): op is Op => op !== null)
 
       const result = applyOps(before, { actor: actor.current, ops })
@@ -302,6 +302,27 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
     apply([{ id: shortId(12), type: 'doc.duration', duration }], 'set period')
   }, [apply])
 
+  /**
+   * Change what the amount column is denominated in.
+   *
+   * The column's *name* follows the currency only when it was still the old
+   * code - a file whose amount column has been renamed to "Cost" or "Spend"
+   * keeps that name, because the user chose it and a currency switch is not a
+   * licence to overwrite it. Both ops go in one batch so it is one undo.
+   */
+  const setCurrency = useCallback((code: string) => {
+    const next = code.trim().toUpperCase()
+    const current = docRef.current
+    if (!current || next === current.currency) return
+
+    const ops: Op[] = [{ id: shortId(12), type: 'doc.currency', currency: next }]
+    const amount = current.columns.find((c) => c.kind === 'amount' && c.system)
+    if (amount && amount.name.trim().toUpperCase() === current.currency.toUpperCase()) {
+      ops.push({ id: shortId(12), type: 'column.rename', columnId: amount.id, name: next })
+    }
+    apply(ops, 'change currency')
+  }, [apply])
+
   // --------------------------------------------------------- conflict fix
 
   /** Take the server's version, keeping the local queue for the user to redo. */
@@ -348,7 +369,7 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
     actions: {
       setCell, addRow, addRows, deleteRows, moveRow,
       addColumn, renameColumn, retypeColumn, deleteColumn,
-      renameDoc, setDuration,
+      renameDoc, setDuration, setCurrency,
       undo, redo, saveNow, refresh: () => load({ fresh: true }),
       resolveConflict, adoptRemote,
     },

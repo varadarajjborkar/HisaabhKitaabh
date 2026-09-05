@@ -333,6 +333,97 @@ await check('storage offers both homes and marks the one in use', async () => {
   eq(await page.locator('dialog[open]').count(), 0, 'the storage dialog survived Escape:')
 })
 
+await check('holding the theme button opens a stack you can swipe and release on', async () => {
+  /*
+   * Two gestures on one control, so both need proving: a tap still cycles, and
+   * a hold opens the picker. The hold also has to survive the finger leaving
+   * the 36px button - without pointer capture the gesture dies halfway and the
+   * release selects nothing, which is exactly how it first behaved.
+   */
+  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+  const p2 = await ctx2.newPage()
+  p2.setDefaultTimeout(20_000)
+  await p2.goto(`${BASE}/login`)
+
+  const btn = p2.locator('button[aria-haspopup="listbox"]')
+  await btn.waitFor()
+  eq(await btn.getAttribute('aria-expanded'), 'false', 'the picker started open:')
+
+  // A short tap cycles rather than opening anything.
+  await btn.click()
+  await p2.waitForTimeout(250)
+  eq(await p2.locator('[role=listbox]').count(), 0, 'a tap opened the picker instead of cycling:')
+  // A fresh context has no stored preference, so it starts on "system" and one
+  // tap lands on "light" - the first card. Swiping down is therefore the
+  // direction with somewhere to go.
+  const afterTap = await p2.evaluate(() => localStorage.getItem('hisaabhkitaabh-theme'))
+  eq(afterTap, 'light', 'a tap from the default did not cycle to light:')
+
+  // A hold opens the stack; swiping up one card and releasing commits it.
+  const box = await btn.boundingBox()
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await p2.mouse.move(cx, cy)
+  await p2.mouse.down()
+  await p2.waitForTimeout(700)
+  ok(await p2.locator('[role=listbox]').isVisible(), 'holding did not open the picker')
+  const cards = await p2.locator('[role=option]').count()
+  eq(cards, 3, 'the stack should hold all three choices:')
+
+  await p2.mouse.move(cx, cy + 46) // one card down: light -> dark
+  await p2.waitForTimeout(200)
+  await p2.mouse.up()
+  await p2.waitForTimeout(300)
+
+  const afterSwipe = await p2.evaluate(() => localStorage.getItem('hisaabhkitaabh-theme'))
+  eq(afterSwipe, 'dark', 'releasing on the second card did not select it:')
+  eq(await p2.getAttribute('html', 'data-theme'), 'dark', 'the choice never reached the document:')
+  eq(await p2.locator('[role=listbox]').count(), 0, 'the picker stayed open after releasing:')
+  await ctx2.close()
+})
+
+await check('the amount column can be switched to another currency', async () => {
+  // The currency lives on the file, but the column header is where a user goes
+  // looking for it, so that is where the control has to be.
+  await page.locator('th button[aria-label^="Options for"]').first().click({ force: true })
+  await page.waitForSelector('text=Currency')
+  const menu = page.locator('body > div.card').last()
+  ok(await menu.isVisible(), 'the column menu did not open')
+
+  await page.locator('button:has-text("US dollar")').first().click()
+  await page.waitForTimeout(1200)
+
+  const header = await page.locator('thead th').nth(1).innerText()
+  eq(header.trim(), 'USD', 'the column header did not follow the currency:')
+  const foot = (await page.locator('tfoot').innerText()).replace(/\s+/g, ' ')
+  ok(foot.includes('$'), `the total is not in dollars: ${foot}`)
+  ok(!foot.includes('₹'), `the rupee symbol survived the switch: ${foot}`)
+
+  // Back to rupees so the rest of the suite sees what it expects.
+  await page.locator('th button[aria-label^="Options for"]').first().click({ force: true })
+  await page.waitForSelector('text=Currency')
+  await page.locator('button:has-text("Indian rupee")').first().click()
+  await page.waitForTimeout(1200)
+  eq((await page.locator('thead th').nth(1).innerText()).trim(), 'INR', 'it did not switch back:')
+})
+
+await check('the column menu is not clipped by the table it belongs to', async () => {
+  // The table sits in a card with overflow-x-auto, which clips an absolutely
+  // positioned child. The menu is portalled to the body precisely so a long
+  // list is scrollable rather than cut off at the card's edge.
+  await page.locator('th button[aria-label^="Options for"]').first().click({ force: true })
+  await page.waitForSelector('text=Currency')
+  const shape = await page.evaluate(() => {
+    const p = [...document.querySelectorAll('p')].find((e) => e.textContent === 'Currency')
+    const menu = p.closest('div.card')
+    return { onBody: menu.parentElement === document.body, scrollable: menu.scrollHeight > menu.clientHeight }
+  })
+  ok(shape.onBody, 'the menu is still inside the clipping card')
+  ok(shape.scrollable, 'the long menu is not scrollable')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+})
+
 await check('dragging a row grip reorders the sheet', async () => {
   const titles = () =>
     page.locator('tbody tr[data-drag-index] input[aria-label="Title"]').evaluateAll((els) => els.map((e) => e.value))

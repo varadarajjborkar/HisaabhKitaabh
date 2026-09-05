@@ -7,11 +7,27 @@ import { LoginForm } from './LoginForm'
 
 export const dynamic = 'force-dynamic'
 
-const POINTS = [
-  ['Your data, your Drive', 'Everything lives in a folder you own.'],
-  ['The assistant asks first', 'Nothing is written without your approval.'],
-  ['Built for one thumb', 'The phone layout is the real one.'],
-]
+/**
+ * The pitch.
+ *
+ * The first line used to promise "your data, your Drive", which stopped being
+ * true when every account got storage of its own and Drive became something you
+ * turn on. Promising a Google account to someone who does not want one was the
+ * wrong opening move anyway. The Drive half now appears only where the
+ * deployment can actually deliver it.
+ */
+function points(google: boolean): Array<[string, string]> {
+  return [
+    [
+      'Nothing to set up',
+      google
+        ? 'An email and a password. Keep your files here, or in your own Google Drive.'
+        : 'An email and a password. Your files get a home the moment you sign up.',
+    ],
+    ['The assistant asks first', 'It proposes the change. Nothing is written until you approve it.'],
+    ['Built for one thumb', 'The phone layout is the real one, not a shrunken desktop.'],
+  ]
+}
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const session = await readSession()
@@ -40,7 +56,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </p>
 
           <ul className="mt-9 space-y-4">
-            {POINTS.map(([title, body], i) => (
+            {points(env.google.enabled).map(([title, body], i) => (
               <li key={title} className="flex gap-3 animate-rise" style={{ animationDelay: `${120 + i * 70}ms` }}>
                 <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
                 <p className="text-[13.5px] leading-relaxed">
@@ -51,8 +67,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             ))}
           </ul>
         </div>
-
-        <p className="text-[12px] text-faint relative">Amounts in rupees, grouped the Indian way.</p>
       </section>
 
       <section className="relative flex items-center justify-center p-6 sm:p-10 bg-bg">

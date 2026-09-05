@@ -1,6 +1,6 @@
 import type { SheetDoc } from '../model/types'
 import { computeTotals, liveRows, numeric } from '../crdt/doc'
-import { formatDate, formatINR } from './format'
+import { formatDate, formatMoney } from './format'
 import { toDelimited } from './table'
 import { displayWidth, layoutTable, type TextColumn } from './textTable'
 
@@ -26,7 +26,7 @@ function periodText(doc: SheetDoc): string | null {
 
 function header(doc: SheetDoc): { title: string; lines: string[]; totals: ReturnType<typeof computeTotals> } {
   const totals = computeTotals(doc)
-  const lines = [`Rows: ${totals.count}`, `Total: ${formatINR(totals.total)}`]
+  const lines = [`Rows: ${totals.count}`, `Total: ${formatMoney(totals.total, doc.currency)}`]
   const period = periodText(doc)
   if (period) lines.unshift(`Period: ${period}`)
   return { title: doc.name, lines, totals }
@@ -39,7 +39,7 @@ function cellText(doc: SheetDoc, rowId: string, columnId: string): string {
   const v = row.cells[columnId]
   if (v == null || v === '') return ''
   if (Array.isArray(v)) return v.map((a) => a.name).join('; ')
-  if (col.kind === 'amount') return formatINR(numeric(v), { symbol: false })
+  if (col.kind === 'amount') return formatMoney(numeric(v), doc.currency, { symbol: false })
   if (col.kind === 'date') return formatDate(String(v))
   return String(v)
 }
@@ -52,7 +52,7 @@ export function toMarkdown(doc: SheetDoc): string {
     `| ${cols.map((c) => c.name).join(' | ')} |`,
     `| ${cols.map((c) => (c.kind === 'amount' || c.kind === 'number' ? '---:' : '---')).join(' | ')} |`,
     ...rows.map((r) => `| ${cols.map((c) => cellText(doc, r.id, c.id) || BLANK).join(' | ')} |`),
-    `| ${cols.map((c, i) => (i === 0 ? `**${formatINR(totals.total, { symbol: false })}**` : i === 1 ? '**Total**' : '')).join(' | ')} |`,
+    `| ${cols.map((c, i) => (i === 0 ? `**${formatMoney(totals.total, doc.currency, { symbol: false })}**` : i === 1 ? '**Total**' : '')).join(' | ')} |`,
   ].join('\n')
   return [`# ${title}`, '', ...lines, '', table].join('\n')
 }
@@ -125,7 +125,7 @@ export function buildGrid(doc: SheetDoc, options: ExportOptions = {}): string[] 
   const firstText = cols.findIndex((c) => c.kind !== 'amount' && c.kind !== 'number')
   const footer = cols.map((col, i) =>
     col.kind === 'amount'
-      ? formatINR(totals.byColumn[col.id] ?? totals.total, { symbol: false })
+      ? formatMoney(totals.byColumn[col.id] ?? totals.total, doc.currency, { symbol: false })
       : i === firstText
         ? 'TOTAL'
         : '',
@@ -141,7 +141,7 @@ function summaryLines(doc: SheetDoc): string[] {
   return [
     ...(period ? [`Period: ${period}`] : []),
     `Rows: ${totals.count}`,
-    `Total: ${formatINR(totals.total)}`,
+    `Total: ${formatMoney(totals.total, doc.currency)}`,
   ]
 }
 
@@ -210,7 +210,7 @@ export function toPrintableHtml(doc: SheetDoc): string {
     <tfoot><tr>${cols
       .map((c, i) =>
         c.kind === 'amount'
-          ? `<td style="text-align:right" class="num">${esc(formatINR(totals.total))}</td>`
+          ? `<td style="text-align:right" class="num">${esc(formatMoney(totals.total, doc.currency))}</td>`
           : `<td>${i === 1 ? 'Total' : ''}</td>`,
       )
       .join('')}</tr></tfoot>

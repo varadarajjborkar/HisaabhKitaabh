@@ -28,6 +28,7 @@ const OpSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('column.retype'), columnId: z.string(), kind: z.enum(['amount', 'text', 'number', 'date', 'attachment', 'select']), options: z.array(z.string()).optional() }),
   z.object({ id: z.string(), type: z.literal('column.delete'), columnId: z.string() }),
   z.object({ id: z.string(), type: z.literal('doc.rename'), name: z.string().min(1).max(120) }),
+  z.object({ id: z.string(), type: z.literal('doc.currency'), currency: z.string().regex(/^[A-Za-z]{3}$/) }),
   z.object({
     id: z.string(),
     type: z.literal('doc.duration'),

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AttachmentRef, CellValue, Column } from '@/lib/model/types'
 import { parseAmount } from '@/lib/crdt/doc'
-import { formatINR } from '@/lib/util/format'
+import { formatMoney } from '@/lib/util/format'
 import { humanSize } from '@/lib/util/mime'
 import { Icon } from '../ui/Icons'
 import { toast } from '../ui/Toast'
@@ -45,11 +45,15 @@ export function Cell({
   autoFocus,
   size = 'md',
   variant = 'inline',
+  currency = 'INR',
 }: {
   column: Column
   value: CellValue
   rowId: string
   fileId: string
+  /** The file's currency. Only the digit grouping depends on it here - the cell
+   *  shows a bare number - but 12,34,567 in a dollar file is still wrong. */
+  currency?: string
   onChange: (value: CellValue) => void
   onNavigate?: (dir: 'up' | 'down' | 'next' | 'prev') => void
   autoFocus?: boolean
@@ -71,6 +75,7 @@ export function Cell({
       autoFocus={autoFocus}
       size={size}
       variant={variant}
+      currency={currency}
       key={`${rowId}:${column.id}`}
     />
   )
@@ -84,6 +89,7 @@ function TextCell({
   autoFocus,
   size,
   variant,
+  currency,
 }: {
   column: Column
   value: CellValue
@@ -92,12 +98,13 @@ function TextCell({
   autoFocus?: boolean
   size: CellSize
   variant: CellVariant
+  currency: string
 }) {
   const isNumeric = column.kind === 'amount' || column.kind === 'number'
   const display = (v: CellValue) => {
     if (v == null || v === '') return ''
     if (Array.isArray(v)) return ''
-    if (column.kind === 'amount') return formatINR(Number(v) || 0, { symbol: false })
+    if (column.kind === 'amount') return formatMoney(Number(v) || 0, currency, { symbol: false })
     return String(v)
   }
 

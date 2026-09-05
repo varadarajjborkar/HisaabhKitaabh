@@ -31,7 +31,8 @@ const { orderBetween, orderAfter, sortByOrder } = await import('../src/lib/util/
 const { toEmail, toPlainText, buildGrid } = await import('../src/lib/util/export.ts')
 const { displayWidth, graphemes, layoutTable, padTo, wrapCell } = await import('../src/lib/util/textTable.ts')
 const { invertOp } = await import('../src/lib/crdt/ops.ts')
-const { currencyCode, describeConversion } = await import('../src/lib/util/currency.ts')
+const { currencyCode, knownCurrency, describeConversion } = await import('../src/lib/util/currency.ts')
+const { formatMoney, compactMoney, currencySymbol } = await import('../src/lib/util/format.ts')
 
 const base = () => newSheet({ folderId: 'f1', ownerId: 'u1', name: 'Test' })
 const A = SYSTEM_COLUMNS.amount, T = SYSTEM_COLUMNS.title
@@ -479,6 +480,19 @@ check('an unknown three-letter code is passed through, not guessed at', () => {
   eq(currencyCode('kes'), 'KES')
 })
 
+check('only a recognised code counts as naming money', () => {
+  // This one decides whether a key in a row is the amount column. The loose
+  // three-letter rule would read "Qty" as a currency and file a quantity as a
+  // sum of money, so this deliberately refuses anything off the list.
+  eq(knownCurrency('usd'), 'USD')
+  eq(knownCurrency('USD'), 'USD')
+  eq(knownCurrency('dollars'), 'USD')
+  eq(knownCurrency('₹'), 'INR')
+  eq(knownCurrency('qty'), null)
+  eq(knownCurrency('tax'), null)
+  eq(knownCurrency('abc'), null)
+})
+
 check('nonsense is rejected rather than turned into a currency', () => {
   eq(currencyCode(''), null)
   eq(currencyCode('   '), null)
@@ -496,6 +510,71 @@ check('a conversion says where the number came from', () => {
   ok(note.includes('USD'), 'the original currency is missing')
   ok(note.includes('94.49'), 'the rate is missing')
   ok(note.includes('2026-09-04'), 'the date the rate is from is missing')
+})
+
+// ------------------------------------------------------ money, per currency
+
+/*
+ * Grouping is not cosmetic. The subcontinent writes 12,34,567 and most of the
+ * world writes 1,234,567, and a file kept in dirhams showing the first is as
+ * wrong as one in rupees showing the second. So the grouping follows the
+ * currency, not the reader.
+ */
+console.log('\nMoney formatting')
+
+check('rupees group in lakhs and crores', () => {
+  eq(formatMoney(1234567, 'INR'), '₹12,34,567')
+  eq(formatMoney(100000, 'INR'), '₹1,00,000')
+  eq(formatMoney(999, 'INR'), '₹999')
+})
+
+check('dollars group in threes', () => {
+  eq(formatMoney(1234567, 'USD'), '$1,234,567')
+  eq(formatMoney(1000, 'USD'), '$1,000')
+})
+
+check("the subcontinent's other currencies group the same way as the rupee", () => {
+  eq(formatMoney(1234567, 'PKR'), '₨12,34,567')
+  eq(formatMoney(1234567, 'BDT'), '৳12,34,567')
+})
+
+check('a multi-character symbol gets a space so it does not run into the number', () => {
+  eq(formatMoney(450, 'AED'), 'د.إ 450')
+  eq(formatMoney(450, 'CHF'), 'CHF 450')
+  eq(formatMoney(450, 'USD'), '$450', 'a single-character symbol should not gain a space:')
+})
+
+check('decimals appear only when there are any', () => {
+  eq(formatMoney(1200, 'INR'), '₹1,200')
+  eq(formatMoney(1200.5, 'INR'), '₹1,200.50')
+  eq(formatMoney(1200.5, 'INR', { decimals: false }), '₹1,201')
+})
+
+check('negatives keep the sign in front of the symbol', () => {
+  eq(formatMoney(-4500, 'INR'), '-₹4,500')
+  eq(formatMoney(-4500, 'USD'), '-$4,500')
+})
+
+check('the symbol can be dropped for a bare figure', () => {
+  eq(formatMoney(1234567, 'INR', { symbol: false }), '12,34,567')
+  eq(formatMoney(1234567, 'USD', { symbol: false }), '1,234,567')
+})
+
+check('an unknown code falls back to printing the code itself', () => {
+  eq(currencySymbol('XYZ'), 'XYZ')
+  eq(formatMoney(500, 'XYZ'), 'XYZ 500')
+})
+
+check('compact form uses lakh and crore for rupees, million for the rest', () => {
+  eq(compactMoney(15000000, 'INR'), '₹1.5Cr')
+  eq(compactMoney(250000, 'INR'), '₹2.5L')
+  eq(compactMoney(15000000, 'USD'), '$15M')
+  eq(compactMoney(2500, 'USD'), '$2.5k')
+})
+
+check('a missing currency is treated as rupees, which is what every old file is', () => {
+  eq(formatMoney(1234567), '₹12,34,567')
+  eq(formatMoney(1234567, ''), '₹12,34,567')
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

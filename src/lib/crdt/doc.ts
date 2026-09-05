@@ -72,6 +72,7 @@ function stampKey(op: Op): string | null {
     case 'column.retype': return `colkind:${op.columnId}`
     case 'doc.rename': return 'doc:name'
     case 'doc.duration': return 'doc:duration'
+    case 'doc.currency': return 'doc:currency'
   }
 }
 
@@ -226,6 +227,14 @@ function applyOne(doc: SheetDoc, op: Op, stamp: Stamp, now: number): string | nu
       doc.duration = { ...op.duration }
       return null
     }
+    case 'doc.currency': {
+      // The code only; the symbol and the grouping are a display concern. Three
+      // letters, upper-cased, so "usd" and "USD" cannot become two currencies.
+      const code = op.currency.trim().toUpperCase()
+      if (!/^[A-Z]{3}$/.test(code)) return 'currency must be a three-letter code'
+      doc.currency = code
+      return null
+    }
   }
 }
 
@@ -364,7 +373,7 @@ export function liveRows(doc: SheetDoc): Row[] {
 }
 
 export function docEtag(doc: SheetDoc): string {
-  return `${doc.rev}-${contentHash({ r: doc.rows, c: doc.columns, n: doc.name, d: doc.duration })}`
+  return `${doc.rev}-${contentHash({ r: doc.rows, c: doc.columns, n: doc.name, d: doc.duration, cur: doc.currency })}`
 }
 
 /** Column helper used all over the UI and the agent tools. */

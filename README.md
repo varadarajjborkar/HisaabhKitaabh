@@ -78,15 +78,15 @@ npm test                       # all four suites
 npm run test:engine            # or one at a time
 ```
 
-192 tests in five layers:
+208 tests in five layers:
 
 | Suite | Tests | What it exercises |
 |---|---|---|
-| `test:engine` | 60 | The document engine in-process - ordering, merge, idempotency, the revision gate, undo, totals, and the text grid every export is laid out on, and how a currency people actually type is read |
+| `test:engine` | 71 | The document engine in-process - ordering, merge, idempotency, the revision gate, undo, totals, and the text grid every export is laid out on, and how money is written in each currency it can be kept in |
 | `test:db` | 30 | The Postgres store against a real database - expiry, atomic claims, concurrent appends, per-account isolation, receipts through `bytea` |
-| `test:e2e` | 36 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal, storage backends |
+| `test:e2e` | 38 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal, storage backends |
 | `test:chat` | 24 | The assistant against the live model and the live write path, including where its instructions are allowed to come from and that a foreign-currency amount is converted rather than asked about |
-| `test:ui` | 42 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, the storage chooser, and the phone layout down to its tap targets |
+| `test:ui` | 45 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, the storage chooser, the currency picker, the theme long-press, and the phone layout down to its tap targets |
 
 `test:db` skips itself unless `DATABASE_URL` is set, so nothing else in the
 project needs a database installed to run.
@@ -314,6 +314,12 @@ from.
 
 Two backends behind one repository interface, and which one you get is a choice
 rather than a consequence of the sign-in button you pressed:
+
+Amounts are kept in whatever currency the file is set to, chosen from the
+amount column's own header. The grouping follows the currency rather than the
+reader - ₹12,34,567 in rupees, $1,234,567 in dollars - and a folder or a chart
+that spans two currencies prints its figures without a symbol rather than
+claiming a total that has no unit.
 
 - **App storage**, the default. Every account gets its own space in Postgres the
   moment it is created - folders, documents, chat history, and receipt bytes as

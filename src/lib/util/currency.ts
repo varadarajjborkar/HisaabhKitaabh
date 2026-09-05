@@ -63,6 +63,20 @@ const ALIASES: Record<string, string> = {
   sek: 'SEK', nok: 'NOK', dkk: 'DKK', pln: 'PLN', czk: 'CZK', huf: 'HUF', ils: 'ILS',
 }
 
+/**
+ * A code only if we actually recognise it.
+ *
+ * Unlike `currencyCode` this refuses anything not in the table above, because
+ * its caller uses the answer to decide whether a key names money. The
+ * permissive three-letter fallback would happily read "Qty" as a currency and
+ * quietly file a quantity in the amount column.
+ */
+export function knownCurrency(input: string): string | null {
+  const raw = String(input ?? '').trim().toLowerCase()
+  if (!raw) return null
+  return ALIASES[raw] ?? ALIASES[raw.replace(/[^a-z]/g, '')] ?? null
+}
+
 /** Turn whatever the user wrote into an ISO 4217 code, or null. */
 export function currencyCode(input: string): string | null {
   const raw = String(input ?? '').trim().toLowerCase()

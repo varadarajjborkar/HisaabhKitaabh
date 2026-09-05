@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import type { Column, Row, SheetDoc } from '@/lib/model/types'
 import { Cell } from './Cell'
 import { Icon } from '../ui/Icons'
-import { formatINR } from '@/lib/util/format'
+import { formatMoney } from '@/lib/util/format'
 import { numeric } from '@/lib/crdt/doc'
 import type { SheetApi } from '@/lib/client/useSheet'
 import { ColumnMenu, ColumnsModal, NewColumnButton } from './ColumnMenu'
@@ -171,6 +171,7 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
                         value={row.cells[col.id] ?? null}
                         rowId={row.id}
                         fileId={doc.id}
+                        currency={doc.currency}
                         onChange={(v) => actions.setCell(row.id, col.id, v)}
                         onNavigate={(dir) => navigate(rowIndex, colIndex, dir)}
                       />
@@ -209,7 +210,7 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
                 {columns.map((col) => (
                   <td key={col.id} className={`px-2.5 py-3 text-[13px] ${col.kind === 'amount' || col.kind === 'number' ? 'text-right tnum font-semibold' : 'text-left text-muted'}`}>
                     {col.kind === 'amount'
-                      ? formatINR(totals.byColumn[col.id] ?? 0)
+                      ? formatMoney(totals.byColumn[col.id] ?? 0, doc.currency)
                       : col.kind === 'number'
                         ? (totals.byColumn[col.id] ?? 0).toLocaleString('en-IN')
                         : col.id === columns.find((c) => c.kind === 'text')?.id
@@ -318,7 +319,7 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
                 <div className="min-w-0 flex-1">
                   {titleCol && (
                     <Cell column={titleCol} value={row.cells[titleCol.id] ?? null} rowId={row.id} fileId={doc.id}
-                          size="lg" onChange={(v) => actions.setCell(row.id, titleCol.id, v)} />
+                          size="lg" currency={doc.currency} onChange={(v) => actions.setCell(row.id, titleCol.id, v)} />
                   )}
                 </div>
 
@@ -331,7 +332,7 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
                 {amountCol && (
                   <div className="w-[104px] shrink-0 self-stretch flex items-center pl-2 border-l border-line">
                     <Cell column={amountCol} value={row.cells[amountCol.id] ?? null} rowId={row.id} fileId={doc.id}
-                          size="lg" onChange={(v) => actions.setCell(row.id, amountCol.id, v)} />
+                          size="lg" currency={doc.currency} onChange={(v) => actions.setCell(row.id, amountCol.id, v)} />
                   </div>
                 )}
               </div>
@@ -355,7 +356,7 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
                       {rest.map((col) => (
                         <div key={col.id}>
                           <span className="block text-[11px] font-medium text-muted mb-0.5">{col.name}</span>
-                          <Cell column={col} value={row.cells[col.id] ?? null} rowId={row.id} fileId={doc.id}
+                          <Cell column={col} value={row.cells[col.id] ?? null} rowId={row.id} fileId={doc.id} currency={doc.currency}
                                 size="lg" variant="field" onChange={(v) => actions.setCell(row.id, col.id, v)} />
                         </div>
                       ))}
@@ -397,7 +398,7 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
       {rows.length > 0 && (
         <div className="card px-3.5 py-3 mt-2.5 flex items-center justify-between">
           <span className="text-[12.5px] text-muted">{rows.length} row{rows.length === 1 ? '' : 's'}</span>
-          <span className="text-[17px] font-semibold tnum">{formatINR(totals.total)}</span>
+          <span className="text-[17px] font-semibold tnum">{formatMoney(totals.total, doc.currency)}</span>
         </div>
       )}
 

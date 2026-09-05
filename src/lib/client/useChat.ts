@@ -33,7 +33,7 @@ export type Turn =
   | { id: string; kind: 'assistant'; text: string; streaming: boolean; thinking?: boolean }
   | { id: string; kind: 'tool'; label: string; status: 'running' | 'ok' | 'failed'; detail?: string }
   | { id: string; kind: 'permission'; action: PendingAction; runId: string; resolved?: 'allow' | 'allow_always' | 'deny' | 'guide' }
-  | { id: string; kind: 'applied'; summary: string; fileId: string; total: number; rowCount: number }
+  | { id: string; kind: 'applied'; summary: string; fileId: string; total: number; rowCount: number; currency?: string }
   | { id: string; kind: 'conflict'; message: string }
   | { id: string; kind: 'ask'; question: string; options: string[]; answered?: boolean }
   | { id: string; kind: 'error'; message: string; fatal: boolean }
@@ -150,7 +150,7 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
             break
 
           case 'applied': {
-            const applied = { fileId: String(evt.fileId), total: Number(evt.total), rowCount: Number(evt.rowCount) }
+            const applied = { fileId: String(evt.fileId), total: Number(evt.total), rowCount: Number(evt.rowCount), currency: evt.currency ? String(evt.currency) : undefined }
             push({ id: `app_${shortId(8)}`, kind: 'applied', summary: String(evt.summary), ...applied })
             appliedRef.current?.(applied)
             break

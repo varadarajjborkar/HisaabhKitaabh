@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Column, ColumnKind } from '@/lib/model/types'
 import { Icon } from '../ui/Icons'
 import { Modal } from '../ui/Modal'
 import { useDismiss } from '@/lib/client/useDismiss'
+import { CURRENCIES } from '@/lib/util/format'
 import type { SheetApi } from '@/lib/client/useSheet'
 
 const KINDS: Array<{ value: ColumnKind; label: string; hint: string }> = [
@@ -16,11 +18,57 @@ const KINDS: Array<{ value: ColumnKind; label: string; hint: string }> = [
   { value: 'attachment', label: 'File', hint: 'Receipts, invoices, screenshots.' },
 ]
 
+/**
+ * Where the menu should sit, in viewport coordinates.
+ *
+ * It has to be fixed and portalled rather than absolute inside the header: the
+ * table lives in a card with `overflow-x-auto`, which is a clipping context, so
+ * an absolutely-positioned menu taller than the visible table simply gets cut
+ * off. That was survivable when the menu was three short items and stopped
+ * being survivable the moment it held a currency list.
+ */
+function useAnchoredMenu(open: boolean, trigger: React.RefObject<HTMLElement | null>) {
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
+
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return }
+
+    const place = () => {
+      const el = trigger.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const below = window.innerHeight - r.bottom - 16
+      const above = r.top - 16
+      // Prefer below; go above only when there is meaningfully more room there.
+      const flip = below < 240 && above > below
+      setPos({
+        left: Math.max(8, Math.min(r.left, window.innerWidth - 240)),
+        top: flip ? Math.max(8, r.top - Math.min(above, 420) - 6) : r.bottom + 6,
+        maxHeight: Math.max(180, Math.min(flip ? above : below, 420)),
+      })
+    }
+
+    place()
+    // Anything that moves the trigger moves the menu with it.
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, trigger])
+
+  return pos
+}
+
 export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi }) {
   const [open, setOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(column.name)
-  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false))
+  const trigger = useRef<HTMLDivElement | null>(null)
+  // The menu owns dismissal; the trigger is ignored so its own click can toggle.
+  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false), { ignore: trigger })
+  const pos = useAnchoredMenu(open, trigger)
 
   const commitRename = () => {
     const trimmed = name.trim()
@@ -47,7 +95,7 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
   }
 
   return (
-    <div ref={ref} className="relative inline-flex items-center gap-1 group/col max-w-full">
+    <div ref={trigger} className="relative inline-flex items-center gap-1 group/col max-w-full">
       <span className="truncate">{column.name}</span>
       <button
         onClick={() => setOpen((v) => !v)}
@@ -58,15 +106,48 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
         <Icon.Down size={12} />
       </button>
 
-      {open && (
-        <>
-          <div className="absolute left-0 top-6 z-50 w-48 card shadow-pop py-1 animate-scale-in origin-top-left normal-case tracking-normal text-left font-normal">
+      {open && pos && createPortal(
+        (
+          <div
+            ref={ref}
+            className="fixed z-[60] w-[232px] card shadow-pop py-1 animate-scale-in origin-top-left
+                       normal-case tracking-normal text-left font-normal overflow-y-auto overscroll-contain"
+            style={{ left: pos.left, top: pos.top, maxHeight: pos.maxHeight }}
+          >
             <button
               onClick={() => { setOpen(false); setRenaming(true) }}
               className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-raised transition-colors"
             >
               Rename
             </button>
+
+            {/*
+              The currency lives on the file, not the column, but this is where
+              a user looks for it: they see a column headed INR and want it to
+              say something else. Offering it anywhere but here would be asking
+              them to know our data model.
+            */}
+            {column.kind === 'amount' && (
+              <div className="border-t border-line mt-1 pt-1">
+                <p className="px-3 py-1 text-[10.5px] uppercase tracking-wide text-faint">Currency</p>
+                {CURRENCIES.map((c) => {
+                  const active = (sheet.doc?.currency ?? 'INR').toUpperCase() === c.code
+                  return (
+                    <button
+                      key={c.code}
+                      onClick={() => { sheet.actions.setCurrency(c.code); setOpen(false) }}
+                      className={`w-full text-left px-3 py-1.5 text-[12.5px] hover:bg-raised flex items-center gap-2
+                                  transition-colors ${active ? 'text-accent' : ''}`}
+                    >
+                      {active ? <Icon.Check size={12} /> : <span className="w-3" />}
+                      <span className="w-9 shrink-0 tabular-nums">{c.code}</span>
+                      <span className="w-4 shrink-0 text-muted">{c.symbol}</span>
+                      <span className="truncate text-muted text-[11.5px]">{c.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             {!column.system && (
               <div className="border-t border-line mt-1 pt-1">
@@ -103,7 +184,8 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
               </p>
             )}
           </div>
-        </>
+        ),
+        document.body,
       )}
     </div>
   )

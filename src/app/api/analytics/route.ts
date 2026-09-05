@@ -34,6 +34,15 @@ export const GET = withAuth(async ({ session, repo }, req: Request) => {
 
   const grand = perFile.reduce((s, f) => s + f.total, 0)
 
+  /*
+   * Adding a rupee file to a dollar file gives a number with no unit. Report
+   * the currency only when every file in the selection agrees on one; null
+   * tells the client to print the figures bare rather than stamp a symbol on a
+   * total that does not have one.
+   */
+  const codes = new Set(docs.map((d) => (d.currency || 'INR').toUpperCase()))
+  const currency = codes.size === 1 ? [...codes][0] : null
+
   // Category-style breakdown: the first select column across the chosen files,
   // falling back to any text column that behaves like a category.
   const categories = new Map<string, { total: number; count: number }>()
@@ -89,6 +98,7 @@ export const GET = withAuth(async ({ session, repo }, req: Request) => {
     files: scoped.map((f) => ({ id: f.id, name: f.name, folderId: f.folderId, total: f.total, rows: f.rowCount })),
     summary: {
       total: Math.round(grand * 100) / 100,
+      currency,
       files: perFile.length,
       rows: perFile.reduce((s, f) => s + f.rows, 0),
       average: perFile.length ? Math.round((grand / Math.max(1, perFile.reduce((s, f) => s + f.rows, 0))) * 100) / 100 : 0,
