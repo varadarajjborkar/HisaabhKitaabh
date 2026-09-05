@@ -10,3 +10,6 @@ next-env.d.ts
 
 # local test artefacts
 *.log
+
+cred.txt
+*.tmp.mjs

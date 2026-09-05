@@ -363,6 +363,43 @@ await check('an unknown backend is rejected', async () => {
   const r = await post('/api/settings/storage', { backend: 'dropbox' })
   eq(r.status, 400)
 })
+await check('deleting a file that is not yours is a 404, not a fake success', async () => {
+  // Regression for a security probe: DELETE returned 200 for a file the caller
+  // did not own. No data ever crossed accounts - keys are scoped by user id -
+  // but claiming to have deleted a file you never had is dishonest and hides
+  // the missing ownership check. It must 404 like GET does.
+  const other = `idor-${uid().toLowerCase()}@hisaab.test`
+  const savedCookie = cookie
+  cookie = ''
+  await post('/api/auth/signup', { email: other, password: 'a-good-password' })
+  const f = await post('/api/folders', { name: 'theirs' })
+  const file = await post('/api/files', { folderId: f.body.folder.id, name: 'theirs' })
+  const victimFileId = file.body.doc.id
+  const victimFolderId = f.body.folder.id
+
+  cookie = savedCookie // back to the original account
+  const delFile = await del(`/api/files/${victimFileId}`)
+  eq(delFile.status, 404, "deleting another account's file did not 404:")
+  const delFolder = await del(`/api/folders/${victimFolderId}`)
+  eq(delFolder.status, 404, "deleting another account's folder did not 404:")
+
+  // And the victim's file is still there.
+  const stealCookie = cookie
+  cookie = ''
+  await post('/api/auth/login', { identifier: other, password: 'a-good-password' })
+  const still = await get(`/api/files/${victimFileId}`)
+  eq(still.status, 200, 'the file was actually removed across accounts:')
+  cookie = stealCookie
+})
+
+await check('deleting your own file still works', async () => {
+  const f = await post('/api/files', { folderId, name: 'to be removed' })
+  const r = await del(`/api/files/${f.body.doc.id}`)
+  eq(r.status, 200, 'a legitimate delete was refused:')
+  const gone = await get(`/api/files/${f.body.doc.id}`)
+  eq(gone.status, 404, 'the file survived its own deletion:')
+})
+
 await check('the account still reads normally after all that', async () => {
   const r = await get(`/api/files/${fileId}`)
   eq(r.status, 200)

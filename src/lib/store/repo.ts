@@ -133,6 +133,9 @@ export class Repo {
   }
 
   async deleteFolder(folderId: string): Promise<void> {
+    // 404s if this is not one of the caller's folders, so deleting a folder the
+    // account does not have reports honestly instead of a silent no-op success.
+    await this.getFolder(folderId)
     const files = await this.listFiles(folderId)
     for (const f of files) await this.deleteFile(f.id)
     await this.withFolders((folders) => folders.filter((f) => f.id !== folderId))
@@ -217,12 +220,19 @@ export class Repo {
 
   async deleteFile(fileId: string): Promise<void> {
     const doc = await this.tryGetDoc(fileId)
+    // Every key below is built from this account's id, so a delete could only
+    // ever reach this account's own data - there is no path to another user's
+    // file here. But a request to delete a file this account does not have must
+    // be a 404, not a fabricated success: the endpoint should never report
+    // having removed something it never held, and an ownership check that is
+    // explicit is one that survives a future change to how storage is keyed.
+    if (!doc) throw new NotFoundError('File')
     await withLock(`doc:${this.uid}:${fileId}`, async () => {
       if ((await this.backend()) === 'drive') await driveStore.deleteSheet(this.uid, fileId)
       else await kv().del(K.doc(this.uid, fileId))
       await kv().del(K.cacheDoc(this.uid, fileId), `oplog:${this.uid}:${fileId}`)
     })
-    if (doc) await this.unindexFile(doc)
+    await this.unindexFile(doc)
   }
 
   // ------------------------------------------------------------- mutation
