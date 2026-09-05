@@ -8,6 +8,7 @@ import { formatINR } from '@/lib/util/format'
 import { numeric } from '@/lib/crdt/doc'
 import type { SheetApi } from '@/lib/client/useSheet'
 import { ColumnMenu, NewColumnButton } from './ColumnMenu'
+import { dropEdge, useDragReorder } from '@/lib/client/useDragReorder'
 
 /**
  * The rows.
@@ -39,7 +40,8 @@ export function Grid({ sheet, onFocusCell }: { sheet: SheetApi; onFocusCell?: (r
   return (
     <>
       {selected.size > 0 && (
-        <div className="sticky top-14 z-20 flex items-center gap-2 px-3 py-2 bg-accent-soft border-y border-line animate-rise no-print">
+        <div className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 mb-2 rounded-lg
+                        bg-accent-soft border border-line animate-rise no-print">
           <span className="text-[12.5px] font-medium text-accent">{selected.size} row{selected.size === 1 ? '' : 's'} selected</span>
           <button onClick={() => setSelected(new Set())} className="btn-ghost h-7 text-[12px]">Clear</button>
           <button onClick={deleteSelected} className="btn-ghost h-7 text-[12px] text-bad ml-auto pressable">
@@ -68,13 +70,14 @@ type SharedProps = {
 function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted, onFocusCell }: SharedProps) {
   const { actions, totals } = sheet
   const gridRef = useRef<HTMLDivElement>(null)
+  const drag = useDragReorder((from, to) => actions.moveRow(rows[from].id, to))
 
   /**
    * Keyboard movement between cells.
    *
    * Enter moves down and stops at the last row. Tab past the final cell of the
-   * final row is what adds a new one — that gesture reads as "keep going",
-   * where Enter reads as "done with this value".
+   * final row is what adds a new one: that gesture reads as "keep going", where
+   * Enter reads as "done with this value".
    *
    * The distinction matters for undo. When Enter auto-appended a row, the last
    * thing on the undo stack after editing the bottom cell was a phantom empty
@@ -105,16 +108,16 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
   return (
     <div ref={gridRef} className="hidden md:block">
       <div className="card overflow-x-auto">
-        <table className="w-full border-collapse min-w-[640px]">
+        <table className="w-full border-collapse min-w-[680px]">
           <thead>
             <tr className="border-b border-line">
-              <th className="w-9 px-2 py-2 no-print" />
+              <th className="w-16 px-2 py-2 no-print" aria-label="Row controls" />
               {columns.map((col) => (
                 <th
                   key={col.id}
-                  className={`px-2 py-2 text-[11px] font-medium uppercase tracking-wide text-muted
+                  className={`px-2.5 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted align-bottom
                               ${col.kind === 'amount' || col.kind === 'number' ? 'text-right' : 'text-left'}`}
-                  style={{ width: col.kind === 'amount' ? 130 : col.kind === 'attachment' ? 190 : undefined }}
+                  style={{ width: col.kind === 'amount' ? 132 : col.kind === 'attachment' ? 190 : undefined }}
                 >
                   <ColumnMenu column={col} sheet={sheet} />
                 </th>
@@ -125,53 +128,72 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
             </tr>
           </thead>
 
-          <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr
-                key={row.id}
-                className={`border-b border-line last:border-0 group transition-colors animate-row-in
-                            ${selected.has(row.id) ? 'bg-accent-soft/50' : 'hover:bg-raised/50'}
-                            ${highlighted.has(row.id) ? 'flash-change' : ''}`}
-              >
-                <td className="px-2 no-print align-middle">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(row.id)}
-                    onChange={() => toggle(row.id)}
-                    className="accent-accent w-3.5 h-3.5 opacity-0 group-hover:opacity-100 focus:opacity-100 checked:opacity-100 transition-opacity"
-                    aria-label={`Select row ${rowIndex + 1}`}
-                  />
-                </td>
-
-                {columns.map((col, colIndex) => (
-                  <td key={col.id} data-cell={`${row.id}:${col.id}`} className="align-middle">
-                    <Cell
-                      column={col}
-                      value={row.cells[col.id] ?? null}
-                      rowId={row.id}
-                      fileId={doc.id}
-                      onChange={(v) => actions.setCell(row.id, col.id, v)}
-                      onNavigate={(dir) => navigate(rowIndex, colIndex, dir)}
-                    />
+          <tbody ref={(el) => { drag.containerRef.current = el }}>
+            {rows.map((row, rowIndex) => {
+              const edge = dropEdge(drag, rowIndex, rows.length)
+              return (
+                <tr
+                  key={row.id}
+                  data-drag-index={rowIndex}
+                  className={`border-b border-line last:border-0 group transition-colors animate-row-in
+                              ${selected.has(row.id) ? 'bg-accent-soft/50' : 'hover:bg-raised/50'}
+                              ${highlighted.has(row.id) ? 'flash-change' : ''}
+                              ${drag.from === rowIndex ? 'dragging-row' : ''}
+                              ${edge === 'above' ? 'drop-line-above' : edge === 'below' ? 'drop-line-below' : ''}`}
+                >
+                  <td className="no-print align-middle">
+                    <div className="flex items-center gap-0.5 pl-1.5 pr-1">
+                      <span
+                        {...drag.handleProps(rowIndex)}
+                        role="button"
+                        tabIndex={-1}
+                        aria-label={`Reorder row ${rowIndex + 1}`}
+                        title="Drag to reorder"
+                        className="h-7 w-5 grid place-items-center rounded text-faint opacity-0
+                                   group-hover:opacity-100 hover:text-ink hover:bg-raised transition-all select-none"
+                      >
+                        <Icon.Grip size={14} />
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(row.id)}
+                        onChange={() => toggle(row.id)}
+                        className="accent-accent w-3.5 h-3.5 opacity-0 group-hover:opacity-100 focus:opacity-100 checked:opacity-100 transition-opacity"
+                        aria-label={`Select row ${rowIndex + 1}`}
+                      />
+                    </div>
                   </td>
-                ))}
 
-                <td className="px-1 no-print">
-                  <button
-                    onClick={() => actions.deleteRows([row.id])}
-                    className="h-7 w-7 grid place-items-center rounded text-faint opacity-0 group-hover:opacity-100
-                               focus:opacity-100 hover:text-bad hover:bg-bad/10 transition-all"
-                    aria-label="Delete row"
-                  >
-                    <Icon.Trash size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  {columns.map((col, colIndex) => (
+                    <td key={col.id} data-cell={`${row.id}:${col.id}`} className="align-middle px-0.5 py-0.5">
+                      <Cell
+                        column={col}
+                        value={row.cells[col.id] ?? null}
+                        rowId={row.id}
+                        fileId={doc.id}
+                        onChange={(v) => actions.setCell(row.id, col.id, v)}
+                        onNavigate={(dir) => navigate(rowIndex, colIndex, dir)}
+                      />
+                    </td>
+                  ))}
+
+                  <td className="px-1 no-print align-middle">
+                    <button
+                      onClick={() => actions.deleteRows([row.id])}
+                      className="h-7 w-7 grid place-items-center rounded text-faint opacity-0 group-hover:opacity-100
+                                 focus:opacity-100 hover:text-bad hover:bg-bad/10 transition-all"
+                      aria-label="Delete row"
+                    >
+                      <Icon.Trash size={14} />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
 
             {rows.length === 0 && (
-              /* Marked so it is never mistaken for a data row — by a screen
-                 reader, by a test, or by anything else counting rows. */
+              /* Marked so it is never mistaken for a data row: not by a screen
+                 reader, not by a test, not by anything else counting rows. */
               <tr data-placeholder="empty">
                 <td colSpan={columns.length + 2} className="px-4 py-10 text-center text-[13px] text-faint">
                   No rows yet. Add one below, or ask the assistant.
@@ -185,7 +207,7 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
               <tr className="border-t-2 border-line bg-raised/40">
                 <td className="no-print" />
                 {columns.map((col) => (
-                  <td key={col.id} className={`px-2 py-2.5 text-[13px] ${col.kind === 'amount' || col.kind === 'number' ? 'text-right tnum font-semibold' : 'text-left text-muted'}`}>
+                  <td key={col.id} className={`px-2.5 py-3 text-[13px] ${col.kind === 'amount' || col.kind === 'number' ? 'text-right tnum font-semibold' : 'text-left text-muted'}`}>
                     {col.kind === 'amount'
                       ? formatINR(totals.byColumn[col.id] ?? 0)
                       : col.kind === 'number'
@@ -202,7 +224,7 @@ function DesktopTable({ doc, rows, columns, sheet, selected, toggle, highlighted
         </table>
       </div>
 
-      <button onClick={() => addAndFocus(gridRef.current, actions, columns[0]?.id)} className="btn-ghost mt-2 text-[12.5px] pressable no-print">
+      <button onClick={() => addAndFocus(gridRef.current, actions, columns[0]?.id)} className="btn-ghost mt-2.5 text-[12.5px] pressable no-print">
         <Icon.Plus size={15} /> Add row
       </button>
     </div>
@@ -215,6 +237,7 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
   const titleCol = columns.find((c) => c.kind === 'text' && c.system)
   const rest = columns.filter((c) => c.id !== amountCol?.id && c.id !== titleCol?.id)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const drag = useDragReorder((from, to) => actions.moveRow(rows[from].id, to))
 
   const toggleExpand = (id: string) =>
     setExpanded((prev) => {
@@ -224,69 +247,91 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
     })
 
   return (
-    <div className="md:hidden space-y-2">
-      {rows.map((row) => {
-        const open = expanded.has(row.id)
-        return (
-          <div
-            key={row.id}
-            className={`card px-3 py-2.5 animate-row-in transition-colors
-                        ${selected.has(row.id) ? 'border-accent/50 bg-accent-soft/40' : ''}
-                        ${highlighted.has(row.id) ? 'flash-change' : ''}`}
-          >
-            <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={selected.has(row.id)}
-                onChange={() => toggle(row.id)}
-                className="accent-accent w-4 h-4 mt-2 shrink-0"
-                aria-label="Select row"
-              />
+    <div className="md:hidden">
+      <div className="space-y-2" ref={(el) => { drag.containerRef.current = el }}>
+        {rows.map((row, index) => {
+          const open = expanded.has(row.id)
+          const edge = dropEdge(drag, index, rows.length)
+          return (
+            <div
+              key={row.id}
+              data-drag-index={index}
+              className={`card px-2 py-2.5 animate-row-in transition-colors
+                          ${selected.has(row.id) ? 'border-accent/50 bg-accent-soft/40' : ''}
+                          ${highlighted.has(row.id) ? 'flash-change' : ''}
+                          ${drag.from === index ? 'dragging-row' : ''}
+                          ${edge === 'above' ? 'drop-line-above' : edge === 'below' ? 'drop-line-below' : ''}`}
+            >
+              <div className="flex items-start gap-1.5">
+                <span
+                  {...drag.handleProps(index)}
+                  role="button"
+                  tabIndex={-1}
+                  aria-label={`Reorder row ${index + 1}`}
+                  className="h-9 w-6 grid place-items-center rounded text-faint active:text-accent active:bg-raised shrink-0 select-none"
+                >
+                  <Icon.Grip size={15} />
+                </span>
 
-              <div className="min-w-0 flex-1">
-                {titleCol && (
-                  <Cell column={titleCol} value={row.cells[titleCol.id] ?? null} rowId={row.id} fileId={doc.id}
-                        onChange={(v) => actions.setCell(row.id, titleCol.id, v)} />
+                <input
+                  type="checkbox"
+                  checked={selected.has(row.id)}
+                  onChange={() => toggle(row.id)}
+                  className="accent-accent w-4 h-4 mt-2.5 shrink-0"
+                  aria-label="Select row"
+                />
+
+                <div className="min-w-0 flex-1">
+                  {titleCol && (
+                    <Cell column={titleCol} value={row.cells[titleCol.id] ?? null} rowId={row.id} fileId={doc.id}
+                          onChange={(v) => actions.setCell(row.id, titleCol.id, v)} />
+                  )}
+                </div>
+
+                {amountCol && (
+                  <div className="w-[98px] shrink-0">
+                    <Cell column={amountCol} value={row.cells[amountCol.id] ?? null} rowId={row.id} fileId={doc.id}
+                          onChange={(v) => actions.setCell(row.id, amountCol.id, v)} />
+                  </div>
                 )}
               </div>
 
-              {amountCol && (
-                <div className="w-[104px] shrink-0">
-                  <Cell column={amountCol} value={row.cells[amountCol.id] ?? null} rowId={row.id} fileId={doc.id}
-                        onChange={(v) => actions.setCell(row.id, amountCol.id, v)} />
-                </div>
+              {rest.length > 0 && (
+                <>
+                  <button
+                    onClick={() => toggleExpand(row.id)}
+                    className="text-[11.5px] text-faint hover:text-muted mt-1 ml-8 flex items-center gap-1 transition-colors"
+                    aria-expanded={open}
+                  >
+                    <Icon.Down size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                    {open ? 'Fewer fields' : `${rest.length} more field${rest.length === 1 ? '' : 's'}`}
+                  </button>
+
+                  {open && (
+                    <div className="mt-2 ml-8 space-y-2 animate-rise">
+                      {rest.map((col) => (
+                        <div key={col.id} className="flex items-center gap-2">
+                          <span className="text-[11.5px] text-muted w-[86px] shrink-0 truncate">{col.name}</span>
+                          <div className="flex-1 min-w-0">
+                            <Cell column={col} value={row.cells[col.id] ?? null} rowId={row.id} fileId={doc.id}
+                                  onChange={(v) => actions.setCell(row.id, col.id, v)} />
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => actions.deleteRows([row.id])}
+                        className="text-[11.5px] text-bad flex items-center gap-1.5 pt-0.5"
+                      >
+                        <Icon.Trash size={13} /> Delete this row
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
-
-            {rest.length > 0 && (
-              <>
-                <button
-                  onClick={() => toggleExpand(row.id)}
-                  className="text-[11.5px] text-faint hover:text-muted mt-1 flex items-center gap-1 transition-colors"
-                  aria-expanded={open}
-                >
-                  <Icon.Down size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-                  {open ? 'Fewer fields' : `${rest.length} more field${rest.length === 1 ? '' : 's'}`}
-                </button>
-
-                {open && (
-                  <div className="mt-1.5 space-y-1.5 animate-rise">
-                    {rest.map((col) => (
-                      <div key={col.id} className="flex items-center gap-2">
-                        <span className="text-[11.5px] text-muted w-24 shrink-0 truncate">{col.name}</span>
-                        <div className="flex-1 min-w-0">
-                          <Cell column={col} value={row.cells[col.id] ?? null} rowId={row.id} fileId={doc.id}
-                                onChange={(v) => actions.setCell(row.id, col.id, v)} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
 
       {rows.length === 0 && (
         <div className="card p-8 text-center">
@@ -294,14 +339,12 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button onClick={() => actions.addRow()} className="btn-outline flex-1 h-11 pressable">
-          <Icon.Plus size={16} /> Add row
-        </button>
-      </div>
+      <button onClick={() => actions.addRow()} className="btn-outline w-full h-11 mt-2 pressable">
+        <Icon.Plus size={16} /> Add row
+      </button>
 
       {rows.length > 0 && (
-        <div className="card px-3 py-2.5 flex items-center justify-between">
+        <div className="card px-3 py-2.5 mt-2 flex items-center justify-between">
           <span className="text-[12px] text-muted">{rows.length} row{rows.length === 1 ? '' : 's'}</span>
           <span className="text-[15px] font-semibold tnum">{formatINR(totals.total)}</span>
         </div>

@@ -69,7 +69,7 @@ export async function withLock<T>(scope: string, fn: () => Promise<T>, opts?: { 
 
 export class LockTimeoutError extends Error {
   constructor(scope: string) {
-    super(`Could not acquire lock for ${scope} — another write is in flight`)
+    super(`Could not acquire lock for ${scope} - another write is in flight`)
     this.name = 'LockTimeoutError'
   }
 }

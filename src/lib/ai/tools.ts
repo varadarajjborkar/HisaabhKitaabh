@@ -107,7 +107,7 @@ function compactDoc(doc: SheetDoc, rowLimit = 120) {
       rowId: r.id,
       ...Object.fromEntries(doc.columns.map((c) => [c.name, displayValue(r.cells[c.id], c)])),
     })),
-    truncated: rows.length > rowLimit ? `${rows.length - rowLimit} more rows not shown — use query_rows to filter` : undefined,
+    truncated: rows.length > rowLimit ? `${rows.length - rowLimit} more rows not shown, use query_rows to filter` : undefined,
   }
 }
 
@@ -412,7 +412,7 @@ const buildExport: ToolDef = {
 const addRows: ToolDef = {
   name: 'add_rows',
   description:
-    'Add one or more rows. Each row is an object keyed by column name — e.g. {"INR": 450, "Title": "Cab", "Paid via": "UPI"}. Amounts are totals already; never multiply by quantity. Keys that match no column are reported back rather than dropped.',
+    'Add one or more rows. Each row is an object keyed by column name - e.g. {"INR": 450, "Title": "Cab", "Paid via": "UPI"}. Amounts are totals already; never multiply by quantity. Keys that match no column are reported back rather than dropped.',
   mode: 'write',
   risk: 'medium',
   parameters: {
@@ -431,7 +431,7 @@ const addRows: ToolDef = {
     const doc = await resolveDoc(ctx, args.fileId)
     const inputs = arr<Record<string, unknown>>(args.rows)
     if (inputs.length === 0) return { kind: 'error', message: 'No rows were supplied.' }
-    if (inputs.length > 200) return { kind: 'error', message: 'That is more than 200 rows — split it across several calls.' }
+    if (inputs.length > 200) return { kind: 'error', message: 'That is more than 200 rows. Split it across several calls.' }
 
     const visible = sortByOrder(liveRows(doc))
     let cursor: string | null = visible.length ? visible[visible.length - 1].order : null
@@ -468,7 +468,7 @@ const addRows: ToolDef = {
       plan: {
         fileId: doc.id,
         ops,
-        summary: `Add ${ops.length} row${ops.length === 1 ? '' : 's'} to "${doc.name}"${added ? `, ${formatINR(added)} in total` : ''}${unmatchedAll.size ? ` — ignoring unknown field${unmatchedAll.size === 1 ? '' : 's'}: ${[...unmatchedAll].join(', ')}` : ''}`,
+        summary: `Add ${ops.length} row${ops.length === 1 ? '' : 's'} to "${doc.name}"${added ? `, ${formatINR(added)} in total` : ''}${unmatchedAll.size ? ` - ignoring unknown field${unmatchedAll.size === 1 ? '' : 's'}: ${[...unmatchedAll].join(', ')}` : ''}`,
         preview,
       },
     }
@@ -478,7 +478,7 @@ const addRows: ToolDef = {
 const updateRows: ToolDef = {
   name: 'update_rows',
   description:
-    'Change cells on existing rows. Pass rowIds from get_file or query_rows — never invent one. Batch every row of a bulk edit into one call so the user can undo it in one step.',
+    'Change cells on existing rows. Pass rowIds from get_file or query_rows - never invent one. Batch every row of a bulk edit into one call so the user can undo it in one step.',
   mode: 'write',
   risk: 'high',
   parameters: {
@@ -517,7 +517,7 @@ const updateRows: ToolDef = {
         if (JSON.stringify(before ?? null) === JSON.stringify(value ?? null)) continue
         ops.push({ id: shortId(12), type: 'cell.set', rowId: u.rowId, columnId, value })
         diff.push({
-          label: `${renderRow(doc, u.rowId).slice(0, 60)} — ${col.name}`,
+          label: `${renderRow(doc, u.rowId).slice(0, 60)} - ${col.name}`,
           before: before == null || before === '' ? '(empty)' : String(col.kind === 'amount' ? formatINR(numeric(before)) : before),
           after: value == null || value === '' ? '(empty)' : String(col.kind === 'amount' ? formatINR(numeric(value)) : value),
         })
@@ -529,7 +529,7 @@ const updateRows: ToolDef = {
         kind: 'error',
         message: missing.length
           ? `No rows matched those ids (${missing.slice(0, 3).join(', ')}). Call query_rows or get_file to get real row ids.`
-          : 'Those values are already what the rows contain — nothing to change.',
+          : 'Those values are already what the rows contain - nothing to change.',
       }
     }
     return {
@@ -598,7 +598,7 @@ const addColumn: ToolDef = {
     const name = str(args.name).trim()
     if (!name) return { kind: 'error', message: 'A column needs a name.' }
     if (doc.columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
-      return { kind: 'error', message: `A column called "${name}" already exists — use it instead of adding another.` }
+      return { kind: 'error', message: `A column called "${name}" already exists. Use it instead of adding another.` }
     }
     const kind = str(args.kind, 'text') as Column['kind']
     const last = doc.columns.map((c) => c.order).sort().pop() ?? null
@@ -615,7 +615,7 @@ const addColumn: ToolDef = {
         fileId: doc.id,
         ops: [{ id: shortId(12), type: 'column.insert', column }],
         summary: `Add a ${kind} column called "${name}" to "${doc.name}"`,
-        preview: [`New column: ${name} (${kind})${column.options?.length ? ` — options: ${column.options.join(', ')}` : ''}`],
+        preview: [`New column: ${name} (${kind})${column.options?.length ? ` - options: ${column.options.join(', ')}` : ''}`],
       },
     }
   },
@@ -768,7 +768,7 @@ const createFile: ToolDef = {
 
 const createFolder: ToolDef = {
   name: 'create_folder',
-  description: 'Create a new folder. Check list_folders first — a near-duplicate folder costs the user later.',
+  description: 'Create a new folder. Check list_folders first, because a near-duplicate folder costs the user later.',
   mode: 'write',
   risk: 'low',
   parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
@@ -776,7 +776,7 @@ const createFolder: ToolDef = {
     const name = str(args.name).trim()
     if (!name) return { kind: 'error', message: 'A folder needs a name.' }
     const existing = (await ctx.repo.listFolders()).find((f) => f.name.toLowerCase() === name.toLowerCase())
-    if (existing) return { kind: 'error', message: `"${existing.name}" already exists — use folderId ${existing.id}.` }
+    if (existing) return { kind: 'error', message: `"${existing.name}" already exists. Use folderId ${existing.id}.` }
     return {
       kind: 'plan',
       plan: {
@@ -794,7 +794,7 @@ const createFolder: ToolDef = {
 const askUser: ToolDef = {
   name: 'ask_user',
   description:
-    'Ask the user a question when the answer changes what you would do and you cannot settle it from the data. Do not use it for things you can look up with a read tool, or to ask permission — writes are already gated.',
+    'Ask the user a question when the answer changes what you would do and you cannot settle it from the data. Do not use it for things you can look up with a read tool, or to ask permission - writes are already gated.',
   mode: 'meta',
   risk: 'none',
   parameters: {

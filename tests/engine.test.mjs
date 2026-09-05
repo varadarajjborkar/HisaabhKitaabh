@@ -1,5 +1,5 @@
 /**
- * Engine tests — the concurrency and merge claims, checked rather than asserted.
+ * Engine tests - the concurrency and merge claims, checked rather than asserted.
  * Run with: node --experimental-strip-types tests/engine.test.mjs
  */
 import { register } from 'node:module'
@@ -28,6 +28,7 @@ function ok(cond, msg) { if (!cond) throw new Error(msg || 'expected truthy') }
 const { newSheet, applyOps, computeTotals, liveRows, parseAmount, checkRev, SYSTEM_COLUMNS } =
   await import('../src/lib/crdt/doc.ts')
 const { orderBetween, orderAfter, sortByOrder } = await import('../src/lib/util/order.ts')
+const { toEmail, toPlainText } = await import('../src/lib/util/export.ts')
 const { invertOp } = await import('../src/lib/crdt/ops.ts')
 
 const base = () => newSheet({ folderId: 'f1', ownerId: 'u1', name: 'Test' })
@@ -59,7 +60,7 @@ check('adjacent integer parts split', () => {
 check('open start', () => ok(orderBetween(null, 'a1') < 'a1'))
 check('open end', () => ok(orderBetween('a0', null) > 'a0'))
 check('first key of an empty list', () => eq(orderBetween(null, null), 'a0'))
-check('appends stay short — 1000 rows, keys under 6 chars', () => {
+check('appends stay short - 1000 rows, keys under 6 chars', () => {
   let prev = null
   let maxLen = 0
   for (let i = 0; i < 1000; i++) {
@@ -129,7 +130,7 @@ check('system column cannot be deleted', () => {
   eq(r.rejected.length, 1)
 })
 
-console.log('\nIdempotency — the retry story')
+console.log('\nIdempotency - the retry story')
 check('duplicate op id is dropped', () => {
   let d = base()
   const dup = { id: 'same', type: 'row.insert', rowId: 'r1', order: 'a0' }
@@ -152,7 +153,7 @@ check('replayed batch of 50 adds 50 rows once', () => {
   eq(liveRows(d).length, 50)
 })
 
-console.log('\nLast-writer-wins — human vs agent')
+console.log('\nLast-writer-wins - human vs agent')
 check('higher lamport wins', () => {
   let d = base()
   d = applyOps(d, { actor: 'human', ops: [op({ type: 'row.insert', rowId: 'r1', order: 'a0' })] }).doc
@@ -262,6 +263,63 @@ check('1000 rows sum correctly and stay ordered', () => {
   const rows = liveRows(d)
   eq(rows.length, 1000)
   ok(rows[0].id === 'r0' && rows[999].id === 'r999', 'ordering broke at scale')
+})
+
+console.log('\nExport rendering')
+
+/**
+ * The mail draft is checked for *shape*, not wording.
+ *
+ * A mailto: body is plain text and every client renders plain text in a
+ * proportional font, so the space-padded grid the draft used to carry lined
+ * nothing up: the columns fanned out and the amounts stopped sitting under each
+ * other. These assert the fix, which is that the table is turned on its side.
+ */
+function sampleDoc() {
+  let d = base()
+  d = applyOps(d, { actor: 'u1', ops: [
+    { id: 'e1', type: 'column.insert', column: { id: 'c_qty', name: 'Quantity', kind: 'number', order: 'a3' } },
+    { id: 'e2', type: 'row.insert', rowId: 'x1', order: 'a1', cells: { [A]: 4820, [T]: 'Train tickets', c_qty: 2 } },
+    { id: 'e3', type: 'row.insert', rowId: 'x2', order: 'a2', cells: { [A]: 1250, [T]: 'Hotel, night 1' } },
+    { id: 'e4', type: 'doc.duration', duration: { enabled: true, mode: 'date', from: '2025-10-04', to: '2025-10-09' } },
+  ] }).doc
+  return d
+}
+
+check('the mail body puts one row per block, amount on its own line', () => {
+  const { body } = toEmail(sampleDoc())
+  const lines = body.split('\n')
+  const i = lines.findIndex((l) => l.startsWith('1. Train tickets'))
+  ok(i >= 0, `no numbered block for the first row:\n${body}`)
+  ok(/^ {3}₹4,820/.test(lines[i + 1]), `the amount is not on its own indented line: "${lines[i + 1]}"`)
+  ok(lines.includes('   Quantity: 2'), `a filled extra column is not labelled:\n${body}`)
+})
+
+check('the mail body omits empty fields instead of printing a dash', () => {
+  const { body } = toEmail(sampleDoc())
+  ok(!/^\s*-\s*$/m.test(body), `a placeholder dash survived:\n${body}`)
+  ok(!body.includes('Quantity:\n'), 'an empty Quantity was printed')
+  const hotel = body.split('\n').findIndex((l) => l.startsWith('2. Hotel'))
+  ok(!body.split('\n')[hotel + 2]?.startsWith('   Quantity'), 'the second row printed an empty Quantity')
+})
+
+check('the mail body carries the period, the count, the total and the sign-off', () => {
+  const { subject, body } = toEmail(sampleDoc())
+  ok(subject.includes('4 Oct 2025') && subject.includes('9 Oct 2025'), `subject lost the period: ${subject}`)
+  ok(!subject.includes('\u2014') && !body.includes('\u2014'), 'an em dash survived into the draft')
+  ok(body.includes('Rows: 2'), 'no row count')
+  ok(/Total: ₹6,070 across 2 rows/.test(body), `no closing total:\n${body}`)
+  ok(body.trimEnd().endsWith('made from HisaabKitaab'), `wrong sign-off:\n${body}`)
+})
+
+check('the clipboard copy keeps its aligned grid', () => {
+  const text = toPlainText(sampleDoc())
+  const lines = text.split('\n')
+  const header = lines.findIndex((l) => /INR/.test(l))
+  const widths = new Set(lines.slice(header, header + 4).map((l) => l.length))
+  ok(lines[header + 1].startsWith('-'), 'no rule under the header')
+  ok(widths.size <= 4, 'the grid is not column-aligned')
+  ok(/TOTAL/.test(text), 'no total row')
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

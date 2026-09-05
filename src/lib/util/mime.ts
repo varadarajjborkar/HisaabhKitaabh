@@ -48,7 +48,7 @@ export function checkAttachment(name: string, mime: string): { ok: true } | { ok
   const ext = extensionOf(name)
   if (BLOCKED_EXTENSIONS.has(ext)) {
     return { ok: false, reason: ext.length <= 4 && /mp4|mov|avi|mkv|webm|flv|wmv|m4v|mpg|3gp|ogv/.test(ext)
-      ? 'Video files are not supported — attach a still frame or a receipt instead.'
+      ? 'Video files are not supported. Attach a still frame or a receipt instead.'
       : `.${ext} files are not supported here.` }
   }
   if (BLOCKED_PREFIXES.some((p) => mime.startsWith(p))) {
@@ -81,7 +81,7 @@ export function humanSize(bytes: number): string {
  *
  * The attachment reference travels through the client, so its declared MIME
  * type is user-controlled. Echoing it into a response header would let someone
- * have their own upload served as text/html from this origin — stored XSS
+ * have their own upload served as text/html from this origin - stored XSS
  * against their own session, and a foothold worth not granting. Anything
  * outside this list is served as an opaque download instead.
  */

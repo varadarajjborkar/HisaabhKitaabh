@@ -15,7 +15,7 @@ import { renderSkills } from './skills'
  * The main loop is a generalist with the full tool set. Two specialists sit
  * behind tools because they need something the generalist cannot have in the
  * same call: a different model (vision) or a different decoding mode
- * (schema-constrained JSON). Delegating to them keeps the main context clean —
+ * (schema-constrained JSON). Delegating to them keeps the main context clean -
  * a 40-row receipt becomes one structured result instead of forty tool
  * round-trips.
  *
@@ -58,7 +58,7 @@ export function buildSystemPrompt(params: {
   const blocks: string[] = [
     `You are the assistant inside HisaabKitaab, an expense ledger. You are talking to ${params.userName}.`,
     '',
-    'How this app works — get this right, users notice when you do not:',
+    'How this app works - get this right, users notice when you do not:',
     '- Data lives in folders. A folder holds files. A file is a table of rows.',
     '- Every file starts with three columns: an amount column (INR), Title, and Extra Captions. Users add their own columns for things like quantity, category, payment method, or receipt attachments.',
     '- Amounts entered are TOTALS. A quantity column is a note, not a multiplier. "3 coffees, 240" means the row is 240, not 720. This is not a spreadsheet and nothing is computed across columns.',
@@ -66,8 +66,8 @@ export function buildSystemPrompt(params: {
     '',
     'How you work:',
     '- Read before you write. Call get_file or query_rows so you are using real column names and real row ids. Never invent a row id.',
-    '- Read ONCE. The result of a tool call stays in front of you for the rest of the turn — calling get_file again, or listing folders you have already listed, tells you nothing new and makes the user wait. If the open file is the one you need, you do not need list_files or list_folders at all.',
-    '- Every write tool you call becomes a proposal the user reviews and approves. So propose the complete change, not a cautious fragment — but do not propose a change the user did not ask for.',
+    '- Read ONCE. The result of a tool call stays in front of you for the rest of the turn - calling get_file again, or listing folders you have already listed, tells you nothing new and makes the user wait. If the open file is the one you need, you do not need list_files or list_folders at all.',
+    '- Every write tool you call becomes a proposal the user reviews and approves. So propose the complete change, not a cautious fragment - but do not propose a change the user did not ask for.',
     '- Batch related edits into one tool call. One call is one approval and one undo step for the user; ten calls is ten of each.',
     '- When you have what you need, act. Do not narrate a plan you are about to carry out anyway.',
     '- If a request is ambiguous in a way that changes the numbers, ask. If it is ambiguous in a way that does not, pick the sensible reading, say which you picked, and continue.',
@@ -86,7 +86,7 @@ export function buildSystemPrompt(params: {
       'Tools default to this file when no fileId is given.',
     )
   } else if (scope.folderName) {
-    blocks.push('', '## Open folder', `"${scope.folderName}" — the user is looking at its file list.`)
+    blocks.push('', '## Open folder', `"${scope.folderName}" - the user is looking at its file list.`)
   } else {
     blocks.push('', '## Context', 'The user is on the home screen. No file is open, so ask or use list_files before acting on one.')
   }
@@ -172,7 +172,7 @@ const EXTRACTION_SCHEMA = {
  * Coerce whatever the model returned into ExtractedRow.
  *
  * Models drift on nested field names even when the tool schema spells them out
- * — `description` for `title`, `price` for `amount` — so the shape is mapped
+ * - `description` for `title`, `price` for `amount` - so the shape is mapped
  * rather than trusted. Anything that cannot be read as a number becomes null
  * with low confidence, which surfaces in the approval card instead of silently
  * becoming a zero in someone's total.
@@ -219,7 +219,7 @@ function coerceRow(raw: unknown): ExtractedRow | null {
  * Read one document into rows.
  *
  * Text-shaped files are parsed deterministically first and the model only maps
- * columns — no vision pass, no hallucinated digits. Images go to the vision
+ * columns - no vision pass, no hallucinated digits. Images go to the vision
  * model. Structure comes from a tool call rather than `format`, because this
  * endpoint ignores `format` (verified, not assumed).
  */
@@ -315,12 +315,12 @@ export async function runExtractor(input: {
     const gap = Math.round((documentTotal - sum) * 100) / 100
     if (Math.abs(gap) > 0.5) {
       notes.push(
-        `The extracted rows add up to ${formatINR(sum)} but the document says ${formatINR(documentTotal)} — a gap of ${formatINR(Math.abs(gap))}. Something was probably missed or misread.`,
+        `The extracted rows add up to ${formatINR(sum)} but the document says ${formatINR(documentTotal)} - a gap of ${formatINR(Math.abs(gap))}. Something was probably missed or misread.`,
       )
     }
   }
   const lowConfidence = rows.filter((r) => r.confidence === 'low').length
-  if (lowConfidence > 0) notes.push(`${lowConfidence} row(s) were hard to read — check them before approving.`)
+  if (lowConfidence > 0) notes.push(`${lowConfidence} row(s) were hard to read - check them before approving.`)
 
   return {
     rows,
@@ -387,7 +387,7 @@ export async function runAnalyst(ctx: ToolCtx, question: string, fileId?: string
         {
           role: 'system',
           content:
-            'You answer questions about an expense file using only the figures given. Every number in the data is already computed correctly — quote it, never recalculate. Lead with the answer. Amounts as ₹ with Indian grouping (₹1,20,450). Two to five sentences unless a breakdown genuinely needs a short list. No advice unless asked.',
+            'You answer questions about an expense file using only the figures given. Every number in the data is already computed correctly - quote it, never recalculate. Lead with the answer. Amounts as ₹ with Indian grouping (₹1,20,450). Two to five sentences unless a breakdown genuinely needs a short list. No advice unless asked.',
         },
         {
           role: 'user',
@@ -455,7 +455,7 @@ export const extractTool: ToolDef = {
         period: result.period,
         notes: result.notes,
         rows: result.rows,
-        next: 'Show the user what was found — especially any low-confidence rows and any note about a total mismatch — then call add_rows.',
+        next: 'Show the user what was found - especially any low-confidence rows and any note about a total mismatch - then call add_rows.',
       },
     }
   },

@@ -7,13 +7,13 @@ import type { Row } from '../model/types'
 /**
  * The sample folder every new account starts with.
  *
- * It exists to teach the model of the app by example — a folder holding files,
+ * It exists to teach the model of the app by example - a folder holding files,
  * a file holding rows, a custom column beyond the three defaults, and a period
- * switched on — rather than by a tour. It is marked `sample: true` so the UI can
+ * switched on - rather than by a tour. It is marked `sample: true` so the UI can
  * label it and offer one-click removal.
  */
 export async function seedSampleFolder(repo: Repo): Promise<void> {
-  const folder = await repo.createFolder({ name: 'Sample — October trip', color: '#0f766e', icon: '🧭', sample: true })
+  const folder = await repo.createFolder({ name: 'Sample: October trip', color: '#0f766e', icon: '🧭', sample: true })
 
   const qtyCol = { id: 'c_qty', name: 'Quantity', kind: 'number' as const, order: 'd0' }
   const payCol = { id: 'c_pay', name: 'Paid via', kind: 'select' as const, options: ['UPI', 'Cash', 'Card'], order: 'e0' }
@@ -25,8 +25,8 @@ export async function seedSampleFolder(repo: Repo): Promise<void> {
 
   const samples: Array<[number, string, string, number, string]> = [
     [4820, 'Train tickets', 'Return, sleeper class', 2, 'UPI'],
-    [1250, 'Hotel — night 1', 'Includes breakfast', 1, 'Card'],
-    [1250, 'Hotel — night 2', '', 1, 'Card'],
+    [1250, 'Hotel, night 1', 'Includes breakfast', 1, 'Card'],
+    [1250, 'Hotel, night 2', '', 1, 'Card'],
     [640, 'Dinner at the pier', 'Split between 3 of us', 3, 'Cash'],
     [180, 'Local bus passes', 'Day pass', 2, 'Cash'],
     [2300, 'Boat tour', 'Booked ahead, 10% off applied', 2, 'UPI'],

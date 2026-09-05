@@ -22,7 +22,7 @@ type Analytics = {
  * The home dashboard.
  *
  * Off unless the user turns it on, and then scoped to the folder and files they
- * pick — an "all your money, always on screen" panel is not something everyone
+ * pick - an "all your money, always on screen" panel is not something everyone
  * wants on a shared laptop. Every figure is computed server-side; this component
  * only draws.
  */
@@ -124,12 +124,12 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
               <StatTile label="Rows" value={String(data.summary.rows)} hint={`avg ${compactINR(data.summary.average)}`} />
               <StatTile
                 label="Largest single row"
-                value={data.topRows[0] ? compactINR(data.topRows[0].amount) : '—'}
+                value={data.topRows[0] ? compactINR(data.topRows[0].amount) : 'None yet'}
                 hint={data.topRows[0]?.title.slice(0, 28)}
               />
               <StatTile
                 label="Busiest file"
-                value={data.perFile[0] ? compactINR(data.perFile[0].total) : '—'}
+                value={data.perFile[0] ? compactINR(data.perFile[0].total) : 'None yet'}
                 hint={data.perFile[0]?.name.slice(0, 28)}
               />
             </div>

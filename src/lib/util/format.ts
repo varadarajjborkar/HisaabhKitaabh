@@ -1,4 +1,4 @@
-/** Indian digit grouping: ₹12,34,567.89 — not ₹1,234,567.89. */
+/** Indian digit grouping: ₹12,34,567.89 - not ₹1,234,567.89. */
 export function formatINR(amount: number, opts: { decimals?: boolean; symbol?: boolean } = {}): string {
   const { decimals = Math.abs(amount % 1) > 0.001, symbol = true } = opts
   const sign = amount < 0 ? '-' : ''

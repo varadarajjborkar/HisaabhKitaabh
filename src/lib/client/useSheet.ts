@@ -19,7 +19,7 @@ import { toast } from '@/components/ui/Toast'
  *
  * Undo is inverse operations, not snapshots. Inverting against the pre-state
  * and re-sending as a fresh edit means undo composes correctly with someone
- * else's concurrent change — it puts *your* value back without reverting
+ * else's concurrent change - it puts *your* value back without reverting
  * theirs.
  */
 
@@ -99,7 +99,7 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
       const res = await post<{ doc: SheetDoc; rejected: Array<{ reason: string }> }>(
         `/api/files/${fileId}/mutate`,
         {
-          // The last revision the server confirmed — not the local one, which
+          // The last revision the server confirmed - not the local one, which
           // optimistic edits have already advanced.
           baseRev: serverRev.current,
           ops,
@@ -127,7 +127,7 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         // Someone else wrote to a cell we also touched. Keep the user's work in
-        // the queue and let them decide — never silently discard or overwrite.
+        // the queue and let them decide - never silently discard or overwrite.
         queue.current = [...ops, ...queue.current]
         setState('conflict')
         const current = (err.body as { current?: SheetDoc }).current
@@ -160,7 +160,7 @@ export function useSheet(fileId: string, initialDoc?: SheetDoc | null) {
     await flush()
   }, [flush])
 
-  // Flush on tab hide and before unload — closing a tab must not lose an edit.
+  // Flush on tab hide and before unload - closing a tab must not lose an edit.
   useEffect(() => {
     const onHide = () => { if (document.visibilityState === 'hidden') void flush() }
     const onBeforeUnload = (e: BeforeUnloadEvent) => {

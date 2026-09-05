@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 /**
  * Whether the page is currently rendering dark.
  *
- * Charts pick their palette in JS, so they need the resolved value — not the
+ * Charts pick their palette in JS, so they need the resolved value - not the
  * preference. Both inputs are watched: the OS media query, and the data-theme
  * stamp the toggle writes, which must win in either direction.
  */

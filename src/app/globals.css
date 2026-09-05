@@ -5,7 +5,7 @@
 /*
  * Palette.
  *
- * Warm off-white ground rather than pure white — a ledger is read for long
+ * Warm off-white ground rather than pure white - a ledger is read for long
  * stretches and #fff at full brightness is fatiguing. One blue accent carries
  * every interactive affordance; semantic colour is reserved for money moving in
  * the wrong direction, so it still means something when it appears.
@@ -129,7 +129,7 @@ body {
  * Motion.
  *
  * Three rules, applied everywhere:
- *   1. Motion explains a change — where a thing came from, what just updated,
+ *   1. Motion explains a change - where a thing came from, what just updated,
  *      what is still working. Nothing moves for decoration.
  *   2. One easing curve. `--ease` is a gentle overshoot-free cubic that reads
  *      as "settled" rather than "bouncy"; `--ease-out` is for things leaving.
@@ -168,7 +168,7 @@ body {
 .animate-row-in   { animation: row-in var(--dur-fast) var(--ease) both; }
 .animate-pulse-soft { animation: pulse-soft 1.4s ease-in-out infinite; }
 
-/* A row the assistant just wrote fades from accent to nothing — the user's eye
+/* A row the assistant just wrote fades from accent to nothing - the user's eye
    is drawn to what changed without a banner having to say so. */
 .flash-change { animation: flash 1.1s var(--ease-out) both; }
 
@@ -213,7 +213,7 @@ body {
   animation: caret 1s steps(2) infinite;
 }
 
-/* Pressable surfaces get a small, immediate scale — the one piece of motion
+/* Pressable surfaces get a small, immediate scale - the one piece of motion
    that exists purely to confirm the tap landed. */
 .pressable { transition: transform var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
 .pressable:active { transform: scale(.975); }
@@ -240,8 +240,66 @@ body {
   .lift:hover { transform: none; }
 }
 
-/* The print path for "Download as PDF" — the browser is the PDF engine. */
+/* The print path for "Download as PDF" - the browser is the PDF engine. */
 @media print {
   .no-print { display: none !important; }
   body { background: #fff; }
 }
+
+/*
+ * The sign-in ground.
+ *
+ * Three layers, all painted from theme tokens so it recolours with the rest of
+ * the app instead of needing a second palette: a fine dot lattice for texture,
+ * two wide accent washes that give the panel a light source, and a base tint
+ * one step off the page so the two halves of the split read as two surfaces.
+ * Everything is a gradient, so it costs no requests and stays crisp at any DPI.
+ */
+.auth-bg {
+  background-color: rgb(var(--raised));
+  background-image:
+    radial-gradient(circle at 1px 1px, rgb(var(--faint) / .16) 1px, transparent 0),
+    radial-gradient(46rem 34rem at 12% 8%, rgb(var(--accent) / .13), transparent 62%),
+    radial-gradient(38rem 30rem at 88% 96%, rgb(var(--accent) / .10), transparent 60%),
+    linear-gradient(160deg, rgb(var(--surface) / .55), transparent 55%);
+  background-size: 22px 22px, auto, auto, auto;
+}
+
+/* A hairline of light along the split, so the divider does not read as a crack. */
+.auth-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgb(var(--accent) / .35), transparent);
+  pointer-events: none;
+}
+
+/*
+ * Scroll containment.
+ *
+ * Applied to every inner scroller: the sheet, the assistant transcript, the
+ * recents list. Without it, reaching the end of a panel hands the remaining
+ * momentum to the page behind, which on a phone drags the whole layout and the
+ * header out of view mid-conversation.
+ */
+.scroller {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* A drop target that is currently under a dragged file or row. */
+.drop-active {
+  outline: 2px dashed rgb(var(--accent) / .75);
+  outline-offset: -3px;
+  background-color: rgb(var(--accent) / .07);
+}
+
+/* The row being dragged keeps its place in the flow but reads as lifted. */
+.dragging-row { opacity: .4; }
+.drop-line-above { box-shadow: inset 0 2px 0 0 rgb(var(--accent)); }
+.drop-line-below { box-shadow: inset 0 -2px 0 0 rgb(var(--accent)); }
+
+@keyframes slide-in-left { from { opacity: 0; transform: translateX(-100%) } to { opacity: 1; transform: none } }
+.animate-slide-in-left { animation: slide-in-left var(--dur) var(--ease) both; }

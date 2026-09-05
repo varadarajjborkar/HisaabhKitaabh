@@ -8,7 +8,7 @@ import { useIsDark } from './useTheme'
 /**
  * The live total, as a half-donut.
  *
- * A speedometer needs a maximum, and an expense file has no inherent one — a
+ * A speedometer needs a maximum, and an expense file has no inherent one - a
  * needle against an invented ceiling would be a made-up number dressed as
  * information. So the arc encodes *composition* instead: the total broken into
  * its largest parts, which is real and updates as rows are added. When the user
@@ -22,7 +22,7 @@ const R_OUTER = 92
 const R_INNER = 64
 const CX = 110
 const CY = 104
-/** 2px of surface between segments — the separator is the gap, never a stroke. */
+/** 2px of surface between segments - the separator is the gap, never a stroke. */
 const GAP_DEG = 1.6
 
 function polar(cx: number, cy: number, r: number, deg: number) {
@@ -97,7 +97,7 @@ export function Gauge({
       <div className={`relative w-[220px] ${size}`}>
         <svg viewBox="0 0 220 118" className="w-full h-full overflow-visible" role="img"
              aria-label={`${label} ${formatINR(total)} across ${rowCount} rows`}>
-          {/* Track — one step off the surface, recessive. */}
+          {/* Track - one step off the surface, recessive. */}
           <path
             d={arcPath(0, 180, R_OUTER, R_INNER)}
             className="fill-raised"
@@ -133,7 +133,7 @@ export function Gauge({
         </svg>
 
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pointer-events-none">
-          {/* Hero figure: proportional digits, not tabular — tabular looks loose at display size. */}
+          {/* Hero figure: proportional digits, not tabular - tabular looks loose at display size. */}
           <span className={`font-semibold leading-none tracking-tight ${compact ? 'text-[24px]' : 'text-[30px]'}`}>
             {hover !== null && segments[hover] ? compactINR(segments[hover].total) : formatINR(total, { decimals: false })}
           </span>

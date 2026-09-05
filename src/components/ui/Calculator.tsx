@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icons'
 
 /**
@@ -10,7 +10,7 @@ import { Icon } from './Icons'
  * a web app is clutter. Hidden below the `sm` breakpoint, and the launcher is
  * gated on a fine pointer so it never appears on a tablet in touch mode either.
  *
- * Expressions are evaluated by a small shunting-yard parser rather than eval —
+ * Expressions are evaluated by a small shunting-yard parser rather than eval:
  * a calculator that runs arbitrary strings is a liability, not a convenience.
  */
 
@@ -94,19 +94,69 @@ function evaluate(input: string): number {
   return Math.round(stack[0] * 1e10) / 1e10
 }
 
-const KEYS = [
-  ['(', ')', '%', '÷'],
-  ['7', '8', '9', '×'],
-  ['4', '5', '6', '−'],
-  ['1', '2', '3', '+'],
-  ['0', '.', '⌫', '='],
+/**
+ * Clear entry.
+ *
+ * AC wipes the line; CE takes back only what is currently being typed, which is
+ * the correction people actually want after a mistyped digit halfway through a
+ * long sum. It removes the trailing number literal, or if the expression ends
+ * on an operator or bracket, that one character.
+ */
+export function clearEntry(expr: string): string {
+  const trimmed = expr.replace(/\s+$/, '')
+  if (!trimmed) return ''
+  const trailingNumber = /[0-9.]+$/.exec(trimmed)
+  if (trailingNumber) return trimmed.slice(0, trimmed.length - trailingNumber[0].length)
+  return trimmed.slice(0, -1)
+}
+
+type Key = { k: string; kind: 'digit' | 'op' | 'clear' | 'equals' }
+
+const KEYS: Key[] = [
+  { k: 'AC', kind: 'clear' }, { k: 'CE', kind: 'clear' }, { k: '(', kind: 'op' }, { k: ')', kind: 'op' },
+  { k: '%', kind: 'op' }, { k: '⌫', kind: 'op' }, { k: '^', kind: 'op' }, { k: '÷', kind: 'op' },
+  { k: '7', kind: 'digit' }, { k: '8', kind: 'digit' }, { k: '9', kind: 'digit' }, { k: '×', kind: 'op' },
+  { k: '4', kind: 'digit' }, { k: '5', kind: 'digit' }, { k: '6', kind: 'digit' }, { k: '−', kind: 'op' },
+  { k: '1', kind: 'digit' }, { k: '2', kind: 'digit' }, { k: '3', kind: 'digit' }, { k: '+', kind: 'op' },
+  { k: '0', kind: 'digit' }, { k: '00', kind: 'digit' }, { k: '.', kind: 'digit' }, { k: '=', kind: 'equals' },
 ]
+
+const PANEL = { w: 272, h: 430 }
+const POS_KEY = 'hisaabkitaab-calc-pos'
+
+/** Keep the panel wholly on screen after a drag, a resize, or a stale saved position. */
+function clamp(p: { x: number; y: number }): { x: number; y: number } {
+  const maxX = Math.max(8, window.innerWidth - PANEL.w - 8)
+  const maxY = Math.max(8, window.innerHeight - PANEL.h - 8)
+  return { x: Math.min(Math.max(8, p.x), maxX), y: Math.min(Math.max(8, p.y), maxY) }
+}
 
 export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: () => void; onUse?: (value: number) => void }) {
   const [expr, setExpr] = useState('')
   const [result, setResult] = useState<string>('')
   const [error, setError] = useState('')
   const [tape, setTape] = useState<Array<{ expr: string; value: number }>>([])
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const dragFrom = useRef<{ dx: number; dy: number } | null>(null)
+
+  // Restore where the user last parked it, then keep it inside the viewport.
+  useEffect(() => {
+    if (!open || pos) return
+    let start: { x: number; y: number } | null = null
+    try {
+      const saved = localStorage.getItem(POS_KEY)
+      if (saved) start = JSON.parse(saved) as { x: number; y: number }
+    } catch { /* fall through to the default corner */ }
+    setPos(clamp(start ?? { x: window.innerWidth - PANEL.w - 20, y: window.innerHeight - PANEL.h - 20 }))
+  }, [open, pos])
+
+  useEffect(() => {
+    if (!open) return
+    const onResize = () => setPos((p) => (p ? clamp(p) : p))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [open])
 
   useEffect(() => {
     if (!expr.trim()) { setResult(''); setError(''); return }
@@ -131,6 +181,8 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
 
   const press = useCallback((k: string) => {
     if (k === '=') return commit()
+    if (k === 'AC') return setExpr('')
+    if (k === 'CE') return setExpr(clearEntry)
     if (k === '⌫') return setExpr((e) => e.slice(0, -1))
     const mapped = k === '×' ? '*' : k === '÷' ? '/' : k === '−' ? '-' : k
     setExpr((e) => e + mapped)
@@ -142,47 +194,100 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
       if (e.key === 'Escape') return onClose()
       if (e.key === 'Enter') { e.preventDefault(); return commit() }
       if (e.key === 'Backspace') { e.preventDefault(); return setExpr((v) => v.slice(0, -1)) }
+      if (e.key === 'Delete') { e.preventDefault(); return setExpr(clearEntry) }
       if (/^[0-9+\-*/().%^]$/.test(e.key)) { e.preventDefault(); setExpr((v) => v + e.key) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose, commit])
 
-  if (!open) return null
+  // Dragging is tracked on the window, not the handle, so a fast pointer that
+  // outruns the panel does not drop the grab.
+  useEffect(() => {
+    if (!dragging) return
+    const move = (e: PointerEvent) => {
+      const from = dragFrom.current
+      if (!from) return
+      setPos(clamp({ x: e.clientX - from.dx, y: e.clientY - from.dy }))
+    }
+    const up = () => {
+      setDragging(false)
+      dragFrom.current = null
+      setPos((p) => {
+        if (p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)) } catch { /* not important enough to surface */ } }
+        return p
+      })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+    }
+  }, [dragging])
+
+  if (!open || !pos) return null
 
   return (
-    <div className="hidden sm:flex fixed z-50 bottom-20 right-5 w-[280px] card shadow-pop flex-col animate-rise no-print">
-      <header className="flex items-center justify-between px-3.5 h-10 border-b border-line">
-        <span className="text-[12px] font-medium text-muted flex items-center gap-1.5">
-          <Icon.Calculator size={14} /> Calculator
-        </span>
-        <button onClick={onClose} className="text-faint hover:text-ink p-1 -mr-1" aria-label="Close calculator">
+    <div
+      className={`hidden sm:flex fixed z-50 card shadow-pop flex-col no-print select-none
+                  ${dragging ? '' : 'animate-scale-in transition-shadow'}`}
+      style={{ left: pos.x, top: pos.y, width: PANEL.w }}
+      role="dialog"
+      aria-label="Calculator"
+    >
+      <header
+        onPointerDown={(e) => {
+          if (e.button !== 0) return
+          dragFrom.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }
+          setDragging(true)
+        }}
+        className={`flex items-center gap-1.5 px-2.5 h-10 border-b border-line rounded-t-xl2
+                    ${dragging ? 'cursor-grabbing bg-raised' : 'cursor-grab hover:bg-raised/60'} transition-colors`}
+        title="Drag to move"
+      >
+        <Icon.Grip size={14} className="text-faint" />
+        <span className="text-[12px] font-medium text-muted flex items-center gap-1.5">Calculator</span>
+        <button
+          onClick={onClose}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="ml-auto text-faint hover:text-ink hover:bg-raised rounded p-1 -mr-0.5 transition-colors"
+          aria-label="Close calculator"
+        >
           <Icon.Close size={14} />
         </button>
       </header>
 
       {tape.length > 0 && (
-        <div className="px-3.5 py-2 border-b border-line max-h-24 overflow-y-auto space-y-1">
-          {tape.map((t, i) => (
-            <button
-              key={i}
-              onClick={() => setExpr(String(t.value))}
-              className="w-full text-right text-[11px] text-faint hover:text-muted tnum block truncate"
-              title={`${t.expr} = ${t.value}`}
-            >
-              {t.expr} = <span className="text-muted">{t.value.toLocaleString('en-IN')}</span>
-            </button>
-          ))}
+        <div className="border-b border-line max-h-24 overflow-y-auto overscroll-contain">
+          <div className="flex items-center justify-between px-2.5 pt-1.5">
+            <span className="text-[10px] uppercase tracking-wide text-faint">Tape</span>
+            <button onClick={() => setTape([])} className="text-[10.5px] text-faint hover:text-ink transition-colors">Clear</button>
+          </div>
+          <div className="px-2.5 pb-1.5 pt-1 space-y-0.5">
+            {tape.map((t, i) => (
+              <button
+                key={i}
+                onClick={() => setExpr(String(t.value))}
+                className="w-full text-right text-[11px] text-faint hover:text-muted tnum block truncate"
+                title={`${t.expr} = ${t.value}`}
+              >
+                {t.expr} = <span className="text-muted">{t.value.toLocaleString('en-IN')}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="px-3.5 py-3 border-b border-line">
+      <div className="px-3 py-2.5 border-b border-line">
         <input
           value={expr}
           onChange={(e) => setExpr(e.target.value)}
           placeholder="0"
           aria-label="Expression"
-          className="w-full bg-transparent text-right text-[19px] tnum outline-none placeholder:text-faint"
+          className="w-full bg-transparent text-right text-[19px] tnum outline-none placeholder:text-faint select-text"
         />
         <div className="text-right text-[12px] mt-1 h-4 tnum">
           {error ? <span className="text-bad">{error}</span> : <span className="text-muted">{result && `= ${result}`}</span>}
@@ -190,33 +295,34 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
       </div>
 
       <div className="grid grid-cols-4 gap-px bg-line p-px">
-        {KEYS.flat().map((k) => (
+        {KEYS.map(({ k, kind }) => (
           <button
             key={k}
             onClick={() => press(k)}
             className={`h-10 text-[14px] font-medium transition-colors ${
-              k === '=' ? 'bg-accent text-white hover:brightness-110'
-              : /[0-9.]/.test(k) ? 'bg-surface hover:bg-raised'
+              kind === 'equals' ? 'bg-accent text-white hover:brightness-110'
+              : kind === 'clear' ? 'bg-raised text-bad hover:bg-bad/10'
+              : kind === 'digit' ? 'bg-surface hover:bg-raised'
               : 'bg-raised hover:bg-line text-muted'
             }`}
+            title={k === 'AC' ? 'Clear everything' : k === 'CE' ? 'Clear the entry being typed' : undefined}
           >
             {k}
           </button>
         ))}
       </div>
 
-      <footer className="flex gap-2 p-2.5">
-        <button className="btn-ghost h-8 flex-1 text-[12px]" onClick={() => { setExpr(''); setTape([]) }}>Clear</button>
-        {onUse && (
+      {onUse && (
+        <footer className="p-2.5">
           <button
-            className="btn-primary h-8 flex-1 text-[12px]"
+            className="btn-primary h-8 w-full text-[12px]"
             disabled={!result || Boolean(error)}
             onClick={() => { try { onUse(evaluate(expr)); onClose() } catch { /* disabled when invalid */ } }}
           >
             Use value
           </button>
-        )}
-      </footer>
+        </footer>
+      )}
     </div>
   )
 }

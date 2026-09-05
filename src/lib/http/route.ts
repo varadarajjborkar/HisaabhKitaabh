@@ -23,7 +23,7 @@ export function handle(err: unknown) {
   if (err instanceof ConflictError) {
     return fail('conflict', err.message, 409, { conflicts: err.conflicts, current: err.current })
   }
-  if (err instanceof LockTimeoutError) return fail('busy', 'That file is busy right now — try again in a moment.', 423)
+  if (err instanceof LockTimeoutError) return fail('busy', 'That file is busy right now. Try again in a moment.', 423)
   if (err instanceof DriveAuthError) return fail('drive_auth', err.message, 403)
   if (err instanceof ZodError) {
     return fail('invalid', err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), 400)

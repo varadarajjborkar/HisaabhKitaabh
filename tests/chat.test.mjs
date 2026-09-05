@@ -1,7 +1,7 @@
 /**
  * Chatbot simulation against the live model and the live write path.
  *
- * These are slow and non-deterministic by nature — a model is in the loop. They
+ * These are slow and non-deterministic by nature - a model is in the loop. They
  * assert on *behaviour that must hold regardless of phrasing*: that reads run
  * freely, that writes stop at an approval, that denial changes nothing, that
  * approval changes exactly what the card said, and that a concurrent edit
@@ -70,21 +70,21 @@ const summarise = (events) => events.map((e) => e.type === 'tool_start' ? `tool:
 
 const login = await post('/api/auth/login', { identifier: 'varad', password: 'varad[123]' })
 if (login.status !== 200) {
-  log(`SETUP FAILED: login returned ${login.status} — ${login.body.message ?? ''}`)
+  log(`SETUP FAILED: login returned ${login.status} - ${login.body.message ?? ''}`)
   log('(If this says "too many failed attempts", wait five minutes or restart the server.)')
   process.exit(1)
 }
 
 const folderRes = await post('/api/folders', { name: 'Chat drills', icon: '🤖', id: uid() })
 if (folderRes.status !== 201) {
-  log(`SETUP FAILED: could not create a folder (${folderRes.status}) — ${folderRes.body.message ?? ''}`)
+  log(`SETUP FAILED: could not create a folder (${folderRes.status}) - ${folderRes.body.message ?? ''}`)
   process.exit(1)
 }
 const folderId = folderRes.body.folder.id
 
 const fileRes = await post('/api/files', { folderId, name: 'Agent test sheet', id: uid() })
 if (fileRes.status !== 201) {
-  log(`SETUP FAILED: could not create a file (${fileRes.status}) — ${fileRes.body.message ?? ''}`)
+  log(`SETUP FAILED: could not create a file (${fileRes.status}) - ${fileRes.body.message ?? ''}`)
   process.exit(1)
 }
 const fileId = fileRes.body.doc.id
@@ -111,7 +111,7 @@ const newThread = () => `t_chat_${++thread}_${uid()}`
 
 // -------------------------------------------------------------- read path
 
-log('\nReading — should never need approval')
+log('\nReading - should never need approval')
 await check('answers a question about the total without asking permission', async () => {
   const ev = await stream('/api/chat', { threadId: newThread(), message: 'What is the total in this file?', ...scope })
   log(`       ${summarise(ev)}`)
@@ -130,7 +130,7 @@ await check('uses a tool rather than guessing', async () => {
 
 // ------------------------------------------------------------- write gate
 
-log('\nWriting — must stop at the gate')
+log('\nWriting - must stop at the gate')
 let pendingRun, pendingAction
 await check('an add request produces an approval card, and writes nothing yet', async () => {
   const before = await state()

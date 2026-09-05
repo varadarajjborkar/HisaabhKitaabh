@@ -5,9 +5,9 @@ import { parse } from 'yaml'
 /**
  * Skills are YAML, not Markdown.
  *
- * The reason is mechanical: a skill has structure the runtime needs to act on —
+ * The reason is mechanical: a skill has structure the runtime needs to act on -
  * which tools it may call, which model tier it wants, how many tool calls it
- * gets — and parsing that out of prose headings is guesswork. YAML gives the
+ * gets - and parsing that out of prose headings is guesswork. YAML gives the
  * router typed fields to match on and hands the model only the `instructions`
  * block, so selection is cheap and deterministic while the guidance stays
  * free-form.

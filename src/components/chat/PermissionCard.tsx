@@ -8,7 +8,7 @@ import type { PendingAction } from '@/lib/client/useChat'
  * The approval card.
  *
  * This is where the assistant's authority actually stops. It never applied
- * anything to get here — it produced a plan, and this card is the plan rendered
+ * anything to get here - it produced a plan, and this card is the plan rendered
  * in full: what it would do, to how many rows, with before-and-after values
  * where a value is being replaced.
  *
@@ -51,7 +51,7 @@ export function PermissionCard({
     return (
       <div className="card px-3.5 py-2.5 text-[12.5px] text-muted flex items-center gap-2 animate-fade">
         {resolved === 'deny' ? <Icon.Close size={14} className="text-bad" /> : <Icon.Check size={14} className="text-good" />}
-        <span className="truncate">{copy} — {action.summary}</span>
+        <span className="truncate">{copy}: {action.summary}</span>
       </div>
     )
   }

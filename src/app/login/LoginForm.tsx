@@ -32,6 +32,7 @@ export function LoginForm({
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (oauthError) setError(OAUTH_ERRORS[oauthError] ?? 'Sign-in did not complete.')
@@ -116,17 +117,38 @@ export function LoginForm({
 
         <div className="mb-2">
           <label className="label" htmlFor="password">Password</label>
-          <input
-            id="password"
-            className="input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            required
-            minLength={mode === 'signup' ? 8 : 1}
-            placeholder={mode === 'signup' ? 'At least 8 characters' : '••••••••'}
-          />
+          {/*
+           * Reveal is a button inside the field rather than a checkbox beside
+           * it: the eye stays put when the label changes between the sign-in
+           * and sign-up copy, and it is one tap away from the thumb that is
+           * already on the keyboard. Right padding is reserved so a long
+           * password scrolls under the button instead of behind it.
+           */}
+          <div className="relative">
+            <input
+              id="password"
+              className="input pr-11"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type={showPassword ? 'text' : 'password'}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              required
+              minLength={mode === 'signup' ? 8 : 1}
+              placeholder={mode === 'signup' ? 'At least 8 characters' : 'Your password'}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 grid place-items-center rounded-md
+                         text-faint hover:text-ink hover:bg-raised transition-colors"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+              title={showPassword ? 'Hide password' : 'Show password'}
+              tabIndex={-1}
+            >
+              {showPassword ? <Icon.EyeOff size={16} /> : <Icon.Eye size={16} />}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -144,7 +166,7 @@ export function LoginForm({
       <p className="text-[13px] text-muted mt-5 text-center">
         {mode === 'signin' ? "Don't have an account?" : 'Already have one?'}{' '}
         <button
-          onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null) }}
+          onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setShowPassword(false) }}
           className="text-accent font-medium hover:underline"
         >
           {mode === 'signin' ? 'Sign up' : 'Sign in'}

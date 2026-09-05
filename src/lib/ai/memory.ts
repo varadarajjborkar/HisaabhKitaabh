@@ -6,12 +6,12 @@ import { env } from '../env'
 /**
  * Memory hierarchy.
  *
- * L0  Working set   — the open document. Derived per request, never stored;
+ * L0  Working set   - the open document. Derived per request, never stored;
  *                     stale copies of a ledger are worse than no copy.
- * L1  Recent turns  — last N messages, verbatim, in Redis. Fast, exact.
- * L2  Thread summary— rolling prose summary of what fell out of L1. Compaction
+ * L1  Recent turns  - last N messages, verbatim, in Redis. Fast, exact.
+ * L2  Thread summary- rolling prose summary of what fell out of L1. Compaction
  *                     happens on write, so a long thread stays a fixed prompt cost.
- * L3  Durable facts — user-level preferences and standing corrections that
+ * L3  Durable facts - user-level preferences and standing corrections that
  *                     should outlive the thread ("call it Groceries, not Food").
  *
  * Retrieval is keyword + recency rather than vector search. For a few hundred
@@ -61,22 +61,47 @@ export async function recentMessages(userId: string, threadId: string, limit = L
   return list.reverse() // stored newest-first, prompts read oldest-first
 }
 
-export async function listThreads(userId: string, limit = 20): Promise<Array<{ id: string; title: string; at: number }>> {
+export type ThreadSummary = { id: string; title: string; at: number; renamed: boolean }
+
+export async function listThreads(userId: string, limit = 20): Promise<ThreadSummary[]> {
   const ids = await kv().zrange<string>(K.chatIndex(userId), 0, limit - 1, true)
-  const out: Array<{ id: string; title: string; at: number }> = []
+  const names = (await kv().hgetall<string>(K.chatTitles(userId))) ?? {}
+  const out: ThreadSummary[] = []
   for (const id of ids) {
     const [first] = await kv().lrange<StoredMessage>(K.chat(userId, id), 0, 0)
     const msgs = await kv().lrange<StoredMessage>(K.chat(userId, id), 0, 12)
     const firstUser = [...msgs].reverse().find((m) => m.role === 'user')
     if (!first) continue
-    out.push({ id, title: (firstUser?.content ?? 'Conversation').slice(0, 60), at: first.at })
+    // A name the user typed always wins over the derived one; the first message
+    // can be edited away by compaction, the name should not follow it.
+    const custom = names[id]
+    out.push({
+      id,
+      title: (custom || firstUser?.content || 'Conversation').slice(0, 60),
+      at: first.at,
+      renamed: Boolean(custom),
+    })
   }
   return out
+}
+
+const MAX_TITLE = 60
+
+export async function renameThread(userId: string, threadId: string, title: string): Promise<string> {
+  const clean = title.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE)
+  if (!clean) {
+    // An empty name is a request to go back to the derived one, not a blank row.
+    await kv().hdel(K.chatTitles(userId), threadId)
+    return ''
+  }
+  await kv().hset(K.chatTitles(userId), threadId, clean)
+  return clean
 }
 
 export async function deleteThread(userId: string, threadId: string): Promise<void> {
   await kv().del(K.chat(userId, threadId), K.chatSummary(userId, threadId))
   await kv().zrem(K.chatIndex(userId), threadId)
+  await kv().hdel(K.chatTitles(userId), threadId)
 }
 
 // ----------------------------------------------------------------- L2 summary
@@ -88,7 +113,7 @@ export async function getSummary(userId: string, threadId: string): Promise<stri
 /**
  * Compact the thread when it grows past the window.
  *
- * Runs after the response is streamed, not before it — summarising is never
+ * Runs after the response is streamed, not before it - summarising is never
  * allowed to sit between the user pressing enter and the first token.
  */
 export async function maybeCompact(userId: string, threadId: string): Promise<void> {
@@ -213,7 +238,7 @@ function similarity(a: string, b: string): number {
 // -------------------------------------------------------------- session grants
 
 /**
- * "Allow for the rest of this chat" — scoped to one thread and one tool, and
+ * "Allow for the rest of this chat" - scoped to one thread and one tool, and
  * dropped after an hour. Broad standing permission is exactly what we do not
  * want for a tool that edits money.
  */

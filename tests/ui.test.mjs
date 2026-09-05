@@ -3,7 +3,7 @@
  *
  * These exist because the previous suites could not have caught the bug that
  * prompted them: the client sent its optimistically-advanced local revision as
- * `baseRev`, so every save from the UI came back 409 — invisible to API tests,
+ * `baseRev`, so every save from the UI came back 409 - invisible to API tests,
  * which construct their own requests. Anything that only breaks once React,
  * the network and the server are all in the loop belongs here.
  */
@@ -36,6 +36,15 @@ function eq(a, b, m = '') { if (String(a) !== String(b)) throw new Error(`${m} e
 const browser = await chromium.launch()
 const context = await browser.newContext({ viewport: { width: 1440, height: 950 } })
 const page = await context.newPage()
+/*
+ * A ceiling on every action.
+ *
+ * Playwright's per-action default is generous, and one run of the recents test
+ * sat for fourteen minutes before passing rather than failing fast. A bounded
+ * timeout turns "something is wedged" into a visible failure instead of a stall
+ * that looks like a slow machine.
+ */
+page.setDefaultTimeout(20_000)
 
 /** Any console error or failed request is a test failure, not background noise. */
 const problems = []
@@ -47,8 +56,17 @@ page.on('response', (r) => {
 })
 
 log('\nSign in')
-await check('login page renders and accepts the developer account', async () => {
+await check('the password field can be revealed and re-masked', async () => {
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
+  await page.fill('#password', 'not-the-real-one')
+  eq(await page.getAttribute('#password', 'type'), 'password', 'the field does not start masked:')
+  await page.click('button[aria-label="Show password"]')
+  eq(await page.getAttribute('#password', 'type'), 'text', 'the eye did not reveal it:')
+  await page.click('button[aria-label="Hide password"]')
+  eq(await page.getAttribute('#password', 'type'), 'password', 'the eye did not re-mask it:')
+})
+
+await check('login page renders and accepts the developer account', async () => {
   ok(await page.locator('text=Folders, files, rows.').isVisible(), 'the pitch panel is missing')
   await page.fill('#identifier', 'varad')
   await page.fill('#password', 'varad[123]')
@@ -78,7 +96,7 @@ await check('analytics is off until switched on, then charts appear', async () =
 })
 await page.screenshot({ path: `${SHOTS}/01-home.png`, fullPage: false })
 
-log('\nThe sheet — where the save bug lived')
+log('\nThe sheet - where the save bug lived')
 
 /**
  * Each run gets its own folder and file.
@@ -211,14 +229,16 @@ await check('the period toggle stores a range', async () => {
   const toggle = page.locator('button[role=switch][aria-label=Period]')
   if ((await toggle.getAttribute('aria-checked')) === 'false') await toggle.click()
   await page.waitForTimeout(400)
-  const from = page.locator('input[aria-label="Period start"]')
+  // The fields are named by their visible <label>, not by an aria-label that
+  // would disagree with what is on screen; address them by id.
+  const from = page.locator('#period-from')
   ok(await from.isVisible(), 'the period inputs did not appear')
   await from.fill('2025-10-04')
-  await page.locator('input[aria-label="Period end"]').fill('2025-10-09')
+  await page.locator('#period-to').fill('2025-10-09')
   await page.waitForTimeout(2200)
   await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForSelector('input[aria-label="Period start"]', { timeout: 10000 })
-  eq(await page.locator('input[aria-label="Period start"]').inputValue(), '2025-10-04', 'the period did not persist:')
+  await page.waitForSelector('#period-from', { timeout: 10000 })
+  eq(await page.locator('#period-from').inputValue(), '2025-10-04', 'the period did not persist:')
 })
 
 await page.screenshot({ path: `${SHOTS}/02-sheet.png`, fullPage: false })
@@ -260,6 +280,181 @@ await check('approving applies the change to the visible sheet', async () => {
 
 await page.screenshot({ path: `${SHOTS}/03-assistant.png`, fullPage: false })
 
+/**
+ * Chrome and gestures.
+ *
+ * Everything here is invisible to an API test and easy to break with a CSS
+ * change: which element owns a scroll, whether a popover closes, whether a
+ * pointer drag actually reorders anything.
+ */
+log('\nChrome and gestures')
+
+await check('the theme switch stamps the document and can go back to system', async () => {
+  await page.click('button[aria-label="Account and settings"]')
+  await page.click('button[role=radio]:has-text("Dark")')
+  await page.waitForTimeout(200)
+  eq(await page.getAttribute('html', 'data-theme'), 'dark', 'dark was not stamped:')
+  eq(await page.evaluate(() => localStorage.getItem('hisaabkitaab-theme')), 'dark', 'the choice was not stored:')
+  await page.click('button[role=radio]:has-text("System")')
+  await page.waitForTimeout(200)
+  ok((await page.getAttribute('html', 'data-theme')) === null, 'system left an explicit stamp behind')
+  await page.click('button[role=radio]:has-text("Light")')
+  await page.waitForTimeout(200)
+  eq(await page.getAttribute('html', 'data-theme'), 'light', 'light was not stamped:')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(150)
+  eq(await page.locator('div[role=menu]').count(), 0, 'Escape did not close the account menu:')
+})
+
+await check('opening one popover closes the other', async () => {
+  await page.click('button[aria-label="Account and settings"]')
+  ok(await page.locator('div[role=menu]').isVisible(), 'the account menu did not open')
+  await page.locator('th button[aria-label^="Options for"]').first().click({ force: true })
+  await page.waitForTimeout(200)
+  eq(await page.locator('div[role=menu]').count(), 0, 'the account menu stayed open behind the column menu:')
+  ok(await page.locator('button:has-text("Rename")').first().isVisible(), 'the column menu did not open')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(150)
+  eq(await page.locator('button:has-text("Rename")').count(), 0, 'the column menu survived Escape:')
+})
+
+await check('dragging a row grip reorders the sheet', async () => {
+  const titles = () =>
+    page.locator('tbody tr[data-drag-index] input[aria-label="Title"]').evaluateAll((els) => els.map((e) => e.value))
+  const before = await titles()
+  ok(before.length >= 2, `need at least two rows to reorder, have ${before.length}`)
+
+  const first = page.locator('tbody tr[data-drag-index]').first()
+  const last = page.locator('tbody tr[data-drag-index]').nth(before.length - 1)
+  await first.hover()
+  const grip = await first.locator('span[aria-label^="Reorder row"]').boundingBox()
+  const target = await last.boundingBox()
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip.x + grip.width / 2, target.y + target.height * 0.9, { steps: 12 })
+  await page.waitForTimeout(150)
+  await page.mouse.up()
+  await page.waitForTimeout(800)
+
+  const after = await titles()
+  eq(after[after.length - 1], before[0], 'the dragged row did not land last:')
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForSelector('tbody tr[data-drag-index]', { timeout: 15000 })
+  eq((await titles())[before.length - 1], before[0], 'the new order did not persist:')
+})
+
+await check('the calculator computes, clears an entry separately from all, and drags', async () => {
+  await page.locator('button:has-text("Calculator"):visible').first().click()
+  const calc = page.locator('div[role=dialog][aria-label=Calculator]')
+  await calc.waitFor({ state: 'visible', timeout: 5000 })
+  const expr = calc.locator('input[aria-label=Expression]')
+
+  for (const k of ['1', '2', '0', '0', '+', '3', '5']) await calc.locator(`button:text-is("${k}")`).click()
+  await page.waitForTimeout(250)
+  ok(/= 1,235/.test(await calc.innerText()), `wrong running result: ${(await calc.innerText()).replace(/\n/g, ' ')}`)
+
+  await calc.locator('button:text-is("CE")').click()
+  await page.waitForTimeout(150)
+  eq(await expr.inputValue(), '1200+', 'CE cleared more than the current entry:')
+
+  await calc.locator('button:text-is("AC")').click()
+  await page.waitForTimeout(150)
+  eq(await expr.inputValue(), '', 'AC did not clear the line:')
+
+  const start = await calc.boundingBox()
+  const header = await calc.locator('header').boundingBox()
+  await page.mouse.move(header.x + 30, header.y + header.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(header.x + 30 - 200, header.y + header.height / 2 - 150, { steps: 10 })
+  await page.mouse.up()
+  await page.waitForTimeout(250)
+  const moved = await calc.boundingBox()
+  ok(Math.abs(moved.x - (start.x - 200)) < 6 && Math.abs(moved.y - (start.y - 150)) < 6,
+     `the panel did not follow the drag: ${Math.round(start.x)},${Math.round(start.y)} to ${Math.round(moved.x)},${Math.round(moved.y)}`)
+  await calc.locator('button[aria-label="Close calculator"]').click()
+})
+
+await check('scrolling the assistant does not move the page behind it', async () => {
+  const main = page.locator('main')
+  const before = await main.evaluate((el) => el.scrollTop)
+  await page.locator('aside:has-text("Assistant") .scroller').first().evaluate((el) => { el.scrollTop = 250 })
+  await page.waitForTimeout(200)
+  eq(await main.evaluate((el) => el.scrollTop), before, 'the sheet scrolled with the transcript:')
+  eq(await page.evaluate(() => document.documentElement.scrollTop), 0, 'the document scrolled:')
+})
+
+const openRecents = async () => {
+  await page.locator('button[title="Recent conversations"]:visible').first().click()
+  const drawer = page.locator('div[role=dialog][aria-label="Recent conversations"]')
+  await drawer.waitFor({ state: 'visible', timeout: 8000 })
+  // The list arrives from a fetch. Wait for it to settle into one state or the
+  // other, otherwise "is there a thread to rename?" is a race against the
+  // response and the test silently skips half of what it claims to cover.
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector('div[role=dialog][aria-label="Recent conversations"]')
+      return Boolean(el) && (el.querySelector('li') !== null || /No earlier conversations/.test(el.textContent ?? ''))
+    },
+    { timeout: 15000 },
+  )
+  return drawer
+}
+
+await check('recents slides in at the panel width and back out', async () => {
+  const drawer = await openRecents()
+  const panel = await page.locator('aside:has-text("Assistant")').last().boundingBox()
+  const box = await drawer.boundingBox()
+  ok(Math.abs(box.width - panel.width) < 2, `the drawer is ${box.width}px inside a ${panel.width}px panel`)
+
+  await page.locator('button[aria-label="Back to the conversation"]:visible').first().click()
+  await page.waitForTimeout(300)
+  eq(await drawer.count(), 0, 'the drawer did not close:')
+})
+
+await check('a conversation can be renamed, and the name sticks', async () => {
+  const drawer = await openRecents()
+  // The assistant section above sent messages, so this thread exists.
+  eq(await drawer.locator('li').count() > 0, true, 'no conversation was listed to rename:')
+
+  const name = `Renamed ${Date.now().toString(36)}`
+  await drawer.locator('li').first().hover()
+  await drawer.locator('button[aria-label^="Rename"]').first().click()
+  const field = drawer.locator('input[aria-label="Conversation name"]')
+  await field.fill(name)
+  await field.press('Enter')
+  await page.waitForTimeout(700)
+  ok((await drawer.innerText()).includes(name), `the new name is not listed:\n${await drawer.innerText()}`)
+
+  // Close, reopen, and let the list come back from the server.
+  await page.locator('button[aria-label="Back to the conversation"]:visible').first().click()
+  await page.waitForTimeout(300)
+  const again = await openRecents()
+  ok((await again.innerText()).includes(name), 'the rename did not survive a refetch of the list')
+
+  await page.locator('button[aria-label="Back to the conversation"]:visible').first().click()
+  await page.waitForTimeout(300)
+})
+
+await check('dropping a file on the assistant attaches it', async () => {
+  const panel = page.locator('aside:has-text("Assistant")').last()
+  const data = await page.evaluateHandle(() => {
+    const dt = new DataTransfer()
+    dt.items.add(new File(['Date,Amount\n2025-10-04,4820\n'], 'statement.csv', { type: 'text/csv' }))
+    return dt
+  })
+  // Dispatch on a descendant: the handlers live on the panel's own root div,
+  // which is a child of this <aside>, and events bubble up rather than down.
+  const inner = panel.locator('.scroller').first()
+  await inner.dispatchEvent('dragenter', { dataTransfer: data })
+  await page.waitForTimeout(250)
+  ok(/Drop to attach/.test(await panel.innerText()), 'no drop target appeared')
+  await inner.dispatchEvent('drop', { dataTransfer: data })
+  await page.waitForTimeout(1500)
+  ok(/statement\.csv/.test(await panel.innerText()), `the file was not attached:\n${await panel.innerText().then((t) => t.slice(-200))}`)
+})
+
+await page.screenshot({ path: `${SHOTS}/04-gestures.png`, fullPage: false })
+
 log('\nMobile layout')
 const phone = await browser.newContext({
   viewport: { width: 390, height: 844 },
@@ -268,6 +463,7 @@ const phone = await browser.newContext({
   deviceScaleFactor: 3,
 })
 const mobile = await phone.newPage()
+mobile.setDefaultTimeout(20_000)
 await check('signs in and reaches a file on a phone viewport', async () => {
   await mobile.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
   await mobile.fill('#identifier', 'varad')
@@ -281,6 +477,15 @@ await check('rows render as cards, not a table', async () => {
   const tableVisible = await mobile.locator('table').first().isVisible().catch(() => false)
   ok(!tableVisible, 'the desktop table is showing on a phone')
 })
+await check('the rows come before the summary on one column', async () => {
+  // The rail used to be ordered above the ledger, so opening a file on a phone
+  // showed a gauge, four statistics and a date picker before a single row.
+  const rowTop = await mobile.locator('input[aria-label="INR"]:visible').first()
+    .evaluate((el) => el.getBoundingClientRect().top + window.scrollY)
+  const gaugeTop = await mobile.locator('text=This file').first()
+    .evaluate((el) => el.getBoundingClientRect().top + window.scrollY)
+  ok(rowTop < gaugeTop, `the summary (${Math.round(gaugeTop)}) sits above the first row (${Math.round(rowTop)})`)
+})
 await check('nothing overflows horizontally', async () => {
   const overflow = await mobile.evaluate(() =>
     document.documentElement.scrollWidth - document.documentElement.clientWidth)
@@ -292,7 +497,7 @@ await check('the calculator is absent on a phone', async () => {
 })
 await check('an amount cell is editable by touch', async () => {
   // The desktop table is display:none but still in the DOM, so its inputs
-  // would match first — scope to what is actually on screen.
+  // would match first - scope to what is actually on screen.
   const input = mobile.locator('input[aria-label="INR"]:visible').first()
   ok(await input.isVisible(), 'no amount input on the card layout')
   const box = await input.boundingBox()

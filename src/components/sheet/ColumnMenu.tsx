@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Column, ColumnKind } from '@/lib/model/types'
 import { Icon } from '../ui/Icons'
 import { Modal } from '../ui/Modal'
+import { useDismiss } from '@/lib/client/useDismiss'
 import type { SheetApi } from '@/lib/client/useSheet'
 
 const KINDS: Array<{ value: ColumnKind; label: string; hint: string }> = [
@@ -19,6 +20,7 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
   const [open, setOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(column.name)
+  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false))
 
   const commitRename = () => {
     const trimmed = name.trim()
@@ -45,20 +47,20 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
   }
 
   return (
-    <div className="relative inline-flex items-center gap-1 group/col">
+    <div ref={ref} className="relative inline-flex items-center gap-1 group/col max-w-full">
       <span className="truncate">{column.name}</span>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="opacity-0 group-hover/col:opacity-100 focus:opacity-100 text-faint hover:text-ink transition-opacity no-print"
+        className="shrink-0 opacity-0 group-hover/col:opacity-100 focus:opacity-100 text-faint hover:text-ink transition-opacity no-print"
         aria-label={`Options for ${column.name}`}
+        aria-expanded={open}
       >
         <Icon.Down size={12} />
       </button>
 
       {open && (
         <>
-          <button className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} aria-hidden tabIndex={-1} />
-          <div className="absolute left-0 top-6 z-50 w-48 card shadow-pop py-1 animate-scale-in origin-top-left normal-case tracking-normal">
+          <div className="absolute left-0 top-6 z-50 w-48 card shadow-pop py-1 animate-scale-in origin-top-left normal-case tracking-normal text-left font-normal">
             <button
               onClick={() => { setOpen(false); setRenaming(true) }}
               className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-raised transition-colors"
@@ -96,8 +98,8 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
             )}
 
             {column.system && (
-              <p className="px-3 py-2 text-[11px] text-faint border-t border-line mt-1">
-                Built-in column — it can be renamed but not removed.
+              <p className="px-3 py-2 text-[11px] text-faint border-t border-line mt-1 leading-snug">
+                Built-in column. It can be renamed but not removed.
               </p>
             )}
           </div>
@@ -111,7 +113,7 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
  * The "+" that adds a column.
  *
  * This is the mechanism the whole file model rests on: three columns are given,
- * and everything else — quantity, category, a receipt slot — is something the
+ * and everything else - quantity, category, a receipt slot - is something the
  * user names themselves. So it asks for a name and a type and nothing more.
  */
 export function NewColumnButton({ sheet }: { sheet: SheetApi }) {
@@ -148,7 +150,7 @@ export function NewColumnButton({ sheet }: { sheet: SheetApi }) {
         open={open}
         onClose={() => setOpen(false)}
         title="Add a column"
-        description="Name it after what it holds — quantity, category, receipt."
+        description="Name it after what it holds: quantity, category, receipt."
         footer={
           <>
             <button className="btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
@@ -202,7 +204,7 @@ export function NewColumnButton({ sheet }: { sheet: SheetApi }) {
         {kind === 'number' && (
           <p className="text-[11.5px] text-muted mt-4 leading-relaxed">
             A number column is a note, not a formula. A quantity of 3 next to
-            ₹240 leaves the row at ₹240 — the amount you enter is already the
+            ₹240 leaves the row at ₹240; the amount you enter is already the
             total.
           </p>
         )}

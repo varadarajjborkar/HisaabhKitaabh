@@ -87,7 +87,7 @@ function wins(candidate: Stamp, current: Stamp | undefined): boolean {
 export type ApplyResult = {
   doc: SheetDoc
   applied: StampedOp[]
-  /** Ops dropped as duplicates (same op id seen before) — retries land here. */
+  /** Ops dropped as duplicates (same op id seen before) - retries land here. */
   duplicates: string[]
   /** Ops dropped because a newer write already owns that field. */
   superseded: string[]
@@ -299,7 +299,7 @@ export class RevisionConflictError extends Error {
  * A batch may be *behind* the server (someone else wrote in between) and still
  * be safe, because ops are field-scoped and stamped. We only hard-reject when
  * the batch would touch a field that has changed since the client's base
- * revision — everything else merges. That keeps the "your edit was rejected,
+ * revision - everything else merges. That keeps the "your edit was rejected,
  * please refresh" dialog rare without ever silently clobbering a write.
  */
 export function checkRev(doc: SheetDoc, batch: OpBatch, opsSinceBase: StampedOp[] | null): { ok: true } | { ok: false; conflicts: string[] } {

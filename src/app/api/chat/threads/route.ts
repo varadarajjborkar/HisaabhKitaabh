@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ok, parse, withAuth } from '@/lib/http/route'
-import { deleteThread, listThreads, recentMessages, allFacts, forgetFact, revokeGrants } from '@/lib/ai/memory'
+import { deleteThread, listThreads, recentMessages, renameThread, allFacts, forgetFact, revokeGrants } from '@/lib/ai/memory'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,4 +22,13 @@ export const DELETE = withAuth(async ({ session }, req: Request) => {
   }
   if (factId) await forgetFact(session.userId, factId)
   return ok({})
+})
+
+const Rename = z.object({ threadId: z.string().min(1), title: z.string().max(120) })
+
+/** Rename one conversation. An empty title restores the derived one. */
+export const PATCH = withAuth(async ({ session }, req: Request) => {
+  const { threadId, title } = await parse(req, Rename)
+  const applied = await renameThread(session.userId, threadId, title)
+  return ok({ threadId, title: applied })
 })

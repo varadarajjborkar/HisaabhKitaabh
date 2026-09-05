@@ -2,7 +2,7 @@
  * Module resolution hook for the test runner.
  *
  * The app is bundled by Next, which resolves extensionless imports and the "@/"
- * alias. Node's ESM loader does neither, so the hook supplies both — that way
+ * alias. Node's ESM loader does neither, so the hook supplies both - that way
  * the tests exercise the real source files rather than a copy adapted to suit
  * the runner.
  */

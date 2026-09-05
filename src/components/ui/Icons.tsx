@@ -50,8 +50,65 @@ export const Icon = {
   Redo: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><path d="M15 14l5-5-5-5" /><path d="M20 9H9a5 5 0 000 10h4" /></svg>
   ),
+  /*
+   * A single circular arrow, open at the top and travelling anticlockwise.
+   *
+   * The old glyph drew a three-quarter arc plus a separate corner bracket that
+   * met it nowhere near tangentially, so at 15px it read as a broken ring with
+   * a tick stuck to it. Two things fix that. The head sits exactly on the arc's
+   * own endpoint, where a circle's tangent is horizontal, so the arrow points
+   * along the path it is describing. And it is a filled triangle rather than
+   * two hairlines: at a 17px render a 1.6px stroke chevron collapses into the
+   * arc it is attached to, while a solid wedge stays a wedge.
+   */
   Refresh: ({ size = 18, className }: P) => (
-    <svg {...base(size)} className={className}><path d="M20 11a8 8 0 10-2.3 5.6" /><path d="M20 4v7h-7" /></svg>
+    <svg {...base(size)} className={className}>
+      <path d="M12 4.8A7.2 7.2 0 1 0 18.2 8.4" />
+      <path d="M12 4.8L16.5 2.3v5z" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  Sun: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4" />
+    </svg>
+  ),
+  Moon: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M20 14.2A8.2 8.2 0 019.8 4 8.4 8.4 0 1020 14.2z" /></svg>
+  ),
+  Monitor: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><rect x="3" y="4.5" width="18" height="12" rx="2" /><path d="M9 20h6M12 16.5V20" /></svg>
+  ),
+  Pencil: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M4 20h4L19.5 8.5a2.1 2.1 0 00-3-3L5 17v3z" /><path d="M14.5 6.5l3 3" /></svg>
+  ),
+  Eye: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></svg>
+  ),
+  EyeOff: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}>
+      <path d="M10.6 6.7A8.7 8.7 0 0112 6.5c6 0 9.5 6.5 9.5 6.5a17 17 0 01-3 3.7M6.3 8.1A17.4 17.4 0 002.5 13S6 19.5 12 19.5a8.9 8.9 0 003.4-.66" />
+      <path d="M9.9 10.4a3 3 0 004.2 4.2" />
+      <path d="M3.5 3.5l17 17" />
+    </svg>
+  ),
+  History: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M3.5 12a8.5 8.5 0 10.9-3.8" /><path d="M3.5 4.5v4h4" /><path d="M12 7.5V12l3 1.8" /></svg>
+  ),
+  /* Vertical dots: "more actions here". Distinct from Grip, which is a handle
+     you can actually pull. Using one glyph for both taught the wrong gesture. */
+  More: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}>
+      <circle cx="12" cy="5.5" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  Calendar: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" /></svg>
+  ),
+  Upload: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M12 16V5M8 9l4-4 4 4" /><path d="M4 19h16" /></svg>
   ),
   Save: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z" /><path d="M8 4v5h7M8 15h8" /></svg>

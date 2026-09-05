@@ -14,8 +14,8 @@ import { drive, type DriveFile } from './client'
  *         attachments/               appProperties: hisaab=attachments
  *           <attachmentId>-name.pdf  appProperties: hisaab=attachment, aid=<id>
  *
- * Every object carries a `hisaabKey` in appProperties. That key — not the file
- * name, not the path — is the identity. Names can be edited by the user in
+ * Every object carries a `hisaabKey` in appProperties. That key - not the file
+ * name, not the path - is the identity. Names can be edited by the user in
  * Drive without breaking anything, and duplicates are detectable by key.
  */
 
@@ -61,7 +61,7 @@ async function resolveOrCreate(
 
     const found = await drive.list(userId, `appProperties has { key='hisaabKey' and value='${esc(key)}' } and trashed=false`)
     if (found.length > 0) {
-      // Oldest wins — `drive.list` orders by createdTime.
+      // Oldest wins - `drive.list` orders by createdTime.
       const [winner, ...rest] = found
       await cacheId(userId, key, winner.id)
       return { id: winner.id, duplicates: rest.map((f) => f.id) }
@@ -93,7 +93,7 @@ export async function folderDirId(userId: string, folder: FolderMeta): Promise<s
 
 async function attachmentsDirId(userId: string, folderId: string): Promise<string> {
   const parent = await resolveOrCreate(userId, `folder:${folderId}`, async () => {
-    throw new Error('folder directory missing — create the folder first')
+    throw new Error('folder directory missing: create the folder first')
   })
   const key = `attachments:${folderId}`
   const { id, duplicates } = await resolveOrCreate(userId, key, () =>
@@ -107,7 +107,7 @@ async function attachmentsDirId(userId: string, folderId: string): Promise<strin
  * Duplicate reconciliation.
  *
  * Extra objects sharing a hisaabKey are stamped as duplicates and trashed (not
- * hard-deleted) so nothing is ever irrecoverably lost — the user can restore
+ * hard-deleted) so nothing is ever irrecoverably lost - the user can restore
  * from Drive's own trash if a reconciliation was wrong.
  */
 async function reconcileDuplicates(userId: string, ids: string[], key: string): Promise<void> {
@@ -324,7 +324,7 @@ export async function auditDrive(userId: string): Promise<{ scanned: number; dup
   let duplicates = 0
   for (const [key, files] of byKey) {
     if (files.length < 2) continue
-    // Keep the copy with the highest document revision — the most complete one.
+    // Keep the copy with the highest document revision - the most complete one.
     const scored = await Promise.all(
       files.map(async (f) => {
         try {

@@ -21,8 +21,8 @@ import { del } from '@/lib/client/api'
 /**
  * The file editor.
  *
- * Three regions on a wide screen — the sheet, a summary rail, and the assistant
- * — collapsing to one column with the assistant behind a button on a phone.
+ * Three regions on a wide screen - the sheet, a summary rail, and the assistant
+ * - collapsing to one column with the assistant behind a button on a phone.
  * The assistant is *in here*, not only on the home screen, because the moment
  * you want to say "fix all the Ubers" is the moment you are looking at them.
  */
@@ -199,8 +199,8 @@ export function SheetView({
 
       {state === 'conflict' && <ConflictBanner onResolve={actions.resolveConflict} />}
 
-      <div className="flex-1 flex min-h-0">
-        <main className="flex-1 min-w-0 px-3 sm:px-5 py-4 pb-28 overflow-y-auto">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <main className="flex-1 min-w-0 scroller px-3 sm:px-5 py-4 pb-10">
           <div className="max-w-5xl mx-auto">
             <Toolbar
               doc={doc}
@@ -209,12 +209,20 @@ export function SheetView({
               onCalculator={() => setCalcOpen(true)}
             />
 
-            <div className="grid lg:grid-cols-[1fr_248px] gap-4 mt-4">
-              <div className="min-w-0 order-2 lg:order-1">
+            {/*
+              * The rows come first in the source, so on one column the ledger
+              * is what you land on. The rail used to be ordered above it,
+              * which pushed the table a full screen down on a phone: opening
+              * a file showed a gauge, four statistics and a date picker before
+              * a single row. The running total is not lost by moving it below,
+              * because the phone card list carries its own total footer.
+              */}
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_252px] gap-4 mt-4 items-start">
+              <div className="min-w-0">
                 <Grid sheet={sheet} />
               </div>
 
-              <aside className="order-1 lg:order-2 space-y-3">
+              <aside className="space-y-3 lg:sticky lg:top-0">
                 <div className="card p-4">
                   <Gauge
                     total={totals.total}
@@ -241,7 +249,7 @@ export function SheetView({
         {/* The assistant is a permanent column on wide screens, a sheet elsewhere. */}
         {aiEnabled && (
           <>
-            <aside className="hidden xl:flex w-[368px] shrink-0 border-l border-line bg-surface flex-col no-print">
+            <aside className="hidden xl:flex w-[380px] 2xl:w-[420px] shrink-0 border-l border-line bg-surface flex-col overflow-hidden no-print">
               <ChatPanel
                 scope={{ fileId, folderId }}
                 onApplied={onAssistantWrite}
@@ -257,22 +265,15 @@ export function SheetView({
             {chatOpen && (
               <>
                 <button
-                  className="xl:hidden fixed inset-0 z-40 bg-black/25 animate-fade cursor-default no-print"
+                  className="xl:hidden fixed inset-0 z-40 bg-black/25 backdrop-blur-[1px] animate-fade cursor-default no-print"
                   onClick={() => setChatOpen(false)}
                   aria-label="Close assistant"
                   tabIndex={-1}
                 />
-                <aside className="xl:hidden fixed z-50 bg-surface border-line shadow-pop no-print
+                <aside className="xl:hidden fixed z-50 bg-surface border-line shadow-pop no-print overflow-hidden flex flex-col
                                   inset-x-0 bottom-0 h-[84dvh] rounded-t-xl2 border-t animate-rise
-                                  sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[390px] sm:h-auto sm:rounded-none sm:border-l sm:border-t-0 sm:animate-slide-l">
-                  <button
-                    onClick={() => setChatOpen(false)}
-                    className="absolute top-2.5 right-2.5 z-10 h-7 w-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-raised transition-colors"
-                    aria-label="Close"
-                  >
-                    <Icon.Close size={15} />
-                  </button>
-                  <ChatPanel scope={{ fileId, folderId }} onApplied={onAssistantWrite} compact />
+                                  sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[min(400px,100vw)] sm:h-auto sm:rounded-none sm:border-l sm:border-t-0 sm:animate-slide-l">
+                  <ChatPanel scope={{ fileId, folderId }} onApplied={onAssistantWrite} onClose={() => setChatOpen(false)} compact />
                 </aside>
               </>
             )}
@@ -308,7 +309,7 @@ const SAVE_COPY: Record<string, { text: string; className: string }> = {
   dirty: { text: 'Unsaved changes', className: 'text-warn' },
   saving: { text: 'Saving…', className: 'text-muted animate-pulse-soft' },
   saved: { text: 'Saved', className: 'text-good' },
-  offline: { text: 'Offline — will retry', className: 'text-warn' },
+  offline: { text: 'Offline, will retry', className: 'text-warn' },
   conflict: { text: 'Conflict', className: 'text-bad' },
   error: { text: 'Save failed', className: 'text-bad' },
 }
@@ -320,7 +321,7 @@ function SaveIndicator({ state }: { state: string }) {
 
 /**
  * Shown when the server refused a batch because someone else touched the same
- * cells. The user's edits are still queued — this asks which version wins
+ * cells. The user's edits are still queued - this asks which version wins
  * rather than picking one and hoping.
  */
 function ConflictBanner({ onResolve }: { onResolve: (choice: 'theirs' | 'retry') => void }) {
@@ -329,8 +330,8 @@ function ConflictBanner({ onResolve }: { onResolve: (choice: 'theirs' | 'retry')
       <div className="max-w-5xl mx-auto flex flex-wrap items-center gap-3">
         <Icon.Warning size={16} className="text-warn shrink-0" />
         <p className="text-[13px] flex-1 min-w-0">
-          <span className="font-medium">This file changed somewhere else</span>
-          <span className="text-muted"> — your edits are still here, unsaved.</span>
+          <span className="font-medium">This file changed somewhere else.</span>
+          <span className="text-muted"> Your edits are still here, unsaved.</span>
         </p>
         <div className="flex gap-2 shrink-0">
           <button onClick={() => onResolve('retry')} className="btn-primary h-8 text-[12.5px] pressable">Keep mine and retry</button>

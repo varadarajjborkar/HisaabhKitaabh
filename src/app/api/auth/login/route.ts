@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try {
     const { identifier, password } = await parse(req, Body)
 
-    // Throttled by identifier, not by IP — users behind one NAT shouldn't be
+    // Throttled by identifier, not by IP - users behind one NAT shouldn't be
     // able to lock each other out. Only failures count, so signing in
     // repeatedly from several devices is never itself a reason to be blocked.
     const key = `login:${identifier.toLowerCase()}`

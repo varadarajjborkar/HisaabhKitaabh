@@ -5,7 +5,7 @@ import { withLock } from '../store/locks'
 /**
  * Minimal Google Drive REST client.
  *
- * We deliberately do not pull in `googleapis` — it's tens of megabytes and we
+ * We deliberately do not pull in `googleapis` - it's tens of megabytes and we
  * need maybe eight endpoints. Raw fetch keeps the serverless bundle small,
  * which matters for cold starts on Vercel.
  *
@@ -101,7 +101,7 @@ export async function accessTokenFor(userId: string): Promise<string> {
       const body = await res.text()
       if (res.status === 400 || res.status === 401) {
         await store.del(K.googleTokens(userId))
-        throw new DriveAuthError('Google access was revoked — please sign in again')
+        throw new DriveAuthError('Google access was revoked. Please sign in again')
       }
       throw new DriveAuthError(`Token refresh failed: ${body}`)
     }

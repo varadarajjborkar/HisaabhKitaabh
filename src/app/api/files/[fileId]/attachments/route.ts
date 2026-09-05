@@ -16,7 +16,7 @@ export const POST = withAuth(async ({ repo }, req: Request, { params }: Params) 
   const file = form.get('file')
   if (!(file instanceof File)) return fail('invalid', 'No file was uploaded.', 400)
   if (file.size > env.limits.maxAttachmentBytes) {
-    return fail('too_large', `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB — the limit is ${Math.round(env.limits.maxAttachmentBytes / 1024 / 1024)} MB.`, 413)
+    return fail('too_large', `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is ${Math.round(env.limits.maxAttachmentBytes / 1024 / 1024)} MB.`, 413)
   }
 
   const gate = checkAttachment(file.name, file.type)

@@ -23,7 +23,7 @@ export type PendingAction = {
   preview: string[]
   diff?: Array<{ label: string; before: string; after: string }>
   plan: ToolPlan
-  /** Revision the plan was built against — re-checked at apply time. */
+  /** Revision the plan was built against - re-checked at apply time. */
   baseRev: number
   createdAt: number
 }
@@ -369,13 +369,13 @@ async function* runLoop(
             role: 'tool',
             // Cap the payload: a huge tool result crowds out the conversation
             // and is the usual cause of a model losing the thread mid-task.
-            content: payload.length > 24000 ? payload.slice(0, 24000) + '\n…(truncated — narrow the query)' : payload,
+            content: payload.length > 24000 ? payload.slice(0, 24000) + '\n…(truncated, narrow the query)' : payload,
             tool_name: tool.name,
           })
           continue
         }
 
-        // result.kind === 'plan' — a write. This is the gate.
+        // result.kind === 'plan' - a write. This is the gate.
         const plan = result.plan
         const baseRev = plan.fileId.startsWith('create:') ? 0 : (await repo.getDoc(plan.fileId)).rev
 

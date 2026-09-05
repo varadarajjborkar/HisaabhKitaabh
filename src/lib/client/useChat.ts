@@ -8,7 +8,7 @@ import { toast } from '@/components/ui/Toast'
 /**
  * Chat transport.
  *
- * The stream is a POST, so EventSource is out — it only does GET. Reading the
+ * The stream is a POST, so EventSource is out - it only does GET. Reading the
  * body as a stream and splitting on the SSE framing costs about twenty lines
  * and buys the ability to send attachments and scope with the message.
  *
@@ -218,7 +218,7 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
       await consume(res)
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        push({ id: `err_${shortId(8)}`, kind: 'error', message: 'The connection dropped. Your message was not lost — send it again.', fatal: false })
+        push({ id: `err_${shortId(8)}`, kind: 'error', message: 'The connection dropped. Your message was not lost. Send it again.', fatal: false })
       }
     } finally {
       setBusy(false)

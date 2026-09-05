@@ -3,7 +3,7 @@ import './globals.css'
 import { Toaster } from '@/components/ui/Toast'
 
 export const metadata: Metadata = {
-  title: 'HisaabKitaab — expense ledger',
+  title: 'HisaabKitaab',
   description: 'Folders, files, rows. Track what you spend without fighting a spreadsheet.',
   applicationName: 'HisaabKitaab',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'HisaabKitaab' },
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  // Zoom stays available — disabling it breaks the app for anyone who needs it.
+  // Zoom stays available - disabling it breaks the app for anyone who needs it.
   maximumScale: 5,
   viewportFit: 'cover',
   themeColor: [

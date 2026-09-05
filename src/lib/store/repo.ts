@@ -13,9 +13,9 @@ import { seedSampleFolder } from './seed'
  * The repository is the only thing in the app that touches persistence.
  *
  * Two backends sit behind it:
- *   - `drive` — the user's own Google Drive. Zero storage cost to us, and the
+ *   - `drive` - the user's own Google Drive. Zero storage cost to us, and the
  *     user owns their data outright.
- *   - `kv`    — Redis. Used for password accounts and as the cache tier for
+ *   - `kv`    - Redis. Used for password accounts and as the cache tier for
  *     Drive accounts.
  *
  * Reads go through a short-TTL cache; writes go through a lock, a revision
@@ -222,7 +222,7 @@ export class Repo {
   // ------------------------------------------------------------- mutation
 
   /**
-   * The write path. Everything that changes a document goes through here —
+   * The write path. Everything that changes a document goes through here -
    * the UI, the AI agent, imports, undo. One code path means one set of
    * guarantees.
    *
@@ -230,7 +230,7 @@ export class Repo {
    *
    * Callers pass the revision they were looking at. If someone else has since
    * touched a field this batch also touches, we refuse the batch and hand back
-   * the current document so the caller can rebase — we never merge blindly and
+   * the current document so the caller can rebase - we never merge blindly and
    * we never silently drop an edit.
    */
   async mutate(fileId: string, batch: OpBatch): Promise<MutateResult> {
@@ -421,7 +421,7 @@ export class Repo {
   }
 
   /**
-   * Seed the sample folder — exactly once per account, ever.
+   * Seed the sample folder - exactly once per account, ever.
    *
    * Gated on a persistent marker rather than "the folder list is empty", which
    * was wrong in both directions: a user whose first action was creating a

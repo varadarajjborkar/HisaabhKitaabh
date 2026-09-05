@@ -3,7 +3,7 @@
  *
  * These eight hues and their dark-mode steps are the validated reference set:
  * every adjacent pair clears the CVD separation and normal-vision floors in
- * both light and dark. The *order* is the safety mechanism, not decoration —
+ * both light and dark. The *order* is the safety mechanism, not decoration -
  * assign slots in sequence and never cycle past eight. A ninth series folds
  * into "Other".
  *

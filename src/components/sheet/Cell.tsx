@@ -11,7 +11,7 @@ import { toast } from '../ui/Toast'
 /**
  * One editable cell.
  *
- * Commits on blur and on Enter, not on every keystroke — the operation queue
+ * Commits on blur and on Enter, not on every keystroke - the operation queue
  * should carry "the amount is now 450", not eleven partial numbers. Escape
  * restores the value the cell had when editing began.
  */
@@ -76,8 +76,8 @@ function TextCell({
   const committed = useRef(display(value))
   const ref = useRef<HTMLInputElement>(null)
 
-  // Adopt a value that changed underneath us — the assistant writing, or another
-  // tab — but never while the user is mid-edit in this very cell.
+  // Adopt a value that changed underneath us - the assistant writing, or another
+  // tab - but never while the user is mid-edit in this very cell.
   useEffect(() => {
     if (editing) return
     const next = display(value)
@@ -151,7 +151,7 @@ function SelectCell({ column, value, onChange }: { column: Column; value: string
                  focus:bg-accent-soft/60 focus:ring-1 focus:ring-accent/40 transition-colors
                  text-ink appearance-none cursor-pointer"
     >
-      <option value="">—</option>
+      <option value="">Not set</option>
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
       {value && !options.includes(value) && <option value={value}>{value}</option>}
     </select>
@@ -161,7 +161,7 @@ function SelectCell({ column, value, onChange }: { column: Column; value: string
 /**
  * Attachments on a cell.
  *
- * Video is refused at the picker, at upload, and on the server — the same rule
+ * Video is refused at the picker, at upload, and on the server - the same rule
  * stated three times so it fails early and explains itself, rather than at the
  * end of a long upload.
  */
@@ -175,6 +175,8 @@ function AttachmentCell({
   onChange: (v: CellValue) => void
 }) {
   const [busy, setBusy] = useState(false)
+  const [over, setOver] = useState(false)
+  const depth = useRef(0)
   const input = useRef<HTMLInputElement>(null)
 
   const upload = async (file: File) => {
@@ -200,8 +202,36 @@ function AttachmentCell({
   const href = (ref: AttachmentRef) =>
     `/api/files/${fileId}/attachments?ref=${btoa(JSON.stringify(ref)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
 
+  /*
+   * Dropping onto the cell uploads.
+   *
+   * This is where a receipt naturally lands: the user is already looking at the
+   * row it belongs to, and the alternative is a file picker that opens on the
+   * wrong folder. `dragenter` and `dragleave` fire once per child crossed, so
+   * the highlight is driven by a depth counter rather than a bare boolean,
+   * which would blink off as the pointer passed over an existing chip.
+   */
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files')
+
   return (
-    <div className="flex flex-wrap items-center gap-1 px-1.5 py-1">
+    <div
+      className={`flex flex-wrap items-center gap-1 px-1.5 py-1 rounded transition-colors ${over ? 'drop-active' : ''}`}
+      onDragEnter={(e) => { if (!hasFiles(e)) return; e.preventDefault(); depth.current++; setOver(true) }}
+      onDragOver={(e) => { if (hasFiles(e)) e.preventDefault() }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return
+        depth.current = Math.max(0, depth.current - 1)
+        if (depth.current === 0) setOver(false)
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return
+        e.preventDefault()
+        depth.current = 0
+        setOver(false)
+        const file = e.dataTransfer.files[0]
+        if (file) void upload(file)
+      }}
+    >
       {value.map((a) => (
         <span key={a.id} className="chip h-6 pl-1.5 pr-1 max-w-[150px] group/att">
           <a href={href(a)} target="_blank" rel="noreferrer" className="truncate hover:underline" title={`${a.name} · ${humanSize(a.size)}`}>
@@ -222,6 +252,7 @@ function AttachmentCell({
         disabled={busy}
         className="h-6 px-1.5 rounded text-faint hover:text-accent hover:bg-accent-soft transition-colors flex items-center gap-1 text-[11.5px]"
         aria-label="Attach a file"
+        title="Pick a file, or drop one on this cell"
       >
         {busy ? <Icon.Spinner size={12} /> : <Icon.Plus size={13} />}
         {value.length === 0 && <span>Attach</span>}

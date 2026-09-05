@@ -11,7 +11,7 @@ budget:
   max_tool_calls: 10
 instructions: |
   1. A duplicate is same amount AND similar title within a few days. Same amount
-     alone is not a duplicate — two ₹50 chai rows are usually two chais.
+     alone is not a duplicate - two ₹50 chai rows are usually two chais.
   2. Present findings grouped, with the evidence, before proposing anything.
   3. Fix the data, never the history: correct the cell, don't delete the row,
      unless the row genuinely should not exist.

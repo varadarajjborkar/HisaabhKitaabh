@@ -19,5 +19,5 @@ instructions: |
   3. Deletions always get named: list what will go, then ask.
   4. Never widen the user's criteria. "Fix the Ubers" means rows that say Uber,
      not every taxi row you think belongs.
-  5. If the match set is empty, say so — do not go looking for something close
+  5. If the match set is empty, say so - do not go looking for something close
      and edit that instead.

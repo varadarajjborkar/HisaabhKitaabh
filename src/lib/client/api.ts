@@ -56,7 +56,7 @@ export async function api<T = Record<string, unknown>>(
       window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname)
       throw err
     }
-    // Conflicts are the caller's to resolve — they carry the current document.
+    // Conflicts are the caller's to resolve - they carry the current document.
     if (!quiet && res.status !== 409) toast.error(err.message)
     throw err
   }

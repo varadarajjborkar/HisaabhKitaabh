@@ -35,7 +35,7 @@ export type ChatOptions = {
   model?: string
   messages: Msg[]
   tools?: ToolSpec[]
-  /** JSON schema for a constrained response — used by the extraction agents. */
+  /** JSON schema for a constrained response - used by the extraction agents. */
   format?: Record<string, unknown> | 'json'
   temperature?: number
   numCtx?: number
@@ -176,8 +176,8 @@ export async function chat(opts: ChatOptions): Promise<{ content: string; thinki
 /**
  * Structured output, via a tool call.
  *
- * Measured behaviour on this endpoint, not a guess: the `format` parameter —
- * both a JSON Schema and plain `"json"` — is accepted and then ignored. Models
+ * Measured behaviour on this endpoint, not a guess: the `format` parameter -
+ * both a JSON Schema and plain `"json"` - is accepted and then ignored. Models
  * answer with markdown-fenced JSON whose field names are their own invention.
  * Tool-call arguments, by contrast, come back as real objects that respect the
  * top-level schema.
@@ -213,7 +213,7 @@ export async function chatStructured<T>(opts: ChatOptions & {
 
 /**
  * Pull a JSON value out of a model response.
- * Handles fenced blocks, leading prose, and trailing commentary — all of which
+ * Handles fenced blocks, leading prose, and trailing commentary - all of which
  * this endpoint produces even when asked not to.
  */
 export function extractJson(text: string): unknown | null {

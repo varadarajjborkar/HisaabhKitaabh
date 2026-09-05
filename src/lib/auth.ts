@@ -140,7 +140,7 @@ export async function loginWithPassword(email: string, password: string): Promis
  * A fixed username/password that boots straight into a normal-looking account
  * with the admin role, so behaviour can be exercised without OAuth round-trips.
  * It is gated on DEV_LOGIN_ENABLED and the credentials come from env, so a
- * production deploy can turn it off or change it without a code change — leave
+ * production deploy can turn it off or change it without a code change - leave
  * the defaults in place only on deployments you don't mind anyone reaching.
  */
 export async function loginAsDev(username: string, password: string): Promise<User> {

@@ -6,7 +6,7 @@
  * lives in util/hash.ts and stays server-only.
  */
 
-/** Deterministic JSON — key order can't change the result. */
+/** Deterministic JSON - key order can't change the result. */
 export function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
   if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
@@ -16,7 +16,7 @@ export function stableStringify(value: unknown): string {
 
 /**
  * FNV-1a, 64-bit, in two 32-bit halves.
- * This is a change-detector for ETags, not a security primitive — collisions
+ * This is a change-detector for ETags, not a security primitive - collisions
  * only ever cost a redundant refresh, never a wrong write, because the
  * revision number is what actually gates writes.
  */

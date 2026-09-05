@@ -41,7 +41,7 @@ export type OpBatch = {
   label?: string
 }
 
-/** Human-readable one-liner for an op — used in the AI approval dialog. */
+/** Human-readable one-liner for an op - used in the AI approval dialog. */
 export function describeOp(op: Op, columns: Column[], rows: Row[]): string {
   const col = (id: string) => columns.find((c) => c.id === id)?.name ?? id
   const rowLabel = (id: string) => {
@@ -72,7 +72,7 @@ function formatValue(v: CellValue): string {
   return `"${String(v)}"`
 }
 
-/** Build the inverse of an op against the pre-state — the basis of undo. */
+/** Build the inverse of an op against the pre-state - the basis of undo. */
 export function invertOp(op: Op, before: { rows: Row[]; columns: Column[]; name: string; duration: Duration }, nextId: () => string): Op | null {
   const row = before.rows.find((r) => r.id === (op as { rowId?: string }).rowId)
   switch (op.type) {

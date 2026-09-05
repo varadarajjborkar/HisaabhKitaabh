@@ -5,7 +5,7 @@ import { hasDrive } from '@/lib/drive/client'
 export const maxDuration = 120
 
 /**
- * Drive consistency sweep — surfaced in the UI as "Check my Drive".
+ * Drive consistency sweep - surfaced in the UI as "Check my Drive".
  * Finds objects sharing an identity key and keeps the highest-revision copy,
  * trashing (never hard-deleting) the rest.
  */

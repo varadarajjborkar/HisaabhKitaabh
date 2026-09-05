@@ -9,7 +9,7 @@ import { copyToClipboard, downloadCsv, downloadPdf, openMailDraft } from '@/lib/
 /**
  * File actions.
  *
- * Save is explicit even though saving is automatic — people want a button that
+ * Save is explicit even though saving is automatic - people want a button that
  * means "commit it now, I'm about to close this", and pressing it should do
  * something real rather than reassure. It flushes the queue and reports.
  *

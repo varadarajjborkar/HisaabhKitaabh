@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { FolderMeta } from '@/lib/model/types'
 import { Icon } from './ui/Icons'
-import { Modal } from './ui/Modal'
+import { Modal, ConfirmModal } from './ui/Modal'
+import { useDismiss } from '@/lib/client/useDismiss'
 import { AccountMenu, TopBar, useShell } from './AppShell'
 import { del, get, patch, post } from '@/lib/client/api'
 import { toast } from './ui/Toast'
@@ -73,7 +74,8 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
         }
       />
 
-      <main className="flex-1 px-3 sm:px-5 py-5 max-w-5xl w-full mx-auto pb-24">
+      <main className="flex-1 scroller px-3 sm:px-5 py-5 pb-24">
+        <div className="max-w-5xl w-full mx-auto">
         <section className="flex items-center justify-between mb-4">
           <h2 className="text-[13px] font-medium text-muted">Folders</h2>
           <button onClick={() => setCreating(true)} className="btn-outline h-8 text-[12.5px] pressable">
@@ -102,7 +104,7 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
               </h2>
               {!analytics && (
                 <p className="text-[12px] text-faint mt-1">
-                  Off by default — turn it on to pick folders and files to chart.
+                  Off by default. Turn it on to pick folders and files to chart.
                 </p>
               )}
             </div>
@@ -111,6 +113,7 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
 
           {analytics && <AnalyticsPanel folders={folders} />}
         </section>
+        </div>
       </main>
 
       <NewFolderModal
@@ -129,16 +132,17 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
 
 function FolderCard({ folder, onChanged }: { folder: FolderMeta; onChanged: () => void }) {
   const [menu, setMenu] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const menuRef = useDismiss<HTMLDivElement>(menu, () => setMenu(false))
 
   const remove = async () => {
-    if (!confirm(`Delete "${folder.name}" and everything in it? This cannot be undone.`)) return
     await del(`/api/folders/${folder.id}`)
     toast.success(`Deleted "${folder.name}"`)
     onChanged()
   }
 
   return (
-    <div className="relative group">
+    <div className="relative group h-full">
       <Link
         href={`/folder/${folder.id}`}
         className="card lift block p-3.5 sm:p-4 h-full hover:border-faint transition-colors"
@@ -165,20 +169,29 @@ function FolderCard({ folder, onChanged }: { folder: FolderMeta; onChanged: () =
         className="absolute top-2.5 right-2.5 h-7 w-7 rounded-md grid place-items-center text-faint
                    opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-raised hover:text-ink transition-all"
         aria-label={`Options for ${folder.name}`}
+        aria-expanded={menu}
       >
-        <Icon.Grip size={15} />
+        <Icon.More size={15} />
       </button>
 
       {menu && (
-        <>
-          <button className="fixed inset-0 z-40 cursor-default" onClick={() => setMenu(false)} aria-hidden tabIndex={-1} />
-          <div className="absolute right-2 top-9 z-50 w-40 card shadow-pop py-1 animate-scale-in origin-top-right">
-            <button onClick={remove} className="w-full text-left px-3 py-2 text-[12.5px] text-bad hover:bg-raised flex items-center gap-2 transition-colors">
-              <Icon.Trash size={14} /> Delete folder
-            </button>
-          </div>
-        </>
+        <div ref={menuRef} className="absolute right-2 top-9 z-50 w-44 card shadow-pop py-1 animate-scale-in origin-top-right">
+          <button
+            onClick={() => { setMenu(false); setConfirming(true) }}
+            className="w-full text-left px-3 py-2 text-[12.5px] text-bad hover:bg-raised flex items-center gap-2 transition-colors"
+          >
+            <Icon.Trash size={14} /> Delete folder
+          </button>
+        </div>
       )}
+
+      <ConfirmModal
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={remove}
+        title={`Delete "${folder.name}"?`}
+        body="Every file in this folder goes with it. This cannot be undone."
+      />
     </div>
   )
 }
@@ -227,7 +240,7 @@ function NewFolderModal({ open, onClose, onCreated }: { open: boolean; onClose: 
       open={open}
       onClose={onClose}
       title="New folder"
-      description="Group related files together — a trip, a month, a project."
+      description="Group related files together: a trip, a month, a project."
       footer={
         <>
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
@@ -292,10 +305,19 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={onChange}
-      className={`relative w-[42px] h-6 rounded-full transition-colors shrink-0 ${checked ? 'bg-accent' : 'bg-line'}`}
+      /*
+       * `p-0` is load-bearing. A <button> carries a UA padding of about 6px,
+       * and an absolutely-positioned child with no `left` falls back to its
+       * static position, which sits *inside* that padding. The knob was
+       * therefore starting six pixels in and, once translated, hung past the
+       * right end of the track: obvious in dark mode, invisible in light only
+       * because a white knob on a white card cannot be seen.
+       */
+      className={`relative w-[42px] h-6 p-0 border-0 rounded-full transition-colors shrink-0 ${checked ? 'bg-accent' : 'bg-line'}`}
     >
       <span
-        className={`absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200 ${
+        className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full bg-white
+                    shadow-[0_1px_2px_rgb(0_0_0/.28)] ring-1 ring-black/5 transition-transform duration-200 ${
           checked ? 'translate-x-[21px]' : 'translate-x-[3px]'
         }`}
         style={{ transitionTimingFunction: 'cubic-bezier(.2,.7,.3,1)' }}

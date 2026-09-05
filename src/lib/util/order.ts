@@ -6,14 +6,14 @@
  *
  * This is the Figma/Implementing-fractional-indexing scheme, not a homemade
  * midpoint. A naive "take the midpoint toward the open end" append converges on
- * "zzzz…" and grows the key by a character per row — 283 appends produced a
+ * "zzzz…" and grows the key by a character per row - 283 appends produced a
  * 69-character key here before ordering broke outright. The scheme below splits
  * a key into an integer part (which *increments* on append, so appends stay
  * short and cheap forever) and a fractional part (which subdivides only when
  * something is genuinely inserted between two neighbours).
  *
  * Keys are deterministic: two clients inserting at the same slot produce the
- * same key. That is fine and intentional — `sortByOrder` breaks ties on row id,
+ * same key. That is fine and intentional - `sortByOrder` breaks ties on row id,
  * which every replica agrees on, so both rows survive in a stable order.
  */
 

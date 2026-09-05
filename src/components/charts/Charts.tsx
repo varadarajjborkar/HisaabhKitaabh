@@ -117,7 +117,7 @@ export function LineChart({
       <figure className="card p-4">
         {title && <figcaption className="text-[13px] font-medium mb-3">{title}</figcaption>}
         <p className="text-[12.5px] text-faint py-8 text-center">
-          {points.length === 0 ? 'No dated rows yet.' : 'One data point — add more rows to see a trend.'}
+          {points.length === 0 ? 'No dated rows yet.' : 'One data point. Add more rows to see a trend.'}
         </p>
       </figure>
     )

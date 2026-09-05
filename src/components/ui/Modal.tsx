@@ -61,8 +61,17 @@ export function Modal({
                   bg-transparent p-0 m-0 w-full h-full max-w-none max-h-none
                   items-end sm:items-center justify-center`}
     >
-      <div className={`card shadow-pop w-full ${width} max-h-[88vh] flex flex-col animate-rise
-                       rounded-b-none sm:rounded-b-xl2 mb-0 sm:mb-0`}>
+      {/*
+        * `text-left normal-case tracking-normal font-normal` is not belt and
+        * braces. A <dialog> sits in the top layer but still inherits from its
+        * DOM parent, and the "add a column" dialog is mounted inside a <th>,
+        * whose UA style is `text-align: center`. Every line of that dialog came
+        * out centred. Resetting the inherited text properties here means a
+        * modal looks the same wherever it happens to be rendered from.
+        */}
+      <div className={`card shadow-pop w-full ${width} max-h-[88dvh] flex flex-col animate-rise
+                       text-left normal-case tracking-normal font-normal
+                       rounded-b-none sm:rounded-b-xl2`}>
         <header className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-line">
           <div className="min-w-0 flex-1">
             <h2 className="text-[15px] font-semibold leading-tight">{title}</h2>

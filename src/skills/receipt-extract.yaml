@@ -23,5 +23,5 @@ instructions: |
   6. Show the user what you found before writing. A receipt import that lands 40
      wrong rows is much more annoying to undo than to confirm up front.
 quality_bar: |
-  Report a confidence per row. Anything you had to squint at — a smudged total,
-  a cut-off line — is flagged, not quietly guessed.
+  Report a confidence per row. Anything you had to squint at - a smudged total,
+  a cut-off line - is flagged, not quietly guessed.

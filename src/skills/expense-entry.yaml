@@ -18,7 +18,7 @@ instructions: |
      the user supplies a fact that has nowhere to live, and say why you are
      adding it.
   3. One purchase is one row. If the user lists five things, that is five rows
-     in a single add_rows call — not five calls.
+     in a single add_rows call - not five calls.
   4. Amounts are totals already. Do not multiply by quantity: this is a ledger,
      not a spreadsheet. If the user says "3 coffees for 240", the amount is 240
      and quantity is 3.
@@ -29,4 +29,4 @@ examples:
   - user: "add 450 cab to airport upi"
     do: "add_rows with one row: amount 450, title 'Cab to airport', Paid via 'UPI'"
   - user: "3 coffees 240"
-    do: "one row: amount 240, title 'Coffees', quantity 3 — not 720"
+    do: "one row: amount 240, title 'Coffees', quantity 3 - not 720"

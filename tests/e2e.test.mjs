@@ -2,7 +2,7 @@
  * End-to-end tests against a running server.
  *   npx next dev -p 3111   then   node tests/e2e.test.mjs
  *
- * These exercise the real HTTP surface with a real session cookie — the
+ * These exercise the real HTTP surface with a real session cookie - the
  * concurrency guarantees especially, which only mean anything through the
  * actual write path.
  */
@@ -72,7 +72,7 @@ await check('session reads back', async () => {
  * Everything below runs as a brand-new account.
  *
  * The seeding assertions describe a *pristine* account, and the shared dev
- * account accumulates whatever the other suites did to it — an earlier run
+ * account accumulates whatever the other suites did to it - an earlier run
  * left the sample file edited and these assertions started failing on state
  * that had nothing to do with the code under test.
  */
@@ -204,7 +204,7 @@ await check('the same op id sent twice is dropped', async () => {
 
 // ---------------------------------------------------------- concurrency
 
-log('\nConcurrency — the guarantee that matters')
+log('\nConcurrency - the guarantee that matters')
 await check('two writers on DIFFERENT cells both survive', async () => {
   const staleRev = rev
   const w1 = await post(`/api/files/${fileId}/mutate`, {

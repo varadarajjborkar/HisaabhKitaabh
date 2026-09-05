@@ -12,6 +12,7 @@ import { Modal, ConfirmModal } from './ui/Modal'
 import { toast } from './ui/Toast'
 import { ChatDock } from './chat/ChatDock'
 import { ulid } from '@/lib/util/ids'
+import { useFileDrop } from '@/lib/client/useFileDrop'
 
 type Sort = 'recent' | 'name' | 'total' | 'rows'
 
@@ -34,6 +35,22 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [dropped, setDropped] = useState<File[] | null>(null)
+
+  /*
+   * Dropping a statement or a receipt on the folder hands it to the assistant.
+   *
+   * There is no silent-import path on purpose. Turning an arbitrary CSV into
+   * rows involves guessing which column is the amount and which is the date,
+   * and a guess that writes without asking is exactly the "something appeared
+   * that I did not type" failure this app is built to avoid. The assistant
+   * already reads attachments and proposes changes behind an approval, so the
+   * drop opens that conversation with the file already attached.
+   */
+  const drop = useFileDrop((files) => {
+    setDropped(files)
+    setChatOpen(true)
+  })
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
@@ -150,7 +167,8 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
         )}
       </TopBar>
 
-      <main className="flex-1 px-3 sm:px-5 py-4 max-w-4xl w-full mx-auto pb-24">
+      <main {...drop.handlers} className="flex-1 scroller px-3 sm:px-5 py-4 pb-24 relative">
+        <div className="max-w-4xl w-full mx-auto">
         {visible.length === 0 ? (
           <EmptyFiles query={query} onCreate={() => setCreating(true)} />
         ) : (
@@ -206,6 +224,17 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
             </ul>
           </div>
         )}
+        </div>
+
+        {drop.over && aiEnabled && (
+          <div className="fixed inset-0 z-40 grid place-items-center bg-bg/70 backdrop-blur-sm pointer-events-none animate-fade">
+            <div className="card px-6 py-5 text-center border-2 border-dashed border-accent shadow-pop">
+              <Icon.Upload size={24} className="mx-auto text-accent" />
+              <p className="text-[13.5px] font-medium mt-2.5">Drop to hand it to the assistant</p>
+              <p className="text-[12px] text-muted mt-1">It will read the file and propose rows for your approval.</p>
+            </div>
+          </div>
+        )}
       </main>
 
       <NewFileModal open={creating} onClose={() => setCreating(false)} onCreate={createFile} />
@@ -224,6 +253,8 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
           onClose={() => setChatOpen(false)}
           scope={{ fileId: null, folderId: folder.id }}
           onApplied={refresh}
+          incoming={dropped}
+          onIncomingConsumed={() => setDropped(null)}
         />
       )}
     </>
@@ -244,7 +275,7 @@ function EmptyFiles({ query, onCreate }: { query: string; onCreate: () => void }
       <Icon.File size={24} className="mx-auto text-faint" />
       <p className="text-[14px] font-medium mt-3">This folder is empty</p>
       <p className="text-[13px] text-muted mt-1.5 max-w-xs mx-auto leading-relaxed">
-        A file is a table of rows — an amount, a title, and whatever columns you add.
+        A file is a table of rows: an amount, a title, and whatever columns you add.
       </p>
       <button onClick={onCreate} className="btn-primary mt-5 pressable">
         <Icon.Plus size={15} /> New file
@@ -290,7 +321,7 @@ function NewFileModal({ open, onClose, onCreate }: { open: boolean; onClose: () 
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') void submit() }}
-        placeholder="Groceries — October"
+        placeholder="Groceries, October"
         autoFocus
         maxLength={120}
       />

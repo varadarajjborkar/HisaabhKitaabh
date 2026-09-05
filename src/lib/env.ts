@@ -1,6 +1,6 @@
 /**
  * Central env access. Everything is optional at import-time so the app boots in
- * degraded mode (memory store, no AI) instead of crashing — important on Vercel
+ * degraded mode (memory store, no AI) instead of crashing - important on Vercel
  * where a missing var otherwise takes the whole deployment down.
  */
 function opt(k: string): string | undefined {
@@ -32,13 +32,13 @@ export const env = {
   },
 
   ollama: {
-    /** Ollama Cloud: https://ollama.com  — self-hosted: http://127.0.0.1:11434 */
+    /** Ollama Cloud: https://ollama.com  - self-hosted: http://127.0.0.1:11434 */
     host: (opt('OLLAMA_HOST') ?? 'https://ollama.com').replace(/\/+$/, ''),
     apiKey: opt('OLLAMA_API_KEY'),
     /**
      * Model tiers, verified reachable on a free Ollama Cloud key.
      * `gemma4` is the only image-capable model in that set, and in testing it
-     * also followed nested tool-call schemas most faithfully — so it does
+     * also followed nested tool-call schemas most faithfully - so it does
      * double duty as the vision model and the extraction model.
      */
     chatModel: opt('OLLAMA_CHAT_MODEL') ?? 'gpt-oss:120b',

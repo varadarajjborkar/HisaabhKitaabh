@@ -6,7 +6,7 @@ import { env } from './env'
  *
  * Upstash is HTTP-based, so it works from serverless functions with no
  * connection pool to exhaust. When it isn't configured (local dev, first boot)
- * we fall back to an in-process map so nothing crashes — the fallback is NOT
+ * we fall back to an in-process map so nothing crashes - the fallback is NOT
  * durable and NOT shared across instances, which `kv.durable` reports.
  */
 
@@ -48,7 +48,7 @@ type Entry = { value: unknown; expiresAt?: number }
  * The fallback map lives on globalThis, not in module scope.
  *
  * Next gives each route handler its own module registry, so a module-scoped Map
- * would be a *different map per route* — a folder written by POST /api/folders
+ * would be a *different map per route* - a folder written by POST /api/folders
  * would be invisible to GET /api/folders/[id], which 404s for no apparent
  * reason. Hanging it off globalThis makes one map per process, which is what
  * "in-memory" should mean.
@@ -246,6 +246,8 @@ export const K = {
   chat: (userId: string, threadId: string) => `chat:${userId}:${threadId}`,
   chatIndex: (userId: string) => `chat:${userId}:threads`,
   chatSummary: (userId: string, threadId: string) => `chat:${userId}:${threadId}:sum`,
+  /** User-supplied conversation names, keyed by thread id. */
+  chatTitles: (userId: string) => `chat:${userId}:titles`,
   pending: (userId: string, actionId: string) => `pend:${userId}:${actionId}`,
   memory: (userId: string) => `mem:${userId}`,
   grants: (userId: string, threadId: string) => `grant:${userId}:${threadId}`,

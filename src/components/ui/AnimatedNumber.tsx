@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
  * This is the one place a running total earns motion: when a row lands, the
  * total sliding to its new figure tells you *that it changed* and roughly by
  * how much, which a hard swap does not. Duration scales with the size of the
- * jump so a ₹40 correction doesn't animate as long as a ₹40,000 one — and a
+ * jump so a ₹40 correction doesn't animate as long as a ₹40,000 one - and a
  * first render never animates at all.
  */
 export function AnimatedNumber({

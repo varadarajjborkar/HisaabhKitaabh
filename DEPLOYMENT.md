@@ -12,12 +12,12 @@ waiting for other people's dashboards.
 |---|---|---|---|
 | Hosting + compute | **Vercel** | Hobby: plenty | Pro, $20/mo |
 | Cache, sessions, chat | **Upstash Redis** | 10k commands/day, 256MB | Pay-per-request, ~$0.20/100k |
-| Primary data | **The user's Google Drive** | Free — it's their quota | Never; it doesn't scale to you |
+| Primary data | **The user's Google Drive** | Free - it's their quota | Never; it doesn't scale to you |
 | Data for password accounts | Upstash Redis | Same as above | Move to **Neon** Postgres |
 | The model | **Ollama Cloud** | Limited free | Their paid tier, or self-host |
 
 Total to run this for a few hundred users: **£0**. That is the point of the
-Drive-first design — the storage bill scales with *each user's* free 15 GB, not
+Drive-first design - the storage bill scales with *each user's* free 15 GB, not
 with your bank account.
 
 ---
@@ -30,7 +30,7 @@ vercel          # first run: links the project
 vercel --prod
 ```
 
-Or push to GitHub and import at [vercel.com/new](https://vercel.com/new) — every
+Or push to GitHub and import at [vercel.com/new](https://vercel.com/new) - every
 push to `main` then deploys itself, and every pull request gets its own preview
 URL. That *is* your CI/CD; you do not need to configure anything else.
 
@@ -51,7 +51,7 @@ Production, Preview and Development unless noted.
 | `UPSTASH_REDIS_REST_TOKEN` | strongly | |
 | `GOOGLE_CLIENT_ID` | for Drive | |
 | `GOOGLE_CLIENT_SECRET` | for Drive | |
-| `DEV_LOGIN_ENABLED` | — | **Set to `false` in production** unless you want the dev account reachable |
+| `DEV_LOGIN_ENABLED` | - | **Set to `false` in production** unless you want the dev account reachable |
 
 > **The developer login.** `varad` / `varad[123]` is a real credential that
 > grants an admin session. On a public deployment either set
@@ -64,11 +64,11 @@ Production, Preview and Development unless noted.
 
 1. [console.upstash.com](https://console.upstash.com) → **Create Database**
 2. Region: **the same one as your Vercel functions.** This matters more than
-   anything else on this page — a database in Virginia and functions in Mumbai
+   anything else on this page - a database in Virginia and functions in Mumbai
    means every Redis call pays 200ms of round trip, several times per request.
 3. Enable **Eviction** (`allkeys-lru`). Caches and locks should be evictable;
    without it a full database starts refusing writes.
-4. Copy the **REST** URL and token (not the `redis://` one — the REST API is
+4. Copy the **REST** URL and token (not the `redis://` one - the REST API is
    what works from serverless with no connection pool).
 
 Vercel's own **KV** is Upstash underneath; `KV_REST_API_URL` / `KV_REST_API_TOKEN`
@@ -95,7 +95,7 @@ tier is per-request and stays inside a few pounds a month well past that.
 1. [console.cloud.google.com](https://console.cloud.google.com) → new project
 2. **APIs & Services → Library** → enable **Google Drive API**
 3. **OAuth consent screen** → External → fill in app name and support email
-4. Add the scope `.../auth/drive.file` — this is a **non-sensitive** scope, so
+4. Add the scope `.../auth/drive.file` - this is a **non-sensitive** scope, so
    you do *not* need Google's security assessment. Do not ask for full `drive`.
 5. **Credentials → Create → OAuth client ID → Web application**
    - Authorised redirect URI: `https://your-app.vercel.app/api/auth/callback`
@@ -110,8 +110,8 @@ Publishing it is a form, not a review, for non-sensitive scopes.
 ## 5. When Drive is not enough
 
 Drive is excellent for personal use and costs you nothing. It is the wrong
-answer when you need to query *across* users — leaderboards, admin dashboards,
-"how many rows exist" — because there is no such thing as a query across other
+answer when you need to query *across* users - leaderboards, admin dashboards,
+"how many rows exist" - because there is no such thing as a query across other
 people's Drives.
 
 At that point add Postgres for the index and keep Drive as the document store:
@@ -145,7 +145,7 @@ stale data.
 when nothing changed, so polling costs a header exchange rather than a document.
 
 **4. Batch operations.** The client debounces edits into batches. Twenty
-keystrokes become one write. Keep it that way — the debounce is in
+keystrokes become one write. Keep it that way - the debounce is in
 `useSheet.ts` (`FLUSH_DELAY`).
 
 **5. Watch the assistant, not the app.** A chat turn costs 3–10 seconds and
@@ -156,7 +156,7 @@ throttle, and each skill's `max_tool_calls` caps a runaway loop.
 ### Function limits
 
 `maxDuration` is set per route: 300s for chat, 60s for uploads. Hobby plans cap
-at 60s — either upgrade or lower the chat cap. The design already survives this:
+at 60s - either upgrade or lower the chat cap. The design already survives this:
 an approval **ends the stream** and resumes on a second request, so a user
 thinking for five minutes never holds a function open.
 
@@ -166,7 +166,7 @@ thinking for five minutes never holds a function open.
 
 **Health check.** `GET /api/health` returns Redis, AI and Google status plus a
 latency number. Point [UptimeRobot](https://uptimerobot.com) or Better Stack at
-it on a 5-minute interval — free, and you hear about an outage before your users
+it on a 5-minute interval - free, and you hear about an outage before your users
 do.
 
 **Logs.** Vercel → Deployments → Logs. Everything the app logs is prefixed
@@ -178,7 +178,7 @@ objects sharing an identity key, keeps the highest-revision copy and trashes the
 rest. Safe to run any time; nothing is hard-deleted.
 
 **Backups.** Drive keeps its own version history and a 30-day trash, so Google
-accounts are covered. For password accounts, Redis is the only copy — Upstash
+accounts are covered. For password accounts, Redis is the only copy - Upstash
 paid plans include daily backups, and that is a real reason to move those users
 to Postgres.
 
@@ -193,7 +193,7 @@ to reconnect Drive.
 - [ ] `DEV_LOGIN_ENABLED=false`, or credentials changed from the defaults
 - [ ] `SESSION_SECRET` is 32+ random bytes and not the one in `.env.example`
 - [ ] `APP_URL` matches the deployed domain exactly
-- [ ] Upstash configured — otherwise every serverless instance has its own
+- [ ] Upstash configured - otherwise every serverless instance has its own
       memory and users see data appear and vanish depending on which one answers
 - [ ] Redis in the same region as the functions
 - [ ] Google consent screen published, if you want anyone but yourself
@@ -207,7 +207,7 @@ to reconnect Drive.
 
 **"It worked locally and breaks deployed."** Almost always Redis. Locally the
 in-memory fallback is one process, so everything is consistent. Deployed, each
-serverless instance has its own — writes land on one and reads on another.
+serverless instance has its own - writes land on one and reads on another.
 `/api/health` tells you which mode you are in.
 
 **"Google says redirect_uri_mismatch."** The URI in the console must match
@@ -215,7 +215,7 @@ serverless instance has its own — writes land on one and reads on another.
 trailing slash, and `www` all count as different.
 
 **"The assistant says it is not configured."** `OLLAMA_API_KEY` is missing in
-that environment. Vercel scopes variables per environment — setting it for
+that environment. Vercel scopes variables per environment - setting it for
 Production does not set it for Preview.
 
 **"A model returns 404 or asks for a subscription."** Ollama Cloud gates models

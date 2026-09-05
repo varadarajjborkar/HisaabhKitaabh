@@ -10,7 +10,7 @@ import { toast } from '@/components/ui/Toast'
  * Nothing here round-trips to the server: the document is already in memory,
  * and rendering it locally means export works instantly and offline. PDF is
  * produced by handing the browser a print stylesheet rather than shipping a
- * PDF library — a few hundred bytes of CSS against ~300KB of jsPDF, and the
+ * PDF library - a few hundred bytes of CSS against ~300KB of jsPDF, and the
  * output honours the user's own paper size and margins.
  */
 
@@ -79,7 +79,7 @@ export function openMailDraft(doc: SheetDoc): void {
     finalBody = [
       body.split('\n').slice(0, 6).join('\n'),
       '',
-      `(${doc.rows.filter((r) => !r.deleted).length} rows — the full table has been copied to your clipboard. Paste it below.)`,
+      `(${doc.rows.filter((r) => !r.deleted).length} rows. The full table has been copied to your clipboard. Paste it below.)`,
     ].join('\n')
   }
 

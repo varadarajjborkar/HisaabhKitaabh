@@ -1,6 +1,6 @@
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
 
-/** Web Crypto — present in browsers and in Node 19+, so ids work on both sides. */
+/** Web Crypto - present in browsers and in Node 19+, so ids work on both sides. */
 function randomBytes(n: number): Uint8Array {
   const bytes = new Uint8Array(n)
   globalThis.crypto.getRandomValues(bytes)
@@ -10,7 +10,7 @@ function randomBytes(n: number): Uint8Array {
 /**
  * ULID: 48-bit timestamp + 80 bits of randomness, lexicographically sortable.
  *
- * IDs are minted by whoever *originates* a row — the browser, or an agent —
+ * IDs are minted by whoever *originates* a row - the browser, or an agent -
  * which is what makes row creation idempotent. A retried "add row" carries the
  * same id and collapses into the existing row instead of producing a duplicate.
  */

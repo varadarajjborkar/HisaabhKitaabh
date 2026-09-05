@@ -26,7 +26,7 @@ export const POST = withAuth(async ({ session, repo }, req: Request) => {
   if (!state) return fail('run_expired', 'That request timed out. Ask again and the assistant will re-plan it.', 410)
   if (!state.pending) return fail('already_answered', 'That has already been answered.', 409)
   if (state.pending.actionId !== body.actionId) {
-    return fail('stale_action', 'This approval is out of date — the assistant has moved on.', 409)
+    return fail('stale_action', 'This approval is out of date. The assistant has moved on.', 409)
   }
   if (body.decision === 'guide' && !body.guidance?.trim()) {
     return fail('invalid', 'Tell the assistant what to do instead.', 400)
