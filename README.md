@@ -78,7 +78,7 @@ npm test                       # all four suites
 npm run test:engine            # or one at a time
 ```
 
-208 tests in five layers:
+211 tests in five layers:
 
 | Suite | Tests | What it exercises |
 |---|---|---|
@@ -86,7 +86,7 @@ npm run test:engine            # or one at a time
 | `test:db` | 30 | The Postgres store against a real database - expiry, atomic claims, concurrent appends, per-account isolation, receipts through `bytea` |
 | `test:e2e` | 38 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal, storage backends |
 | `test:chat` | 24 | The assistant against the live model and the live write path, including where its instructions are allowed to come from and that a foreign-currency amount is converted rather than asked about |
-| `test:ui` | 45 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, the storage chooser, the currency picker, the theme long-press, and the phone layout down to its tap targets |
+| `test:ui` | 48 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, the storage chooser, the currency picker, the theme long-press and the stack it drags, the phone layout down to its tap targets, and where things actually land on the page: the sign-in panel on its centre line, a card's menu button clear of its chip |
 
 `test:db` skips itself unless `DATABASE_URL` is set, so nothing else in the
 project needs a database installed to run.

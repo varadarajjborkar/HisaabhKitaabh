@@ -66,6 +66,26 @@ await check('the password field can be revealed and re-masked', async () => {
   eq(await page.getAttribute('#password', 'type'), 'password', 'the eye did not re-mask it:')
 })
 
+await check('the sign-in page puts the theme button in the corner and the pitch on the centre line', async () => {
+  /*
+   * Both of these were wrong at once, and for the same reason: things drift to
+   * wherever the layout leaves them unless something says otherwise. The theme
+   * button carried an `absolute` that its own component silently outranked with
+   * a `relative`, so it settled into the middle of the form panel, and the pitch
+   * hung off the bottom of its own because the panel only knew to push the logo
+   * and the text apart.
+   */
+  const vp = page.viewportSize()
+  const btn = await page.locator('button[aria-haspopup="listbox"]').boundingBox()
+  ok(btn.y < 60, `the theme button is not near the top: y=${btn.y}`)
+  ok(vp.width - (btn.x + btn.width) < 60, `the theme button is not near the right edge: ${vp.width - (btn.x + btn.width)}px clear`)
+
+  const head = await page.locator('h1:text("Folders, files, rows.")').boundingBox()
+  const list = await page.locator('section ul').first().boundingBox()
+  const middle = (head.y + list.y + list.height) / 2
+  ok(Math.abs(middle - vp.height / 2) < 24, `the pitch sits ${Math.round(middle)} down a ${vp.height} panel, not on its centre line`)
+})
+
 await check('login page renders and accepts the developer account', async () => {
   ok(await page.locator('text=Folders, files, rows.').isVisible(), 'the pitch panel is missing')
   await page.fill('#identifier', 'varad')
@@ -84,6 +104,22 @@ await check('folder cards show their file counts', async () => {
   const card = page.locator('a[href^="/folder/"]').first()
   ok(/file/i.test(await card.innerText()), `a folder card has no file count: "${await card.innerText()}"`)
 })
+await check('a folder card keeps its options button off the sample chip', async () => {
+  // The button is floated over the card's corner from outside the link, so
+  // nothing inside it knows to move aside. It landed straight on the chip.
+  const card = page.locator('a[href^="/folder/"]').filter({ hasText: 'sample' }).first()
+  if (!(await card.count())) return
+  await card.scrollIntoViewIfNeeded()
+  await card.hover()
+  const chip = await card.locator('.chip').first().boundingBox()
+  const btn = await card.locator('xpath=..').locator('button[aria-label^="Options for"]').boundingBox()
+  const overlaps =
+    !(chip.x + chip.width <= btn.x || btn.x + btn.width <= chip.x) &&
+    !(chip.y + chip.height <= btn.y || btn.y + btn.height <= chip.y)
+  ok(!overlaps, 'the options button is sitting on top of the sample chip')
+  ok(btn.x - (chip.x + chip.width) >= 4, `only ${Math.round(btn.x - (chip.x + chip.width))}px between the chip and the button`)
+})
+
 await check('analytics is off until switched on, then charts appear', async () => {
   const toggle = page.locator('button[role=switch][aria-label=Analytics]')
   ok(await toggle.isVisible(), 'the analytics toggle is missing')
@@ -380,6 +416,44 @@ await check('holding the theme button opens a stack you can swipe and release on
   eq(await p2.getAttribute('html', 'data-theme'), 'dark', 'the choice never reached the document:')
   eq(await p2.locator('[role=listbox]').count(), 0, 'the picker stayed open after releasing:')
   await ctx2.close()
+})
+
+await check('the theme stack follows the thumb instead of jumping a card at a time', async () => {
+  /*
+   * The gesture used to round the travel to whole cards before drawing
+   * anything, so nothing moved until it had moved all the way. Half a card of
+   * travel has to look like half a card, or there is no telling a gesture that
+   * is being ignored from one that has not been noticed yet.
+   */
+  const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+  const p3 = await ctx3.newPage()
+  p3.setDefaultTimeout(20_000)
+  await p3.goto(`${BASE}/login`)
+
+  const btn = p3.locator('button[aria-haspopup="listbox"]')
+  await btn.waitFor()
+  const box = await btn.boundingBox()
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  const depth = () =>
+    p3.locator('[role=option]').evaluateAll((els) =>
+      els.map((el) => +new DOMMatrix(getComputedStyle(el).transform).m43.toFixed(1)))
+
+  await p3.mouse.move(cx, cy)
+  await p3.mouse.down()
+  await p3.waitForTimeout(700)
+  const rest = await depth()
+
+  await p3.mouse.move(cx, cy - 16) // a third of a card
+  await p3.waitForTimeout(120)
+  const part = await depth()
+
+  const moved = part.map((z, i) => Math.abs(z - rest[i]))
+  ok(moved.some((d) => d > 2), 'a third of a card of travel moved nothing at all')
+  ok(moved.every((d) => d < 40), `the stack jumped a whole card for a third of one: ${moved.join(', ')}`)
+
+  await p3.mouse.up()
+  await ctx3.close()
 })
 
 await check('the amount column can be switched to another currency', async () => {

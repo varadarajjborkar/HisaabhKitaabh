@@ -147,14 +147,21 @@ function FolderCard({ folder, onChanged }: { folder: FolderMeta; onChanged: () =
         href={`/folder/${folder.id}`}
         className="card lift block p-3.5 sm:p-4 h-full hover:border-faint transition-colors"
       >
-        <div className="flex items-start justify-between gap-2">
+        {/*
+         * The right padding is the options button's seat. It sits outside this
+         * link, floated over the card's corner, so nothing in here knows to get
+         * out of its way - which put it straight on top of the sample chip.
+         * Reserving the space unconditionally keeps the chip still: paying for
+         * it only on hover would slide the chip sideways under the cursor.
+         */}
+        <div className="flex items-start justify-between gap-2 pr-8">
           <span
             className="w-9 h-9 rounded-lg grid place-items-center text-[17px] shrink-0"
             style={{ background: `${folder.color}1a` }}
           >
             {folder.icon}
           </span>
-          {folder.sample && <span className="chip h-5 px-2 text-[10px]">sample</span>}
+          {folder.sample && <span className="chip h-5 px-2 text-[10px] shrink-0">sample</span>}
         </div>
 
         <p className="text-[13.5px] font-medium mt-3 leading-snug line-clamp-2">{folder.name}</p>
@@ -167,7 +174,8 @@ function FolderCard({ folder, onChanged }: { folder: FolderMeta; onChanged: () =
       <button
         onClick={(e) => { e.preventDefault(); setMenu((v) => !v) }}
         className="absolute top-2.5 right-2.5 h-7 w-7 rounded-md grid place-items-center text-faint
-                   opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-raised hover:text-ink transition-all"
+                   opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100
+                   hover:bg-raised hover:text-ink transition-all"
         aria-label={`Options for ${folder.name}`}
         aria-expanded={menu}
       >
