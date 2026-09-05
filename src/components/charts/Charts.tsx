@@ -223,8 +223,16 @@ export function StatTile({
 
 // -------------------------------------------------------------- table fallback
 
-/** The relief the light palette owes: every charted number, readable as text. */
-export function DataTable({ rows, columns, currency }: { rows: Array<Record<string, string | number>>; columns: string[]; currency?: string | null }) {
+/**
+ * The relief the light palette owes: every charted number, readable as text.
+ *
+ * Which columns hold money is the caller's to say, because a table cannot tell
+ * an amount from a count by looking at it - and it used to guess, which put a
+ * rupee sign in front of "6 rows". A number with the wrong unit on it is worse
+ * than one with no unit at all, so anything not named here is left as a plain
+ * figure, grouped the same way so the columns still line up.
+ */
+export function DataTable({ rows, columns, currency, money = [] }: { rows: Array<Record<string, string | number>>; columns: string[]; currency?: string | null; money?: string[] }) {
   if (rows.length === 0) return null
   return (
     <div className="card overflow-x-auto">
@@ -243,7 +251,9 @@ export function DataTable({ rows, columns, currency }: { rows: Array<Record<stri
             <tr key={i} className="border-b border-line last:border-0">
               {columns.map((c, j) => (
                 <td key={c} className={`px-3.5 py-2 ${j > 0 ? 'text-right tnum text-muted' : 'text-ink'}`}>
-                  {typeof r[c] === 'number' ? formatMoney(r[c] as number, currency ?? 'INR', { decimals: false, symbol: !!currency }) : r[c]}
+                  {typeof r[c] === 'number'
+                    ? formatMoney(r[c] as number, currency ?? 'INR', { decimals: false, symbol: !!currency && money.includes(c) })
+                    : r[c]}
                 </td>
               ))}
             </tr>

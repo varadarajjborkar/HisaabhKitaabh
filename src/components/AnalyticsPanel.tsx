@@ -178,6 +178,7 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
                   columns={['Item', 'Amount', 'Rows']}
                   rows={data.categories.map((c) => ({ Item: c.key, Amount: c.total, Rows: c.count }))}
                   currency={code}
+                  money={['Amount']}
                 />
               </div>
             )}
