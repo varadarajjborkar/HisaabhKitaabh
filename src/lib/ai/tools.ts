@@ -9,6 +9,7 @@ import type { ToolSpec } from './ollama'
 import { formatINR } from '../util/format'
 import { isImage, isTabularText } from '../util/mime'
 import { parseTable } from '../util/table'
+import { convertAmount, currencyCode, describeConversion, describeRate, rateFor } from '../util/currency'
 
 /**
  * Tools available to the assistant.
@@ -187,6 +188,51 @@ function mapCells(doc: SheetDoc, input: Record<string, unknown>): { cells: Recor
     cells[col.id] = normalizeValue(value as CellValue, col)
   }
   return { cells, unmatched }
+}
+
+/**
+ * Rewrite a call's amounts into the file's currency.
+ *
+ * Conversion happens here rather than in the model for two reasons. The rate
+ * has to be looked up, and a model that guesses one is worse than useless; and
+ * the arithmetic has to be right, which is not a thing to leave to a token
+ * predictor when the output is somebody's money.
+ *
+ * The original figure and the rate are written into the notes column, because
+ * "why is this row 84,096" is a question the file should be able to answer on
+ * its own six months later.
+ */
+async function applyCurrency(
+  doc: SheetDoc,
+  cells: Record<string, CellValue>,
+  from: string,
+): Promise<{ cells: Record<string, CellValue>; note: string | null }> {
+  const target = doc.currency || 'INR'
+  const code = currencyCode(from)
+  if (!code || code === target) return { cells, note: null }
+
+  const amountCols = doc.columns.filter((c) => c.kind === 'amount')
+  if (amountCols.length === 0) return { cells, note: null }
+
+  const next = { ...cells }
+  let note: string | null = null
+
+  for (const col of amountCols) {
+    const raw = next[col.id]
+    if (raw == null || raw === '') continue
+    const converted = await convertAmount(numeric(raw), code, target)
+    next[col.id] = converted.amount
+    note = describeConversion(converted)
+  }
+
+  if (note) {
+    const notesCol = doc.columns.find((c) => c.id === SYSTEM_COLUMNS.notes)
+    if (notesCol) {
+      const existing = next[notesCol.id]
+      next[notesCol.id] = existing == null || existing === '' ? note : `${String(existing)} (${note})`
+    }
+  }
+  return { cells: next, note }
 }
 
 // ------------------------------------------------------------------ read tools
@@ -452,7 +498,7 @@ const buildExport: ToolDef = {
 const addRows: ToolDef = {
   name: 'add_rows',
   description:
-    'Add one or more rows. Each row is an object keyed by column name - e.g. {"INR": 450, "Title": "Cab", "Paid via": "UPI"}. Amounts are totals already; never multiply by quantity. Keys that match no column are reported back rather than dropped.',
+    'Add one or more rows. Each row is an object keyed by column name - e.g. {"INR": 450, "Title": "Cab", "Paid via": "UPI"}. Amounts are totals already; never multiply by quantity. Keys that match no column are reported back rather than dropped. If the user gave amounts in another currency, pass the amounts unchanged and set `currency` - the conversion is done here at today\'s rate.',
   mode: 'write',
   risk: 'medium',
   parameters: {
@@ -464,6 +510,10 @@ const addRows: ToolDef = {
         description: 'Rows to add, each an object of column name -> value.',
         items: { type: 'object' },
       },
+      currency: {
+        type: 'string',
+        description: "The currency the amounts in this call are written in. Omit when they are already in the file's currency.",
+      },
     },
     required: ['rows'],
   },
@@ -472,6 +522,7 @@ const addRows: ToolDef = {
     const inputs = arr<Record<string, unknown>>(args.rows)
     if (inputs.length === 0) return { kind: 'error', message: 'No rows were supplied.' }
     if (inputs.length > 200) return { kind: 'error', message: 'That is more than 200 rows. Split it across several calls.' }
+    const currency = str(args.currency)
 
     const visible = sortByOrder(liveRows(doc))
     let cursor: string | null = visible.length ? visible[visible.length - 1].order : null
@@ -480,10 +531,22 @@ const addRows: ToolDef = {
     const preview: string[] = []
     const unmatchedAll = new Set<string>()
 
+    let conversion: string | null = null
     for (const input of inputs) {
-      const { cells, unmatched } = mapCells(doc, input)
-      unmatched.forEach((u) => unmatchedAll.add(u))
-      if (Object.keys(cells).length === 0) continue
+      const mapped = mapCells(doc, input)
+      mapped.unmatched.forEach((u) => unmatchedAll.add(u))
+      if (Object.keys(mapped.cells).length === 0) continue
+
+      let cells = mapped.cells
+      if (currency) {
+        try {
+          const applied = await applyCurrency(doc, cells, currency)
+          cells = applied.cells
+          conversion = applied.note ?? conversion
+        } catch (err) {
+          return { kind: 'error', message: (err as Error).message }
+        }
+      }
       cursor = orderAfter(cursor)
       const rowId = ulid()
       ops.push({ id: shortId(12), type: 'row.insert', rowId, order: cursor, cells })
@@ -508,7 +571,7 @@ const addRows: ToolDef = {
       plan: {
         fileId: doc.id,
         ops,
-        summary: `Add ${ops.length} row${ops.length === 1 ? '' : 's'} to "${doc.name}"${added ? `, ${formatINR(added)} in total` : ''}${unmatchedAll.size ? ` - ignoring unknown field${unmatchedAll.size === 1 ? '' : 's'}: ${[...unmatchedAll].join(', ')}` : ''}`,
+        summary: `Add ${ops.length} row${ops.length === 1 ? '' : 's'} to "${doc.name}"${added ? `, ${formatINR(added)} in total` : ''}${conversion ? ` - converted from ${conversion}` : ''}${unmatchedAll.size ? ` - ignoring unknown field${unmatchedAll.size === 1 ? '' : 's'}: ${[...unmatchedAll].join(', ')}` : ''}`,
         preview,
       },
     }
@@ -518,7 +581,7 @@ const addRows: ToolDef = {
 const updateRows: ToolDef = {
   name: 'update_rows',
   description:
-    'Change cells on existing rows. Pass rowIds from get_file or query_rows - never invent one. Batch every row of a bulk edit into one call so the user can undo it in one step.',
+    'Change cells on existing rows. Pass rowIds from get_file or query_rows - never invent one. Batch every row of a bulk edit into one call so the user can undo it in one step. Set `currency` if the new amounts are written in something other than the file\'s currency.',
   mode: 'write',
   risk: 'high',
   parameters: {
@@ -534,12 +597,17 @@ const updateRows: ToolDef = {
           required: ['rowId', 'set'],
         },
       },
+      currency: {
+        type: 'string',
+        description: "The currency the new amounts are written in. Omit when they are already in the file's currency.",
+      },
     },
     required: ['updates'],
   },
   async run(args, ctx) {
     const doc = await resolveDoc(ctx, args.fileId)
     const updates = arr<{ rowId: string; set: Record<string, unknown> }>(args.updates)
+    const currency = str(args.currency)
     const ops: Op[] = []
     const diff: Array<{ label: string; before: string; after: string }> = []
     const missing: string[] = []
@@ -550,7 +618,14 @@ const updateRows: ToolDef = {
         missing.push(u.rowId)
         continue
       }
-      const { cells } = mapCells(doc, u.set ?? {})
+      let cells = mapCells(doc, u.set ?? {}).cells
+      if (currency) {
+        try {
+          cells = (await applyCurrency(doc, cells, currency)).cells
+        } catch (err) {
+          return { kind: 'error', message: (err as Error).message }
+        }
+      }
       for (const [columnId, value] of Object.entries(cells)) {
         const col = doc.columns.find((c) => c.id === columnId)!
         const before = row.cells[columnId]
@@ -829,6 +904,51 @@ const createFolder: ToolDef = {
   },
 }
 
+const convertCurrency: ToolDef = {
+  name: 'convert_currency',
+  description:
+    'Look up today\'s published exchange rate and convert an amount. Use it whenever a user names an amount in a currency other than the file\'s - never ask them what the rate is, and never guess one.',
+  mode: 'read',
+  risk: 'none',
+  parameters: {
+    type: 'object',
+    properties: {
+      amount: { type: 'number', description: 'Omit to get the rate for one unit.' },
+      from: { type: 'string', description: 'Currency the amount is in. A code like USD, or what the user wrote ($, dollars).' },
+      to: { type: 'string', description: 'Currency to convert into. Defaults to the open file\'s currency.' },
+    },
+    required: ['from'],
+  },
+  async run(args, ctx) {
+    const to = str(args.to) || (ctx.fileId ? (await resolveDoc(ctx, ctx.fileId)).currency : 'INR') || 'INR'
+    const from = str(args.from)
+    const amount = args.amount == null ? null : numeric(args.amount as CellValue)
+
+    try {
+      if (amount == null) {
+        const rate = await rateFor(from, to)
+        return { kind: 'data', data: { rate: rate.rate, from: rate.from, to: rate.to, asOf: rate.asOf, source: rate.source, describe: describeRate(rate) } }
+      }
+      const converted = await convertAmount(amount, from, to)
+      return {
+        kind: 'data',
+        data: {
+          original: converted.original,
+          from: converted.rate.from,
+          converted: converted.amount,
+          to: converted.rate.to,
+          rate: converted.rate.rate,
+          asOf: converted.rate.asOf,
+          source: converted.rate.source,
+          describe: describeRate(converted.rate),
+        },
+      }
+    } catch (err) {
+      return { kind: 'error', message: (err as Error).message }
+    }
+  },
+}
+
 // ------------------------------------------------------------------ meta tools
 
 const askUser: ToolDef = {
@@ -853,14 +973,14 @@ const askUser: ToolDef = {
 export const TOOLS: ToolDef[] = [
   listFolders, listFiles, getFile, listColumns, queryRows, computeStats, readAttachment, buildExport,
   addRows, updateRows, deleteRows, addColumn, renameColumn, deleteColumn, setPeriod, renameFile,
-  createFile, createFolder,
+  createFile, createFolder, convertCurrency,
   askUser,
 ]
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]))
 
 /** Tools every request gets regardless of which skill matched. */
-export const ALWAYS_TOOLS = ['get_file', 'list_folders', 'list_files', 'query_rows', 'compute_stats', 'ask_user']
+export const ALWAYS_TOOLS = ['get_file', 'list_folders', 'list_files', 'query_rows', 'compute_stats', 'convert_currency', 'ask_user']
 
 export function toolSpecs(names: string[]): ToolSpec[] {
   return names

@@ -435,5 +435,88 @@ await check('the file name is accepted where the id belongs', async () => {
   eq(failed.length, 0, `a plain read failed a tool call: ${failed.map((f) => f.summary).join(' | ')}`)
 })
 
+// ------------------------------------------------ money in another currency
+
+/**
+ * The failure these come from: a user asked for a row of "890 dollars" in an
+ * INR file, and the assistant asked what exchange rate to use. Told "the
+ * standard one", it asked again. Told "what is the world standard?", it asked a
+ * third time. Three turns spent refusing to look up a number that two free APIs
+ * publish, in a tool whose whole job is to save the user that lookup.
+ */
+/**
+ * Every figure the app prints is grouped - 84,096.10 - so a number has to be
+ * read the way it is written. Stripping non-digits turns one amount into three
+ * small ones and the assertion then fails on output that was perfectly correct.
+ */
+function amounts(text) {
+  return [...String(text).matchAll(/\d[\d,]*(?:\.\d+)?/g)]
+    .map((m) => Number(m[0].replace(/,/g, '')))
+    .filter((n) => Number.isFinite(n))
+}
+
+log('\nAmounts in another currency')
+
+await check('a foreign-currency row is converted, not queried', async () => {
+  const ev = await stream('/api/chat', {
+    threadId: newThread(),
+    message: "add a row called 'Conference ticket' for 890 dollars",
+    ...scope,
+  })
+  log(`       ${summarise(ev)}`)
+
+  const asked = of(ev, 'ask')
+  eq(asked.length, 0, `it asked instead of converting: ${asked.map((a) => a.question).join(' | ')}`)
+
+  const proposals = of(ev, 'permission')
+  ok(proposals.length > 0, `no row was proposed. It said: ${text(ev).slice(0, 200)}`)
+
+  // 890 USD is a few tens of thousands of rupees. The exact rate moves daily,
+  // so assert the order of magnitude rather than a number that expires.
+  const summary = proposals.map((p) => p.action.summary).join(' ')
+  const preview = proposals.flatMap((p) => p.action.preview ?? []).join(' ')
+  ok(
+    amounts(summary + ' ' + preview).some((n) => n > 40000 && n < 200000),
+    `no converted rupee amount in the proposal: ${summary} | ${preview}`,
+  )
+})
+
+await check('the rate and the original figure are recorded on the row', async () => {
+  const ev = await stream('/api/chat', {
+    threadId: newThread(),
+    message: 'add a row: Hotel deposit, 200 USD',
+    ...scope,
+  })
+  log(`       ${summarise(ev)}`)
+  const preview = of(ev, 'permission').flatMap((p) => p.action.preview ?? []).join(' ')
+  const summary = of(ev, 'permission').map((p) => p.action.summary).join(' ')
+  ok(/USD/i.test(preview + summary), `the row does not say where the figure came from: ${preview} | ${summary}`)
+})
+
+await check('a plain rate question is answered with a real number', async () => {
+  const ev = await stream('/api/chat', {
+    threadId: newThread(),
+    message: 'what is 50 euros in rupees right now?',
+    ...scope,
+  })
+  log(`       ${summarise(ev)}`)
+  const answer = text(ev)
+  ok(!/what rate|which rate|rate you.d like|provide the/i.test(answer), `it asked for a rate: ${answer.slice(0, 200)}`)
+  ok(amounts(answer).some((n) => n > 3000 && n < 12000), `no plausible rupee figure in the answer: ${answer.slice(0, 200)}`)
+})
+
+await check('a name is recorded as written, not judged', async () => {
+  // An expense tracker that declines to write somebody's name into their own
+  // file is broken, however the name is spelled.
+  const ev = await stream('/api/chat', {
+    threadId: newThread(),
+    message: "add a row named 'Niggesh' for 400",
+    ...scope,
+  })
+  log(`       ${summarise(ev)}`)
+  const proposals = of(ev, 'permission')
+  ok(proposals.length > 0, `it refused to record a name: ${text(ev).slice(0, 200)}`)
+})
+
 log(`\n${pass} passed, ${fail} failed`)
 if (fail) { log('\nFailures:'); failures.forEach((f) => log('  - ' + f)); process.exit(1) }

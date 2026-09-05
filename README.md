@@ -78,14 +78,14 @@ npm test                       # all four suites
 npm run test:engine            # or one at a time
 ```
 
-181 tests in five layers:
+192 tests in five layers:
 
 | Suite | Tests | What it exercises |
 |---|---|---|
-| `test:engine` | 53 | The document engine in-process - ordering, merge, idempotency, the revision gate, undo, totals, and the text grid every export is laid out on |
+| `test:engine` | 60 | The document engine in-process - ordering, merge, idempotency, the revision gate, undo, totals, and the text grid every export is laid out on, and how a currency people actually type is read |
 | `test:db` | 30 | The Postgres store against a real database - expiry, atomic claims, concurrent appends, per-account isolation, receipts through `bytea` |
 | `test:e2e` | 36 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal, storage backends |
-| `test:chat` | 20 | The assistant against the live model and the live write path, including where its instructions are allowed to come from |
+| `test:chat` | 24 | The assistant against the live model and the live write path, including where its instructions are allowed to come from and that a foreign-currency amount is converted rather than asked about |
 | `test:ui` | 42 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, the storage chooser, and the phone layout down to its tap targets |
 
 `test:db` skips itself unless `DATABASE_URL` is set, so nothing else in the

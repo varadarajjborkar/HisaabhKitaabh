@@ -194,7 +194,7 @@ export const memoryKV: KV = {
  * Keys that may be thrown away. Everything not listed here is account data and
  * goes to the durable store.
  */
-const DISPOSABLE = ['c:', 'lock:', 'rl:', 'idem:', 'health:']
+const DISPOSABLE = ['c:', 'lock:', 'rl:', 'idem:', 'health:', 'fx:']
 
 function disposable(key: string): boolean {
   return DISPOSABLE.some((p) => key.startsWith(p))

@@ -268,6 +268,19 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
 
   return (
     <div className="md:hidden">
+      {/*
+        A header line above the cards.
+
+        Without it the two halves of a card are just text at opposite ends, and
+        which one is the amount has to be inferred from it being a number. The
+        offset matches the row below it exactly - grip, checkbox, gap - so the
+        labels sit over the things they name.
+      */}
+      <div className="flex items-center pl-[58px] pr-2 pb-1.5 text-[10px] uppercase tracking-wide text-faint">
+        <span className="min-w-0 flex-1 truncate">{titleCol?.name ?? 'Item'}</span>
+        {amountCol && <span className="w-[104px] shrink-0 pl-2 text-right">{amountCol.name}</span>}
+      </div>
+
       <div className="space-y-2" ref={(el) => { drag.containerRef.current = el }}>
         {rows.map((row, index) => {
           const open = expanded.has(row.id)
@@ -309,8 +322,14 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
                   )}
                 </div>
 
+                {/*
+                  The one rule that earns its pixel: a title and an amount are
+                  different kinds of thing, and on a phone they are two pieces
+                  of text at opposite ends of a line with nothing between them.
+                  self-stretch so it spans the row rather than the number.
+                */}
                 {amountCol && (
-                  <div className="w-[104px] shrink-0">
+                  <div className="w-[104px] shrink-0 self-stretch flex items-center pl-2 border-l border-line">
                     <Cell column={amountCol} value={row.cells[amountCol.id] ?? null} rowId={row.id} fileId={doc.id}
                           size="lg" onChange={(v) => actions.setCell(row.id, amountCol.id, v)} />
                   </div>
@@ -321,8 +340,8 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
                 <>
                   <button
                     onClick={() => toggleExpand(row.id)}
-                    className="w-full flex items-center gap-1.5 pl-8 pr-1 py-2.5 min-h-[38px] rounded
-                               text-left active:bg-raised transition-colors"
+                    className="w-full flex items-center gap-1.5 pl-8 pr-1 py-2.5 min-h-[38px] mt-1.5
+                               border-t border-line text-left active:bg-raised transition-colors"
                     aria-expanded={open}
                   >
                     <span className={`text-[12px] flex-1 min-w-0 truncate ${summary ? 'text-muted' : 'text-faint'}`}>

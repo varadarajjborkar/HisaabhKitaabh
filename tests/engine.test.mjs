@@ -31,6 +31,7 @@ const { orderBetween, orderAfter, sortByOrder } = await import('../src/lib/util/
 const { toEmail, toPlainText, buildGrid } = await import('../src/lib/util/export.ts')
 const { displayWidth, graphemes, layoutTable, padTo, wrapCell } = await import('../src/lib/util/textTable.ts')
 const { invertOp } = await import('../src/lib/crdt/ops.ts')
+const { currencyCode, describeConversion } = await import('../src/lib/util/currency.ts')
 
 const base = () => newSheet({ folderId: 'f1', ownerId: 'u1', name: 'Test' })
 const A = SYSTEM_COLUMNS.amount, T = SYSTEM_COLUMNS.title
@@ -431,6 +432,70 @@ check('the clipboard copy uses the same grid at a wider budget', () => {
   assertAligned(lines.slice(lines.indexOf(rule) - 1), widths)
   ok(displayWidth(rule) > 40, 'the wider budget was ignored')
   ok(/TOTAL/.test(text), 'no total row')
+})
+
+// --------------------------------------------------------- currency codes
+
+/*
+ * Reading what people write.
+ *
+ * Nobody types ISO 4217. They type "$", "890 dollars", "aed", "Rs.". Getting
+ * this wrong is worse than not converting at all, because the wrong rate is
+ * applied silently to a number that goes into someone's accounts.
+ */
+console.log('\nCurrency codes')
+
+check('a bare code is taken as written', () => {
+  eq(currencyCode('USD'), 'USD')
+  eq(currencyCode('inr'), 'INR')
+  eq(currencyCode(' eur '), 'EUR')
+})
+
+check('symbols map to the currency people mean by them', () => {
+  eq(currencyCode('$'), 'USD')
+  eq(currencyCode('€'), 'EUR')
+  eq(currencyCode('£'), 'GBP')
+  eq(currencyCode('₹'), 'INR')
+})
+
+check('the names of currencies work too', () => {
+  eq(currencyCode('dollars'), 'USD')
+  eq(currencyCode('Rupees'), 'INR')
+  eq(currencyCode('dirham'), 'AED')
+  eq(currencyCode('yen'), 'JPY')
+  eq(currencyCode('quid'), 'GBP')
+})
+
+check('punctuation around a code is ignored', () => {
+  eq(currencyCode('USD.'), 'USD')
+  eq(currencyCode('Rs.'), 'INR')
+  eq(currencyCode('(gbp)'), 'GBP')
+})
+
+check('an unknown three-letter code is passed through, not guessed at', () => {
+  // The rate lookup is what decides whether a code exists. Rejecting anything
+  // not in the alias table would mean this file has to know all 160.
+  eq(currencyCode('XYZ'), 'XYZ')
+  eq(currencyCode('kes'), 'KES')
+})
+
+check('nonsense is rejected rather than turned into a currency', () => {
+  eq(currencyCode(''), null)
+  eq(currencyCode('   '), null)
+  eq(currencyCode('a very long sentence'), null)
+  eq(currencyCode('12'), null)
+})
+
+check('a conversion says where the number came from', () => {
+  const note = describeConversion({
+    original: 890,
+    amount: 84096.1,
+    rate: { from: 'USD', to: 'INR', rate: 94.49, asOf: '2026-09-04', source: 'European Central Bank' },
+  })
+  ok(note.includes('890'), 'the original amount is missing')
+  ok(note.includes('USD'), 'the original currency is missing')
+  ok(note.includes('94.49'), 'the rate is missing')
+  ok(note.includes('2026-09-04'), 'the date the rate is from is missing')
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)
