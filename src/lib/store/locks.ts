@@ -1,4 +1,4 @@
-import { K, kv } from '../redis'
+import { K, kv } from './kv'
 import { shortId } from '../util/ids'
 
 /**
@@ -10,17 +10,10 @@ import { shortId } from '../util/ids'
  * way one of them silently loses their edit.
  *
  * The lock is an optimisation, not the safety net: correctness still comes from
- * the revision check inside the document itself (see crdt/doc.ts). If Redis is
- * unavailable the lock degrades to a no-op and the rev check still refuses a
+ * the revision check inside the document itself (see crdt/doc.ts). If the store
+ * is unavailable the lock degrades to a no-op and the rev check still refuses a
  * stale write.
  */
-
-const RELEASE_SCRIPT = `
-if redis.call("get", KEYS[1]) == ARGV[1] then
-  return redis.call("del", KEYS[1])
-else
-  return 0
-end`
 
 export type Lock = { key: string; token: string; release: () => Promise<void> }
 
@@ -42,8 +35,9 @@ export async function acquireLock(
         token,
         release: async () => {
           try {
-            if (store.durable) await store.eval(RELEASE_SCRIPT, [key], [token])
-            else if ((await store.get<string>(key)) === token) await store.del(key)
+            // Compare-and-delete, so a lease that already expired and was
+            // re-taken by someone else is never released out from under them.
+            await store.compareDel(key, token)
           } catch {
             /* lease expires on its own */
           }

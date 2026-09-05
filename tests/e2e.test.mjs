@@ -320,6 +320,55 @@ await check('a CSV is accepted and readable back', async () => {
   eq(await back.text(), 'item,amount\nChai,60\n', 'the attachment came back altered:')
 })
 
+// ------------------------------------------------- storage backends
+
+/**
+ * Storage is the account's choice, not a consequence of the sign-in button.
+ * These check the half that can be exercised without a Google account: that
+ * everybody starts with a working home, that the app says so, and that asking
+ * for Drive on a deployment with no Google credentials fails cleanly instead
+ * of stranding the account between two backends.
+ */
+log('\nStorage')
+const health = (await get('/api/health')).body
+await check('a password account gets app storage by default', async () => {
+  const r = await get('/api/settings/storage')
+  eq(r.status, 200)
+  eq(r.body.backend, 'app', 'a new account did not land in app storage:')
+  // Durability is a property of the deployment, not of the account. Asserting
+  // it unconditionally would just fail on a machine with no database, which is
+  // the configuration someone cloning this repo starts in.
+  if (health.database === 'ok') ok(r.body.storage.durable, 'a database-backed store reported itself as not durable')
+})
+await check('the storage readout says what the account is using', async () => {
+  const r = await get('/api/settings/storage')
+  if (health.database !== 'ok') return
+  ok(typeof r.body.storage.used === 'number', 'no usage figure was reported')
+  ok(r.body.storage.used > 0, 'an account with files reported zero usage')
+})
+await check('switching to the backend already in use is a no-op', async () => {
+  const r = await post('/api/settings/storage', { backend: 'app' })
+  eq(r.status, 200)
+  eq(r.body.moved, null, 'a pointless migration ran anyway:')
+})
+await check('drive is refused cleanly when google is not configured', async () => {
+  const r = await post('/api/settings/storage', { backend: 'drive' })
+  // Either answer is correct and both leave the account where it was: refused
+  // outright, or told to go and get consent first.
+  ok(r.status === 400 || r.body.needsAuth, `expected a refusal or a consent redirect, got ${r.status}`)
+  const after = await get('/api/settings/storage')
+  eq(after.body.backend, 'app', 'a failed switch moved the account anyway:')
+})
+await check('an unknown backend is rejected', async () => {
+  const r = await post('/api/settings/storage', { backend: 'dropbox' })
+  eq(r.status, 400)
+})
+await check('the account still reads normally after all that', async () => {
+  const r = await get(`/api/files/${fileId}`)
+  eq(r.status, 200)
+  ok(r.body.doc.rows.length > 0, 'the file lost its rows')
+})
+
 // --------------------------------------------------------- analytics
 
 log('\nAnalytics')

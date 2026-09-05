@@ -1,5 +1,5 @@
 import { env } from '../env'
-import { K, kv } from '../redis'
+import { K, kv } from '../store/kv'
 import { withLock } from '../store/locks'
 
 /**
@@ -14,12 +14,20 @@ import { withLock } from '../store/locks'
  * to ask for and avoids Google's restricted-scope security review.
  */
 
-export const GOOGLE_SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  'https://www.googleapis.com/auth/drive.file',
-].join(' ')
+/**
+ * Signing in and connecting Drive are two different asks.
+ *
+ * Requesting access to someone's Drive on the sign-in screen, before they have
+ * seen the app or decided where they want their files, is both a worse consent
+ * screen and a worse question - most people will keep their files here. So
+ * sign-in asks for identity only, and the Drive scope is requested later, if
+ * and when the user chooses Drive as their storage.
+ */
+export const SIGNIN_SCOPES = ['openid', 'email', 'profile'].join(' ')
+
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+
+export const DRIVE_SCOPES = [SIGNIN_SCOPES, DRIVE_SCOPE].join(' ')
 
 const OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const DRIVE = 'https://www.googleapis.com/drive/v3'
@@ -29,6 +37,8 @@ export type GoogleTokens = {
   refreshToken: string
   accessToken?: string
   expiresAt?: number
+  /** What Google actually granted. Absent on tokens saved before this was recorded. */
+  scopes?: string
 }
 
 export class DriveAuthError extends Error {
@@ -54,7 +64,13 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<{
     }),
   })
   if (!res.ok) throw new DriveAuthError(`Token exchange failed: ${await res.text()}`)
-  const data = (await res.json()) as { access_token: string; refresh_token?: string; expires_in: number; id_token: string }
+  const data = (await res.json()) as {
+    access_token: string
+    refresh_token?: string
+    expires_in: number
+    id_token: string
+    scope?: string
+  }
 
   const profile = decodeIdToken(data.id_token)
   return {
@@ -62,6 +78,7 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<{
       refreshToken: data.refresh_token ?? '',
       accessToken: data.access_token,
       expiresAt: Date.now() + (data.expires_in - 60) * 1000,
+      scopes: data.scope,
     },
     profile,
   }
@@ -118,17 +135,29 @@ export async function accessTokenFor(userId: string): Promise<string> {
 
 export async function saveTokens(userId: string, tokens: GoogleTokens): Promise<void> {
   const store = kv()
-  if (!tokens.refreshToken) {
+  const prior = await store.get<GoogleTokens>(K.googleTokens(userId))
+  if (!tokens.refreshToken && prior?.refreshToken) {
     // Google only returns a refresh token on first consent; keep the old one.
-    const prior = await store.get<GoogleTokens>(K.googleTokens(userId))
-    if (prior?.refreshToken) tokens.refreshToken = prior.refreshToken
+    tokens.refreshToken = prior.refreshToken
   }
-  await store.set(K.googleTokens(userId), tokens)
+  // Scopes accumulate across incremental grants - signing in again with
+  // identity-only scopes must not look like Drive access being withdrawn.
+  const merged = new Set([...(prior?.scopes ?? '').split(' '), ...(tokens.scopes ?? '').split(' ')].filter(Boolean))
+  await store.set(K.googleTokens(userId), { ...tokens, scopes: [...merged].join(' ') })
 }
 
+/** Whether this account can actually reach Drive right now. */
 export async function hasDrive(userId: string): Promise<boolean> {
   const tokens = await kv().get<GoogleTokens>(K.googleTokens(userId))
-  return Boolean(tokens?.refreshToken)
+  if (!tokens?.refreshToken) return false
+  // Tokens saved before scopes were recorded predate identity-only sign-in, so
+  // they were necessarily granted with the Drive scope.
+  return tokens.scopes === undefined || tokens.scopes.includes(DRIVE_SCOPE)
+}
+
+/** Forget the Drive grant. The files stay in the user's Drive; we stop reading them. */
+export async function forgetDrive(userId: string): Promise<void> {
+  await kv().del(K.googleTokens(userId))
 }
 
 // ------------------------------------------------------------------ requests

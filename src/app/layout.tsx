@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 import { Toaster } from '@/components/ui/Toast'
 
@@ -36,6 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full antialiased">
         {children}
         <Toaster />
+        {/* Both are inert off Vercel: the scripts are only served by the
+            platform, so local development and any other host see nothing. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

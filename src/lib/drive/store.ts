@@ -1,5 +1,5 @@
 import type { AttachmentRef, FolderMeta, SheetDoc } from '../model/types'
-import { K, kv } from '../redis'
+import { K, kv } from '../store/kv'
 import { withLock } from '../store/locks'
 import { drive, type DriveFile } from './client'
 

@@ -1,5 +1,6 @@
-import type { AttachmentRef, FileMeta, FolderMeta, SheetDoc, User } from '../model/types'
-import { K, kv } from '../redis'
+import type { AttachmentRef, FileMeta, FolderMeta, SheetDoc, StorageBackend, User } from '../model/types'
+import { K, kv, backends } from './kv'
+import { accountFootprint, blobs, sqlEnabled } from '../db/sql'
 import { LockTimeoutError, withLock } from './locks'
 import { applyOps, checkRev, computeTotals, docEtag, liveRows, newSheet, RevisionConflictError } from '../crdt/doc'
 import type { Op, OpBatch, StampedOp } from '../crdt/ops'
@@ -13,10 +14,11 @@ import { seedSampleFolder } from './seed'
  * The repository is the only thing in the app that touches persistence.
  *
  * Two backends sit behind it:
- *   - `drive` - the user's own Google Drive. Zero storage cost to us, and the
- *     user owns their data outright.
- *   - `kv`    - Redis. Used for password accounts and as the cache tier for
- *     Drive accounts.
+ *   - `app`   - the account's own storage in our database. The default: every
+ *     account gets one, and nothing about signing up requires a Google account.
+ *   - `drive` - the user's own Google Drive, for people who would rather hold
+ *     their own data. Zero storage cost to us, and the user owns the files
+ *     outright.
  *
  * Reads go through a short-TTL cache; writes go through a lock, a revision
  * check, and a read-back. Nothing writes a whole document blindly.
@@ -53,9 +55,9 @@ export class NotFoundError extends Error {
 }
 
 export class Repo {
-  private readonly user: { id: string; backend: 'drive' | 'kv' }
+  private readonly user: { id: string; backend: StorageBackend }
 
-  constructor(user: { id: string; backend: 'drive' | 'kv' }) {
+  constructor(user: { id: string; backend: StorageBackend }) {
     this.user = user
   }
 
@@ -63,10 +65,14 @@ export class Repo {
     return this.user.id
   }
 
-  /** Drive accounts fall back to KV if the Drive grant is gone, so reads never hard-fail. */
-  private async backend(): Promise<'drive' | 'kv'> {
-    if (this.user.backend !== 'drive') return 'kv'
-    return (await hasDrive(this.uid)) ? 'drive' : 'kv'
+  /**
+   * Drive accounts fall back to app storage if the grant is gone, so a revoked
+   * or expired Google authorisation degrades to a working app rather than an
+   * error page on every read.
+   */
+  private async backend(): Promise<StorageBackend> {
+    if (this.user.backend !== 'drive') return 'app'
+    return (await hasDrive(this.uid)) ? 'drive' : 'app'
   }
 
   // ------------------------------------------------------------- folders
@@ -378,17 +384,39 @@ export class Repo {
       }
       return driveStore.putAttachment(this.uid, folderId, { id, name: file.name, mime: file.mime, bytes: file.bytes })
     }
-    await kv().set(K.attachment(this.uid, id), {
-      name: file.name,
-      mime: file.mime,
-      data: file.bytes.toString('base64'),
-    })
-    return { id, name: file.name, mime: file.mime, size: file.bytes.length, backend: 'kv', ref: id, uploadedAt: Date.now() }
+
+    if (sqlEnabled) {
+      // One account should not be able to fill the disk everyone else shares.
+      const used = await blobs.usage(this.uid)
+      if (used.bytes + file.bytes.length > env.limits.maxStorageBytesPerUser) {
+        throw new Error(
+          `This account has used its ${Math.round(env.limits.maxStorageBytesPerUser / 1024 / 1024)} MB of attachment storage. ` +
+            'Delete some receipts, or switch this account to Google Drive in settings.',
+        )
+      }
+      await blobs.put(this.uid, { id, name: file.name, mime: file.mime, bytes: file.bytes })
+    } else {
+      // Without a database the bytes go into the key/value store base64-encoded,
+      // which costs a third more space and is exactly why Postgres is the
+      // recommended configuration for anything holding real receipts.
+      await kv().set(K.attachment(this.uid, id), {
+        name: file.name,
+        mime: file.mime,
+        data: file.bytes.toString('base64'),
+      })
+    }
+    return { id, name: file.name, mime: file.mime, size: file.bytes.length, backend: 'app', ref: id, uploadedAt: Date.now() }
   }
 
   async getAttachment(ref: AttachmentRef): Promise<{ bytes: Buffer; mime: string; name: string }> {
     if (ref.backend === 'drive') {
       return { bytes: await driveStore.getAttachment(this.uid, ref), mime: ref.mime, name: ref.name }
+    }
+    if (sqlEnabled) {
+      const stored = await blobs.get(this.uid, ref.ref)
+      if (stored) return stored
+      // Fall through: a deployment that gained a database still has to serve
+      // the receipts uploaded before it had one.
     }
     const blob = await kv().get<{ name: string; mime: string; data: string }>(K.attachment(this.uid, ref.ref))
     if (!blob) throw new NotFoundError('Attachment')
@@ -396,8 +424,12 @@ export class Repo {
   }
 
   async deleteAttachment(ref: AttachmentRef): Promise<void> {
-    if (ref.backend === 'drive') await driveStore.deleteAttachment(this.uid, ref)
-    else await kv().del(K.attachment(this.uid, ref.ref))
+    if (ref.backend === 'drive') {
+      await driveStore.deleteAttachment(this.uid, ref)
+      return
+    }
+    if (sqlEnabled) await blobs.del(this.uid, ref.ref)
+    await kv().del(K.attachment(this.uid, ref.ref))
   }
 
   // ---------------------------------------------------------------- misc
@@ -411,13 +443,24 @@ export class Repo {
     }
   }
 
-  async storageInfo(): Promise<{ backend: string; durable: boolean; used?: number; limit?: number }> {
+  async storageInfo(): Promise<{ backend: string; durable: boolean; used?: number; limit?: number; files?: number }> {
     const backend = await this.backend()
     if (backend === 'drive') {
       const q = await driveStore.quota(this.uid).catch(() => null)
       return { backend: 'Google Drive', durable: true, used: q?.used, limit: q?.limit }
     }
-    return { backend: kv().durable ? 'Managed Redis' : 'In-memory (not durable)', durable: kv().durable }
+    if (sqlEnabled) {
+      const f = await accountFootprint(this.uid)
+      return {
+        backend: 'App storage',
+        durable: true,
+        used: f.jsonBytes + f.blobBytes,
+        limit: env.limits.maxStorageBytesPerUser,
+        files: f.blobCount,
+      }
+    }
+    const { primaryName } = backends()
+    return { backend: `App storage (${primaryName})`, durable: kv().durable }
   }
 
   /**

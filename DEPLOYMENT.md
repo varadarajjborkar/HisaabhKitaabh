@@ -11,14 +11,28 @@ waiting for other people's dashboards.
 | Piece | Use | Free tier | When you outgrow it |
 |---|---|---|---|
 | Hosting + compute | **Vercel** | Hobby: plenty | Pro, $20/mo |
-| Cache, sessions, chat | **Upstash Redis** | 10k commands/day, 256MB | Pay-per-request, ~$0.20/100k |
-| Primary data | **The user's Google Drive** | Free - it's their quota | Never; it doesn't scale to you |
-| Data for password accounts | Upstash Redis | Same as above | Move to **Neon** Postgres |
+| Account data | **Postgres** (Neon or Supabase) | 0.5 GB | Their paid tier, from ~$19/mo |
 | The model | **Ollama Cloud** | Limited free | Their paid tier, or self-host |
+| Cache and locks | Upstash Redis | 10k commands/day | Optional. Skip it at first. |
+| Per-user file storage | The user's own Google Drive | Free - it's their quota | Optional, and per-user |
 
-Total to run this for a few hundred users: **£0**. That is the point of the
-Drive-first design - the storage bill scales with *each user's* free 15 GB, not
-with your bank account.
+Two things are required: `SESSION_SECRET` and `DATABASE_URL`. Everything else is
+a feature you can add later without touching the code.
+
+Total to run this for a few hundred people: **£0**.
+
+### Where a user's files actually live
+
+Every account gets storage in your Postgres database the moment it is created.
+Nobody needs a Google account, and nothing about signing up asks for one.
+
+Google Drive is a *choice* the user makes in **Account → Storage**, for people
+who would rather own their own files. When they pick it, the app asks Google for
+the `drive.file` scope at that moment, copies everything across, and leaves the
+original where it was. Switching back does the same in reverse.
+
+That means your storage bill is driven by how many people *keep* their files with
+you, and anyone who moves to Drive costs you nothing at all.
 
 ---
 
@@ -39,58 +53,130 @@ routes each API handler to its own serverless function.
 
 ### Environment variables
 
-Add these under **Project → Settings → Environment Variables**. Set them for
-Production, Preview and Development unless noted.
+Add these under **Project → Settings → Environment Variables**.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `SESSION_SECRET` | **yes** | `openssl rand -base64 32`. Different per environment. |
-| `APP_URL` | **yes** | `https://your-app.vercel.app`. Must match the OAuth redirect exactly. |
+| `SESSION_SECRET` | **yes** | `openssl rand -base64 32`. Different per environment. The app refuses to serve in production without it. |
+| `DATABASE_URL` | **yes** | The pooled Postgres connection string. See below. |
 | `OLLAMA_API_KEY` | for the assistant | From [ollama.com/settings/keys](https://ollama.com/settings/keys) |
-| `UPSTASH_REDIS_REST_URL` | strongly | Without it, state is per-instance and vanishes |
-| `UPSTASH_REDIS_REST_TOKEN` | strongly | |
-| `GOOGLE_CLIENT_ID` | for Drive | |
+| `APP_URL` | for Google sign-in | `https://your-app.vercel.app`. Must match the OAuth redirect exactly. Left unset, the deployment URL is used. |
+| `GOOGLE_CLIENT_ID` | for Drive | Optional feature |
 | `GOOGLE_CLIENT_SECRET` | for Drive | |
-| `DEV_LOGIN_ENABLED` | - | **Set to `false` in production** unless you want the dev account reachable |
+| `UPSTASH_REDIS_REST_URL` | no | A speed-up, not a store |
+| `UPSTASH_REDIS_REST_TOKEN` | no | |
+| `DEV_LOGIN_ENABLED` | no | Off in production by default. See below. |
+| `MAX_STORAGE_BYTES_PER_USER` | no | Default 512 MB of attachments per account |
 
-> **The developer login.** `varad` / `varad[123]` is a real credential that
-> grants an admin session. On a public deployment either set
-> `DEV_LOGIN_ENABLED=false`, or change `DEV_USERNAME`/`DEV_PASSWORD` to
-> something only you know. The defaults are for your laptop.
+> **The developer login.** `varad` / `varad[123]` grants an admin session, and
+> the password is published in `.env.example`. In production it is **off** and
+> stays off unless you set `DEV_LOGIN_ENABLED=true` *and* change `DEV_PASSWORD`
+> to something of your own. Both conditions, deliberately: a single forgotten
+> flag should not be the only thing between a public URL and an admin account.
+
+### Analytics
+
+`@vercel/analytics` and `@vercel/speed-insights` are wired into the root layout.
+Turn them on in **Project → Analytics** and **Speed Insights**; no keys and no
+code changes. Both are inert anywhere but Vercel, so local development and any
+other host load nothing.
 
 ---
 
-## 3. Upstash Redis
+## 3. Postgres
 
-1. [console.upstash.com](https://console.upstash.com) → **Create Database**
-2. Region: **the same one as your Vercel functions.** This matters more than
-   anything else on this page - a database in Virginia and functions in Mumbai
-   means every Redis call pays 200ms of round trip, several times per request.
-3. Enable **Eviction** (`allkeys-lru`). Caches and locks should be evictable;
-   without it a full database starts refusing writes.
-4. Copy the **REST** URL and token (not the `redis://` one - the REST API is
-   what works from serverless with no connection pool).
+This is where accounts, folders, files, chat history and receipt bytes live.
 
-Vercel's own **KV** is Upstash underneath; `KV_REST_API_URL` / `KV_REST_API_TOKEN`
-are read as fallbacks, so the marketplace integration works with no code change.
+Any Postgres works. Recommended, in order:
 
-### What lives in Redis
+| Provider | Free tier | Notes |
+|---|---|---|
+| **[Neon](https://neon.tech)** | 0.5 GB, scales to zero | Best fit. Also what Vercel's own Postgres integration is underneath. |
+| [Supabase](https://supabase.com) | 0.5 GB | If you also want their auth, storage and realtime later |
+| [Railway](https://railway.app) | Trial credit | Simplest dashboard, no free tier past the credit |
+
+### Setting it up
+
+1. Create a project. Pick **the same region as your Vercel functions** - a
+   database in Virginia and functions in Mumbai pays 200ms of round trip several
+   times per request, and that dominates every other optimisation on this page.
+2. Copy the **pooled** connection string, not the direct one. On Neon it is the
+   one with `-pooler` in the host; on Supabase it is the "Transaction pooler" on
+   port `6543`. Serverless opens a connection per instance and a traffic spike
+   will exhaust a direct connection limit.
+3. Paste it into Vercel as `DATABASE_URL`.
+4. Deploy. The tables are created on first boot - there is no migration command
+   to run and no schema file to apply.
+
+If you use Vercel's own Postgres integration it injects `POSTGRES_URL`, which is
+read as a fallback, so that path needs no configuration at all.
+
+### What is in there
+
+Two tables.
+
+`hk_kv` is a key/value store with expiry, holding everything structured:
+accounts, folders, documents, the operation log, chat threads and memory. Every
+row carries the account that owns it, so usage per account is one query and
+deleting an account provably leaves nothing behind.
+
+`hk_attachments` holds receipt bytes as `bytea`. Not base64 inside JSON, which
+would cost a third more space and a parse of the whole blob on every read.
 
 | Kind | TTL | Notes |
 |---|---|---|
-| Document cache | 120s | Rebuilt from Drive on miss |
-| Locks | 10–25s | Self-expiring; a crashed writer never wedges a file |
-| Idempotency keys | 24h | What makes a retried save a no-op |
+| Accounts, folders, documents | ∞ | The actual data |
+| Attachments | ∞ | Capped per account by `MAX_STORAGE_BYTES_PER_USER` |
 | Operation log | 7d | Powers merge-instead-of-conflict |
-| Chat + memory | 60d | Threads, summaries, durable facts |
-| User records | ∞ | And the sheets themselves, for password accounts |
+| Chat and memory | 60d | Threads, summaries, durable facts |
+| Document cache | 120s | Rebuilt on miss |
+| Locks | 10-25s | Self-expiring; a crashed writer never wedges a file |
+| Idempotency keys | 24h | What makes a retried save a no-op |
 
-At 10k commands/day the free tier covers roughly 30–60 active users. The paid
-tier is per-request and stays inside a few pounds a month well past that.
+0.5 GB is a lot of expense rows. It is not a lot of receipt photos - budget
+roughly 1,500 of them, and lower `MAX_STORAGE_BYTES_PER_USER` if you expect
+many accounts to fill up. Users who attach heavily are exactly the users who
+should be nudged towards Drive.
 
 ---
 
-## 4. Google OAuth (optional but recommended)
+## 4. Upstash Redis (optional)
+
+Skip this on your first deploy. Add it when page loads feel slow.
+
+With Redis configured, the disposable keys - document cache, write locks,
+rate-limit counters, idempotency records - move there, and account data stays in
+Postgres. Losing all of Redis costs you a few slow page loads and nothing else.
+
+1. [console.upstash.com](https://console.upstash.com) → **Create Database**
+2. Same region as your Vercel functions.
+3. Enable **Eviction** (`allkeys-lru`). Everything stored there is disposable by
+   construction, so evicting is always safe, and without it a full database
+   starts refusing writes.
+4. Copy the **REST** URL and token, not the `redis://` one - the REST API is
+   what works from serverless with no connection pool.
+
+Vercel's own **KV** is Upstash underneath; `KV_REST_API_URL` /
+`KV_REST_API_TOKEN` are read as fallbacks, so the marketplace integration works
+with no code change.
+
+> **If you already ran without a database and then add one**, the accounts
+> created in the meantime stay where they were - Redis, or a serverless
+> instance's memory. Adding `DATABASE_URL` does not move them, and they will
+> look as though they vanished. Attach the database before anyone real signs up.
+>
+> If you configure Redis **without** `DATABASE_URL`, Redis becomes the durable
+> store instead. That works, and it is how this app shipped originally, but
+> Redis is priced by memory and one receipt photo is a few hundred kilobytes -
+> the 256 MB free tier fills in an afternoon, and it fills by losing data.
+> `/api/health` says which mode you are in.
+
+---
+
+## 5. Google OAuth (optional)
+
+Only needed if you want the "sign in with Google" button, or the option for
+users to keep their files in their own Drive.
 
 1. [console.cloud.google.com](https://console.cloud.google.com) → new project
 2. **APIs & Services → Library** → enable **Google Drive API**
@@ -105,26 +191,9 @@ tier is per-request and stays inside a few pounds a month well past that.
 While the consent screen is in "Testing", only accounts you list can sign in.
 Publishing it is a form, not a review, for non-sensitive scopes.
 
----
-
-## 5. When Drive is not enough
-
-Drive is excellent for personal use and costs you nothing. It is the wrong
-answer when you need to query *across* users - leaderboards, admin dashboards,
-"how many rows exist" - because there is no such thing as a query across other
-people's Drives.
-
-At that point add Postgres for the index and keep Drive as the document store:
-
-| Provider | Free tier | Why |
-|---|---|---|
-| **[Neon](https://neon.tech)** | 0.5 GB, scales to zero | Best fit. Serverless driver over HTTP, branches per preview deploy. |
-| [Supabase](https://supabase.com) | 500 MB | If you also want auth, storage and realtime in one box |
-| [Turso](https://turso.tech) | 9 GB | SQLite at the edge. Lowest latency; weakest for complex queries. |
-
-The migration is contained: `src/lib/store/repo.ts` is the only file that
-touches persistence. Add a `pg` backend beside the `drive` and `kv` ones and
-nothing above it changes.
+**Sign-in does not ask for Drive.** It requests identity only. The `drive.file`
+scope is requested separately, the first time someone chooses Drive in
+**Account → Storage**, so most people never see that half of the consent screen.
 
 ---
 
@@ -132,72 +201,81 @@ nothing above it changes.
 
 Things that actually matter, in order:
 
-**1. Put everything in one region.** Vercel functions, Upstash, Postgres. This
+**1. Put everything in one region.** Vercel functions, Postgres, Redis. This
 dominates every other optimisation. Set Vercel's function region to the one
 nearest your users (`bom1` for India) under Settings → Functions.
 
-**2. The document cache already does the heavy lifting.** Reads hit Redis for
-120 seconds before touching Drive; a Drive round trip is 200–500ms and a Redis
-one is 1–5ms. Writes refresh the cache in place, so the next reader never sees
-stale data.
+**2. Use the pooled connection string.** A direct Postgres URL will work fine in
+testing and fall over the first time you have real concurrency.
 
-**3. Conditional GETs.** `GET /api/files/[id]` returns an ETag and answers 304
+**3. The document cache does the heavy lifting.** Reads hit the cache for 120
+seconds; writes refresh it in place, so the next reader never sees stale data.
+
+**4. Conditional GETs.** `GET /api/files/[id]` returns an ETag and answers 304
 when nothing changed, so polling costs a header exchange rather than a document.
 
-**4. Batch operations.** The client debounces edits into batches. Twenty
+**5. Batch operations.** The client debounces edits into batches. Twenty
 keystrokes become one write. Keep it that way - the debounce is in
 `useSheet.ts` (`FLUSH_DELAY`).
 
-**5. Watch the assistant, not the app.** A chat turn costs 3–10 seconds and
-real tokens; a page load costs milliseconds and nothing. If a bill surprises
-you, it is the model. `rateLimit(userId, 'chat', 40, 60)` in `loop.ts` is the
-throttle, and each skill's `max_tool_calls` caps a runaway loop.
+**6. Watch the assistant, not the app.** A chat turn costs 3-10 seconds and real
+tokens; a page load costs milliseconds and nothing. If a bill surprises you, it
+is the model. `rateLimit(userId, 'chat', 40, 60)` in `loop.ts` is the throttle,
+and each skill's `max_tool_calls` caps a runaway loop.
 
 ### Function limits
 
-`maxDuration` is set per route: 300s for chat, 60s for uploads. Hobby plans cap
-at 60s - either upgrade or lower the chat cap. The design already survives this:
-an approval **ends the stream** and resumes on a second request, so a user
-thinking for five minutes never holds a function open.
+`maxDuration` is set per route: 300s for chat and storage migrations, 60s for
+uploads. Hobby plans cap at 60s - either upgrade or lower those. The design
+already survives this: an approval **ends the stream** and resumes on a second
+request, so a user thinking for five minutes never holds a function open. A
+storage migration that runs out of time is safe to re-run, because it copies
+rather than moves and creating something that already exists is a no-op.
 
 ---
 
 ## 7. Operations
 
-**Health check.** `GET /api/health` returns Redis, AI and Google status plus a
-latency number. Point [UptimeRobot](https://uptimerobot.com) or Better Stack at
-it on a 5-minute interval - free, and you hear about an outage before your users
-do.
+**Health check.** `GET /api/health` returns database, store, AI and Google
+status plus a latency number. Point [UptimeRobot](https://uptimerobot.com) or
+Better Stack at it on a 5-minute interval - free, and you hear about an outage
+before your users do. Signed in as an admin (or outside production) it also
+lists what is misconfigured; it does not say that publicly, because an endpoint
+that announces "sessions are signed with a default key" is an invitation.
 
 **Logs.** Vercel → Deployments → Logs. Everything the app logs is prefixed
 `[hisaabkitaab]`. For retention beyond a day, Vercel's Log Drains send to
 Better Stack or Axiom.
 
+**Backups.** Neon and Supabase both keep point-in-time restore on the free tier;
+check it is on. This is the only copy of a password account's data, so it
+matters. Accounts that chose Drive are covered by Google's own version history
+and 30-day trash.
+
 **Drive integrity.** `POST /api/maintenance/drive` sweeps a user's Drive for
 objects sharing an identity key, keeps the highest-revision copy and trashes the
 rest. Safe to run any time; nothing is hard-deleted.
 
-**Backups.** Drive keeps its own version history and a 30-day trash, so Google
-accounts are covered. For password accounts, Redis is the only copy - Upstash
-paid plans include daily backups, and that is a real reason to move those users
-to Postgres.
-
 **Rotating a secret.** Changing `SESSION_SECRET` signs everyone out; that is the
 correct response to a leak. Changing the Google client secret requires everyone
-to reconnect Drive.
+who uses Drive to reconnect it.
+
+**Deleting an account.** `purgeAccount(userId)` in `src/lib/db/sql.ts` removes
+every row and every attachment for one account in two statements. Both tables
+carry the owner, so nothing is left orphaned.
 
 ---
 
 ## 8. Before you make it public
 
-- [ ] `DEV_LOGIN_ENABLED=false`, or credentials changed from the defaults
 - [ ] `SESSION_SECRET` is 32+ random bytes and not the one in `.env.example`
-- [ ] `APP_URL` matches the deployed domain exactly
-- [ ] Upstash configured - otherwise every serverless instance has its own
-      memory and users see data appear and vanish depending on which one answers
-- [ ] Redis in the same region as the functions
+- [ ] `DATABASE_URL` is set, and is the **pooled** connection string
+- [ ] `/api/health` returns `"database": "ok"` and `"healthy": true`
+- [ ] Database in the same region as the functions
+- [ ] Point-in-time restore enabled on the database
+- [ ] `DEV_LOGIN_ENABLED` unset, or credentials changed from the defaults
+- [ ] `APP_URL` matches the deployed domain exactly, if using Google
 - [ ] Google consent screen published, if you want anyone but yourself
-- [ ] `/api/health` returns `"redis": "ok"` (not `"memory"`)
 - [ ] Uptime monitor pointed at `/api/health`
 - [ ] A real sign-up, folder, file, row and assistant edit, on a phone
 
@@ -205,10 +283,14 @@ to reconnect Drive.
 
 ## 9. Things that will bite you
 
-**"It worked locally and breaks deployed."** Almost always Redis. Locally the
-in-memory fallback is one process, so everything is consistent. Deployed, each
-serverless instance has its own - writes land on one and reads on another.
-`/api/health` tells you which mode you are in.
+**"It worked locally and breaks deployed."** Almost always the database. Locally
+the in-memory fallback is one process, so everything is consistent. Deployed,
+each serverless instance has its own - writes land on one and reads on another.
+`/api/health` tells you which mode you are in: `"storage": "Postgres"` is what
+you want, `"In-memory (not durable)"` is the problem.
+
+**"Too many connections."** You used the direct connection string instead of the
+pooled one. Swap it; nothing else needs to change.
 
 **"Google says redirect_uri_mismatch."** The URI in the console must match
 `APP_URL` + `/api/auth/callback` character for character. `https` vs `http`, a
@@ -224,5 +306,6 @@ key; most of the larger ones are not. `GET /api/health` reports whether AI is
 configured; the model list is at `https://ollama.com/api/tags`.
 
 **Preview deployments share production data.** Vercel gives previews the
-Production variables unless you set them separately. Create a second Upstash
-database for Preview, or you will be testing against real users' data.
+Production variables unless you set them separately. Create a second database
+for Preview - on Neon that is a branch, and it takes a few seconds - or you will
+be testing against real users' data.

@@ -1,4 +1,4 @@
-import { K, kv } from '../redis'
+import { K, kv } from '../store/kv'
 import { shortId } from '../util/ids'
 import { chatStructured } from './ollama'
 import { env } from '../env'

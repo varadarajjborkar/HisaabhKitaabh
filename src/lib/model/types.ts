@@ -1,3 +1,5 @@
+export type StorageBackend = 'app' | 'drive'
+
 export type ColumnKind = 'amount' | 'text' | 'number' | 'date' | 'attachment' | 'select'
 
 export type Column = {
@@ -15,8 +17,12 @@ export type AttachmentRef = {
   name: string
   mime: string
   size: number
-  /** 'drive' -> Google Drive file id; 'kv' -> blob stored in Redis. */
-  backend: 'drive' | 'kv'
+  /**
+   * Where the bytes live. 'drive' is a Google Drive file id; 'app' is a row in
+   * our own store. 'kv' is what 'app' used to be called and is still accepted
+   * on read, because refs written before the rename live inside saved rows.
+   */
+  backend: StorageBackend | 'kv'
   ref: string
   uploadedAt: number
 }
@@ -98,8 +104,12 @@ export type User = {
   picture?: string
   provider: 'google' | 'password' | 'dev'
   passwordHash?: string
-  /** Google users store their sheets in Drive; everyone else uses the KV backend. */
-  backend: 'drive' | 'kv'
+  /**
+   * Where this account's files live. Every account has a home in the app's own
+   * database; Drive is something a user turns on, not a consequence of how they
+   * happened to sign in.
+   */
+  backend: StorageBackend
   role: 'user' | 'admin'
   createdAt: number
   settings: {
@@ -115,6 +125,6 @@ export type Session = {
   name: string
   picture?: string
   role: 'user' | 'admin'
-  backend: 'drive' | 'kv'
+  backend: StorageBackend
   provider: User['provider']
 }

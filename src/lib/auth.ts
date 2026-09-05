@@ -1,8 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { env, isProd } from './env'
-import { K, kv } from './redis'
-import type { Session, User } from './model/types'
+import { K, kv } from './store/kv'
+import { withLock } from './store/locks'
+import type { Session, StorageBackend, User } from './model/types'
 import { hashPassword, verifyPassword } from './util/hash'
 import { ulid } from './util/ids'
 
@@ -10,6 +11,12 @@ const COOKIE = 'hisaabkitaab_session'
 const MAX_AGE = 60 * 60 * 24 * 30
 
 function secret(): Uint8Array {
+  // Refusing to run beats running insecurely. With the published default in
+  // place anyone can mint a session cookie for any account, so a production
+  // deployment that reaches this has to fail loudly rather than serve traffic.
+  if (isProd && env.sessionSecretIsDefault) {
+    throw new Error('SESSION_SECRET is not set. Generate one with: openssl rand -base64 32')
+  }
   return new TextEncoder().encode(env.sessionSecret.padEnd(32, '.'))
 }
 
@@ -55,7 +62,9 @@ export async function verifySessionToken(token: string): Promise<Session | null>
       name: String(payload.name),
       picture: payload.picture ? String(payload.picture) : undefined,
       role: (payload.role === 'admin' ? 'admin' : 'user') as Session['role'],
-      backend: (payload.backend === 'drive' ? 'drive' : 'kv') as Session['backend'],
+      // 'kv' is the old name for app storage; sessions issued before the
+      // rename are still valid and mean the same thing.
+      backend: (payload.backend === 'drive' ? 'drive' : 'app') as Session['backend'],
       provider: payload.provider as Session['provider'],
     }
   } catch {
@@ -111,19 +120,25 @@ export async function registerWithPassword(input: { email: string; password: str
   const email = input.email.trim().toLowerCase()
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) throw new Error('That email address does not look right')
   if (input.password.length < 8) throw new Error('Use at least 8 characters for your password')
-  const existing = await getUserByEmail(email)
-  if (existing) throw new Error('An account with this email already exists')
 
-  const user = baseUser({
-    id: ulid(),
-    email,
-    name: input.name?.trim() || email.split('@')[0],
-    provider: 'password',
-    backend: 'kv',
-    passwordHash: hashPassword(input.password),
-  })
-  await saveUser(user)
-  return user
+  // Under the lock, because "check then write" is not a uniqueness constraint:
+  // two sign-ups submitted together would both find nothing and both create an
+  // account, leaving one email pointing at whichever won the second write.
+  return withLock(`signup:${email}`, async () => {
+    const existing = await getUserByEmail(email)
+    if (existing) throw new Error('An account with this email already exists')
+
+    const user = baseUser({
+      id: ulid(),
+      email,
+      name: input.name?.trim() || email.split('@')[0],
+      provider: 'password',
+      backend: 'app',
+      passwordHash: hashPassword(input.password),
+    })
+    await saveUser(user)
+    return user
+  }, { ttlMs: 10_000, waitMs: 8_000 })
 }
 
 export async function loginWithPassword(email: string, password: string): Promise<User> {
@@ -156,18 +171,27 @@ export async function loginAsDev(username: string, password: string): Promise<Us
     email: `${env.dev.username}@hisaabkitaab.local`,
     name: env.dev.username,
     provider: 'dev',
-    backend: 'kv',
+    backend: 'app',
     role: 'admin',
   })
   await saveUser(user)
   return user
 }
 
+/**
+ * Signing in with Google no longer decides where your files live.
+ *
+ * It used to: a Google account meant a Drive account, which made Drive
+ * mandatory for anyone who preferred that sign-in button and left password
+ * users on a different code path. New accounts start in app storage like
+ * everyone else, and Drive is a switch in settings. Accounts that already keep
+ * their files in Drive keep them there.
+ */
 export async function upsertGoogleUser(profile: { sub: string; email: string; name: string; picture?: string }): Promise<User> {
   const email = profile.email.toLowerCase()
   const existing = await getUserByEmail(email)
   if (existing) {
-    const updated: User = { ...existing, name: profile.name || existing.name, picture: profile.picture, provider: 'google', backend: 'drive' }
+    const updated: User = { ...existing, name: profile.name || existing.name, picture: profile.picture, provider: 'google' }
     await saveUser(updated)
     return updated
   }
@@ -177,10 +201,19 @@ export async function upsertGoogleUser(profile: { sub: string; email: string; na
     name: profile.name || email.split('@')[0],
     picture: profile.picture,
     provider: 'google',
-    backend: 'drive',
+    backend: 'app',
   })
   await saveUser(user)
   return user
+}
+
+/** Record where an account's files should live from now on. */
+export async function setStorageBackend(userId: string, backend: StorageBackend): Promise<User> {
+  const user = await getUser(userId)
+  if (!user) throw new UnauthorizedError()
+  const next: User = { ...user, backend }
+  await saveUser(next)
+  return next
 }
 
 export function toSession(user: User): Session {

@@ -55,10 +55,20 @@ npm run dev                    # http://localhost:3000
 Sign in with the developer account from `.env.local` (`varad` / `varad[123]` by
 default) - no OAuth round-trip, and it lands you in an admin session.
 
-Nothing but `SESSION_SECRET` is strictly required. Without Redis the app uses a
-per-process store (fine for a first look, gone on restart). Without Google
-credentials, data lives in Redis instead of Drive. Without an Ollama key the
+Nothing is strictly required to start it. Without `DATABASE_URL` the app uses a
+per-process store, which is fine for a first look and gone on restart. Without
+Google credentials the Drive option is simply absent. Without an Ollama key the
 assistant is switched off and everything else works.
+
+To run it against a real database locally:
+
+```bash
+brew install postgresql@16 && brew services start postgresql@16
+createdb hisaabkitaab
+echo "DATABASE_URL=postgres://$(whoami)@localhost:5432/hisaabkitaab" >> .env.local
+```
+
+Tables are created on first boot. There is no migration step.
 
 ## Tests
 
@@ -68,14 +78,18 @@ npm test                       # all four suites
 npm run test:engine            # or one at a time
 ```
 
-144 tests in four layers:
+181 tests in five layers:
 
 | Suite | Tests | What it exercises |
 |---|---|---|
 | `test:engine` | 53 | The document engine in-process - ordering, merge, idempotency, the revision gate, undo, totals, and the text grid every export is laid out on |
-| `test:e2e` | 30 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal |
+| `test:db` | 30 | The Postgres store against a real database - expiry, atomic claims, concurrent appends, per-account isolation, receipts through `bytea` |
+| `test:e2e` | 36 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal, storage backends |
 | `test:chat` | 20 | The assistant against the live model and the live write path, including where its instructions are allowed to come from |
-| `test:ui` | 41 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, and the phone layout down to its tap targets |
+| `test:ui` | 42 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, the storage chooser, and the phone layout down to its tap targets |
+
+`test:db` skips itself unless `DATABASE_URL` is set, so nothing else in the
+project needs a database installed to run.
 
 Each layer exists because it caught something the one below it structurally
 could not. See [tests/README.md](tests/README.md).
@@ -104,7 +118,7 @@ acquire lock → read fresh → revision check → apply → persist → verify 
 
 One code path means one set of guarantees. The lock serialises writers; the
 revision check is what actually refuses a stale write, so correctness survives
-Redis being unavailable.
+the lock store being unavailable.
 
 ### Retries collapse instead of duplicating
 
@@ -167,12 +181,12 @@ Add a file, restart, and it is live.
 | Tier | What | Where |
 |---|---|---|
 | L0 | The open document | Derived per request - a stale ledger is worse than none |
-| L1 | Recent turns, verbatim | Redis list, capped |
+| L1 | Recent turns, verbatim | A capped list in the account store |
 | L2 | Rolling thread summary | Written on compaction, *after* the reply is streamed |
-| L3 | Durable preferences and corrections | Redis hash, keyword-scored on recall |
+| L3 | Durable preferences and corrections | A hash in the account store, keyword-scored on recall |
 
 Recall is keyword + recency rather than vector search: for a few hundred facts
-it is more accurate, costs one Redis read, and never returns a confidently wrong
+it is more accurate, costs one read, and never returns a confidently wrong
 neighbour.
 
 ### Agents
@@ -298,12 +312,28 @@ from.
 
 ## Storage
 
-Two backends behind one repository interface:
+Two backends behind one repository interface, and which one you get is a choice
+rather than a consequence of the sign-in button you pressed:
 
-- **Google Drive** for Google sign-ins. Files live in a `HisaabKitaab/` folder you own;
-  the app requests `drive.file`, so it can only ever see files it created
-  itself. Zero storage cost, and the data is yours outright.
-- **Redis** for password accounts, and as the cache tier for Drive accounts.
+- **App storage**, the default. Every account gets its own space in Postgres the
+  moment it is created - folders, documents, chat history, and receipt bytes as
+  `bytea` rather than base64 inside JSON. Nothing to connect, and no Google
+  account anywhere in the path.
+- **Google Drive**, opt-in from Account → Storage. Files live in a
+  `HisaabKitaab/` folder you own; the app requests `drive.file`, so it can only
+  ever see files it created itself. Zero storage cost to the host, and the data
+  is yours outright.
+
+Signing in with Google asks for identity only. The Drive scope is requested
+later, at the moment somebody actually chooses Drive, so most people never see
+that consent screen. Switching between the two copies everything across and
+leaves the original where it was, so an interrupted migration costs a retry
+rather than a year of records.
+
+Redis is optional and holds nothing that matters: caches, write locks,
+rate-limit counters. Losing all of it costs a few slow page loads. When it is
+absent those keys go to Postgres, and when Postgres is absent too, to a
+process-local map that `/api/health` will tell you about.
 
 Drive has no compare-and-swap, so every object is identified by an
 `appProperties` key rather than its name or path, created under a per-key lock,
@@ -322,14 +352,15 @@ src/
   components/     UI - sheet/, chat/, charts/, ui/
   lib/
     crdt/         operations, merge, revision gate
-    store/        repository, locks, idempotency, seeding
+    db/           Postgres: schema, key/value store, attachment bytes
+    store/        repository, key routing, locks, idempotency, seeding, migration
     drive/        Drive REST client and document store
     ai/           Ollama client, tools, agent loop, memory, skills
     client/       hooks - useSheet, useChat, exports, useDismiss,
                   useDragReorder, useFileDrop, useThemeMode
   skills/         *.yaml
 public/           logo at 96, 192 and 512
-tests/            engine, e2e, chat, ui
+tests/            engine, db, e2e, chat, ui
 ```
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for hosting, scaling and cost.

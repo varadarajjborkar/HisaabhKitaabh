@@ -318,6 +318,21 @@ await check('opening one popover closes the other', async () => {
   eq(await page.locator('button:has-text("Rename")').count(), 0, 'the column menu survived Escape:')
 })
 
+await check('storage offers both homes and marks the one in use', async () => {
+  await page.click('button[aria-label="Account and settings"]')
+  await page.click('button[role=menuitem]:has-text("Storage"), button:has-text("Storage")')
+  await page.waitForSelector('dialog[open]:has-text("Where your files live")')
+  const dialog = page.locator('dialog[open]')
+  const app = dialog.locator('button:has-text("In this app")')
+  const drive = dialog.locator('button:has-text("In my Google Drive")')
+  eq(await app.getAttribute('aria-pressed'), 'true', 'app storage was not shown as the one in use:')
+  eq(await drive.getAttribute('aria-pressed'), 'false', 'drive was shown as in use:')
+  ok(await app.isDisabled(), 'the backend already in use was offered as a switch')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+  eq(await page.locator('dialog[open]').count(), 0, 'the storage dialog survived Escape:')
+})
+
 await check('dragging a row grip reorders the sheet', async () => {
   const titles = () =>
     page.locator('tbody tr[data-drag-index] input[aria-label="Title"]').evaluateAll((els) => els.map((e) => e.value))

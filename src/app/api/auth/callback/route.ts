@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { exchangeCode, saveTokens } from '@/lib/drive/client'
 import { setSessionCookie, toSession, upsertGoogleUser } from '@/lib/auth'
-import { K, kv } from '@/lib/redis'
+import { K, kv } from '@/lib/store/kv'
 
 export const dynamic = 'force-dynamic'
 

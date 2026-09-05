@@ -1,13 +1,25 @@
-import { Redis } from '@upstash/redis'
-import { env } from './env'
+import { env } from '../env'
+import { sqlKV } from '../db/sql'
+import { redisKV } from './kv-redis'
 
 /**
- * Redis access with a process-local fallback.
+ * The key/value surface the whole app persists through, and the routing that
+ * decides where each key actually lands.
  *
- * Upstash is HTTP-based, so it works from serverless functions with no
- * connection pool to exhaust. When it isn't configured (local dev, first boot)
- * we fall back to an in-process map so nothing crashes - the fallback is NOT
- * durable and NOT shared across instances, which `kv.durable` reports.
+ * Three implementations sit behind it:
+ *   - Postgres  (src/lib/db/sql.ts)   durable, the default home for an account
+ *   - Redis     (src/lib/store/kv-redis.ts)  fast, optional
+ *   - memory    (below)               a process-local map, for local dev only
+ *
+ * Keys are split across two tiers rather than one store. Account data - users,
+ * folders, documents, chat history, memory - goes to the durable store. Hot,
+ * disposable keys - caches, locks, rate-limit counters, idempotency records -
+ * go to the fast store when there is one. Nothing is lost if the fast tier is
+ * cold or missing: every key in it either rebuilds itself or is a lease that
+ * was already allowed to expire.
+ *
+ * When only one store is configured both tiers point at it and the routing is a
+ * no-op, which is the common case.
  */
 
 export type KV = {
@@ -15,6 +27,8 @@ export type KV = {
   get<T>(key: string): Promise<T | null>
   set(key: string, value: unknown, opts?: { ex?: number; nx?: boolean }): Promise<boolean>
   del(...keys: string[]): Promise<number>
+  /** Delete only if the stored value still matches. Releasing a lock you own. */
+  compareDel(key: string, expected: unknown): Promise<boolean>
   incr(key: string): Promise<number>
   expire(key: string, seconds: number): Promise<void>
   lpush(key: string, ...values: unknown[]): Promise<number>
@@ -31,14 +45,6 @@ export type KV = {
   zrange<T = string>(key: string, start: number, stop: number, rev?: boolean): Promise<T[]>
   zrem(key: string, ...members: string[]): Promise<void>
   keys(pattern: string): Promise<string[]>
-  eval<T>(script: string, keys: string[], args: (string | number)[]): Promise<T>
-}
-
-let upstash: Redis | null = null
-function client(): Redis | null {
-  if (!env.redis.enabled) return null
-  if (!upstash) upstash = new Redis({ url: env.redis.url!, token: env.redis.token! })
-  return upstash
 }
 
 // ---------------------------------------------------------------- memory shim
@@ -54,8 +60,8 @@ type Entry = { value: unknown; expiresAt?: number }
  * "in-memory" should mean.
  *
  * It is still per-process: nothing survives a restart, and nothing is shared
- * between serverless instances. That is what `kv().durable` reports and why
- * Upstash is the answer for anything real.
+ * between serverless instances. That is what `durable` reports, and it is why a
+ * deployment without a database is a demo rather than an installation.
  */
 const globalMem = globalThis as typeof globalThis & { __hisaabMem?: Map<string, Entry> }
 const mem: Map<string, Entry> = (globalMem.__hisaabMem ??= new Map<string, Entry>())
@@ -82,7 +88,7 @@ function memZ(key: string): Array<[number, string]> {
   return Array.isArray(v) ? (v as Array<[number, string]>) : []
 }
 
-const memoryKV: KV = {
+export const memoryKV: KV = {
   durable: false,
   async get<T>(key: string) {
     return (memGet(key) as T) ?? null
@@ -96,6 +102,10 @@ const memoryKV: KV = {
     let n = 0
     for (const k of keys) if (mem.delete(k)) n++
     return n
+  },
+  async compareDel(key, expected) {
+    if (JSON.stringify(memGet(key)) !== JSON.stringify(expected)) return false
+    return mem.delete(key)
   },
   async incr(key) {
     const n = Number(memGet(key) ?? 0) + 1
@@ -176,53 +186,84 @@ const memoryKV: KV = {
     for (const k of mem.keys()) if (rx.test(k)) out.push(k)
     return out
   },
-  async eval<T>(_script: string, _keys: string[], _args: (string | number)[]) {
-    throw new Error('eval unsupported in memory KV')
-  },
 }
 
-// ------------------------------------------------------------------- upstash
-function upstashKV(r: Redis): KV {
+// ----------------------------------------------------------------- routing
+
+/**
+ * Keys that may be thrown away. Everything not listed here is account data and
+ * goes to the durable store.
+ */
+const DISPOSABLE = ['c:', 'lock:', 'rl:', 'idem:', 'health:']
+
+function disposable(key: string): boolean {
+  return DISPOSABLE.some((p) => key.startsWith(p))
+}
+
+export type Backends = { primary: KV; fast: KV; primaryName: string; fastName: string }
+
+const globalKV = globalThis as typeof globalThis & { __hisaabBackends?: Backends; __hisaabKV?: KV }
+
+function build(): Backends {
+  // Both clients are built lazily by their own modules, so naming a backend
+  // here costs nothing until a key is actually routed to it.
+  const durable = env.database.enabled ? { kv: sqlKV(), name: 'Postgres' } : null
+  const cache = env.redis.enabled ? { kv: redisKV(), name: 'Redis' } : null
+
+  const primary = durable ?? cache ?? { kv: memoryKV, name: 'In-memory (not durable)' }
+  const fast = cache ?? primary
+  return { primary: primary.kv, fast: fast.kv, primaryName: primary.name, fastName: fast.name }
+}
+
+export function backends(): Backends {
+  return (globalKV.__hisaabBackends ??= build())
+}
+
+function router(b: Backends): KV {
+  const to = (key: string) => (disposable(key) ? b.fast : b.primary)
   return {
-    durable: true,
-    get: <T>(key: string) => r.get<T>(key).then((v) => v ?? null),
-    async set(key, value, opts) {
-      const args: Record<string, unknown> = {}
-      if (opts?.ex) args.ex = opts.ex
-      if (opts?.nx) args.nx = true
-      const res = await r.set(key, value as never, args as never)
-      return res === 'OK'
+    durable: b.primary.durable,
+    get: (key) => to(key).get(key),
+    set: (key, value, opts) => to(key).set(key, value, opts),
+    // Callers only ever delete keys of one kind at a time, but splitting is
+    // cheap and beats a silent miss if that ever stops being true.
+    async del(...keys) {
+      const hot = keys.filter(disposable)
+      const cold = keys.filter((k) => !disposable(k))
+      const counts = await Promise.all([
+        hot.length ? b.fast.del(...hot) : Promise.resolve(0),
+        cold.length ? b.primary.del(...cold) : Promise.resolve(0),
+      ])
+      return counts[0] + counts[1]
     },
-    del: (...keys) => r.del(...keys),
-    incr: (key) => r.incr(key),
-    expire: async (key, s) => { await r.expire(key, s) },
-    lpush: (key, ...values) => r.lpush(key, ...(values as never[])),
-    lrange: <T>(key: string, start: number, stop: number) => r.lrange<T>(key, start, stop),
-    ltrim: async (key, start, stop) => { await r.ltrim(key, start, stop) },
-    sadd: (key, ...m) => r.sadd(key, ...(m as [string, ...string[]])),
-    srem: (key, ...m) => r.srem(key, ...(m as [string, ...string[]])),
-    smembers: (key) => r.smembers(key),
-    hset: async (key, field, value) => { await r.hset(key, { [field]: value as never }) },
-    hget: <T>(key: string, field: string) => r.hget<T>(key, field).then((v) => v ?? null),
-    hgetall: <T>(key: string) =>
-      r.hgetall<Record<string, T>>(key).then((v) => (v ?? {}) as Record<string, T>),
-    hdel: async (key, ...fields) => { await r.hdel(key, ...fields) },
-    zadd: async (key, score, member) => { await r.zadd(key, { score, member }) },
-    zrange: <T = string>(key: string, start: number, stop: number, rev?: boolean) =>
-      r.zrange<T[]>(key, start, stop, rev ? { rev: true } : undefined) as Promise<T[]>,
-    zrem: async (key, ...members) => { await r.zrem(key, ...members) },
-    keys: (pattern) => r.keys(pattern),
-    eval: <T>(script: string, keys: string[], args: (string | number)[]) => r.eval(script, keys, args) as Promise<T>,
+    compareDel: (key, expected) => to(key).compareDel(key, expected),
+    incr: (key) => to(key).incr(key),
+    expire: (key, seconds) => to(key).expire(key, seconds),
+    lpush: (key, ...values) => to(key).lpush(key, ...values),
+    lrange: (key, start, stop) => to(key).lrange(key, start, stop),
+    ltrim: (key, start, stop) => to(key).ltrim(key, start, stop),
+    sadd: (key, ...members) => to(key).sadd(key, ...members),
+    srem: (key, ...members) => to(key).srem(key, ...members),
+    smembers: (key) => to(key).smembers(key),
+    hset: (key, field, value) => to(key).hset(key, field, value),
+    hget: (key, field) => to(key).hget(key, field),
+    hgetall: (key) => to(key).hgetall(key),
+    hdel: (key, ...fields) => to(key).hdel(key, ...fields),
+    zadd: (key, score, member) => to(key).zadd(key, score, member),
+    zrange: (key, start, stop, rev) => to(key).zrange(key, start, stop, rev),
+    zrem: (key, ...members) => to(key).zrem(key, ...members),
+    keys: (pattern) => to(pattern).keys(pattern),
   }
 }
 
-const globalKV = globalThis as typeof globalThis & { __hisaabKV?: KV }
-
 export function kv(): KV {
-  if (globalKV.__hisaabKV) return globalKV.__hisaabKV
-  const r = client()
-  globalKV.__hisaabKV = r ? upstashKV(r) : memoryKV
-  return globalKV.__hisaabKV
+  return (globalKV.__hisaabKV ??= router(backends()))
+}
+
+/** Only for tests, which swap the configuration between runs. */
+export function resetBackends(): void {
+  globalKV.__hisaabBackends = undefined
+  globalKV.__hisaabKV = undefined
 }
 
 export const K = {

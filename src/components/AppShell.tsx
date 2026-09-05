@@ -7,6 +7,7 @@ import { Icon } from './ui/Icons'
 import { Logo } from './ui/Logo'
 import { Calculator, CalculatorButton } from './ui/Calculator'
 import { ThemeSwitch } from './ui/ThemeSwitch'
+import { StorageDialog } from './StorageDialog'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { post } from '@/lib/client/api'
 
@@ -96,6 +97,7 @@ export function TopBar({
 
 export function AccountMenu({ session }: { session: Session }) {
   const [open, setOpen] = useState(false)
+  const [storage, setStorage] = useState(false)
   const router = useRouter()
   const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false))
 
@@ -136,12 +138,22 @@ export function AccountMenu({ session }: { session: Session }) {
             </div>
           </div>
 
-          <div className="px-3.5 py-2.5 border-b border-line">
-            <p className="text-[11px] text-faint flex items-center gap-1.5 flex-wrap">
-              {session.backend === 'drive' ? <><Icon.Drive size={12} /> Stored in your Google Drive</> : 'Stored on the server'}
-              {session.role === 'admin' && <span className="chip h-5 px-1.5 text-[10px]">admin</span>}
-            </p>
-          </div>
+          <button
+            onClick={() => { setOpen(false); setStorage(true) }}
+            role="menuitem"
+            className="w-full text-left px-3.5 py-2.5 border-b border-line hover:bg-raised transition-colors group"
+          >
+            <span className="text-[11px] uppercase tracking-wide text-faint flex items-center gap-1.5">
+              Storage
+              {session.role === 'admin' && <span className="chip h-5 px-1.5 text-[10px] normal-case tracking-normal">admin</span>}
+              <Icon.Chevron size={12} className="ml-auto text-faint group-hover:text-muted transition-colors" />
+            </span>
+            <span className="text-[12.5px] flex items-center gap-1.5 mt-1">
+              {session.backend === 'drive'
+                ? <><Icon.Drive size={13} className="text-muted" /> Your Google Drive</>
+                : <><Icon.Folder size={13} className="text-muted" /> In this app</>}
+            </span>
+          </button>
 
           <div className="px-3.5 py-3 border-b border-line">
             <p className="text-[11px] uppercase tracking-wide text-faint mb-2">Appearance</p>
@@ -158,6 +170,10 @@ export function AccountMenu({ session }: { session: Session }) {
           </button>
         </div>
       )}
+
+      {/* Outside the menu, so choosing a backend does not unmount the dialog
+          the moment the menu closes behind it. */}
+      <StorageDialog open={storage} onClose={() => setStorage(false)} />
     </div>
   )
 }

@@ -20,7 +20,7 @@ const Body = z.object({
         name: z.string(),
         mime: z.string(),
         size: z.number(),
-        backend: z.enum(['drive', 'kv']),
+        backend: z.enum(['drive', 'app', 'kv']),
         ref: z.string(),
         uploadedAt: z.number(),
       }),

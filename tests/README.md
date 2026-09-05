@@ -1,15 +1,16 @@
 # Tests
 
-Four suites, from fastest and most isolated to slowest and most realistic.
+Five suites, from fastest and most isolated to slowest and most realistic.
 The later ones exist because each caught a class of bug the earlier ones
 structurally could not.
 
 | Suite | Needs | What it covers |
 |---|---|---|
 | `test:engine` | nothing | The document engine, in-process. Ordering, merge, idempotency, the revision gate, undo inversion, totals, and how a file renders into a mail draft or the clipboard. |
-| `test:e2e` | a running server | The HTTP surface with a real session. Auth, seeding, parallel writers, conflicts, attachment refusal, analytics. |
+| `test:db` | `DATABASE_URL` | The Postgres store against a real database. Expiry, atomic claims, concurrent appends, per-account isolation and attribution, receipts through `bytea`. Skips itself when unset. |
+| `test:e2e` | a running server | The HTTP surface with a real session. Auth, seeding, parallel writers, conflicts, attachment refusal, storage backends, analytics. |
 | `test:chat` | server + `OLLAMA_API_KEY` | The assistant against the live model and the live write path, including that instructions planted in the data are read as data. ~40s. |
-| `test:ui` | server + Chromium | A real browser. Editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, file drops, the theme switch, the mail dialog, and the phone layout down to its tap targets. |
+| `test:ui` | server + Chromium | A real browser. Editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, file drops, the theme switch, the mail dialog, the storage chooser, and the phone layout down to its tap targets. |
 
 ```bash
 npx next dev -p 3111 &     # the last three need this
@@ -20,6 +21,12 @@ BASE=http://localhost:3111 npm test
 
 The engine suite is pure and fast, so it can afford to be exhaustive. It caught
 the ordering scheme degenerating at row 283.
+
+The database suite is the only place the storage claims can be checked at all.
+Whether an expired lease still blocks a new holder, whether twenty writers
+appending to one list lose each other, whether a key belongs to the account the
+key name says it does - none of that is visible from above, and all of it is the
+difference between a store and a hope.
 
 The E2E suite constructs its own HTTP requests. That is its strength - it can
 fire twenty parallel writers - and its blind spot: it never runs the client, so
