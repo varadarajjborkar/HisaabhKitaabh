@@ -44,6 +44,21 @@ export function Modal({
 
   const width = size === 'sm' ? 'sm:max-w-sm' : size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-md'
 
+  /*
+   * A closed modal is not in the document at all.
+   *
+   * Leaving it mounted meant a page could carry eight hidden <dialog> elements,
+   * and any id inside one of them existed several times over: three copies of
+   * `#col-name` once the add-column form could be opened from the table header,
+   * the columns manager and the phone toolbar. A selector for that id then
+   * resolved to whichever hidden copy came first in the DOM. Duplicate ids also
+   * break the label-to-field association they exist for.
+   *
+   * Unmounting has a second benefit: every form inside a modal now starts
+   * clean, instead of remembering what was typed the last time it was open.
+   */
+  if (!open) return null
+
   return (
     <dialog
       ref={ref}

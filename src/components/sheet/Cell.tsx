@@ -15,6 +15,26 @@ import { toast } from '../ui/Toast'
  * should carry "the amount is now 450", not eleven partial numbers. Escape
  * restores the value the cell had when editing began.
  */
+/**
+ * `lg` is the phone size.
+ *
+ * A 13.5px input in a 28px box is fine under a mouse and wrong under a thumb:
+ * it is below the 44px target everyone's platform guidelines ask for, and the
+ * text is small enough that people zoom the page to check what they typed.
+ */
+export type CellSize = 'md' | 'lg'
+
+/**
+ * `field` draws a box; `inline` does not.
+ *
+ * Inside a table or on the face of a card, a cell should look like the value it
+ * holds, with the grid doing the work of saying where one ends and the next
+ * begins. In the expanded part of a phone card there is no grid: a label, then
+ * a transparent input, then another label reads as a list of text, and people
+ * do not realise the values are editable. There the input gets a border.
+ */
+export type CellVariant = 'inline' | 'field'
+
 export function Cell({
   column,
   value,
@@ -23,6 +43,8 @@ export function Cell({
   onChange,
   onNavigate,
   autoFocus,
+  size = 'md',
+  variant = 'inline',
 }: {
   column: Column
   value: CellValue
@@ -31,12 +53,14 @@ export function Cell({
   onChange: (value: CellValue) => void
   onNavigate?: (dir: 'up' | 'down' | 'next' | 'prev') => void
   autoFocus?: boolean
+  size?: CellSize
+  variant?: CellVariant
 }) {
   if (column.kind === 'attachment') {
-    return <AttachmentCell value={Array.isArray(value) ? value : []} fileId={fileId} onChange={onChange} />
+    return <AttachmentCell value={Array.isArray(value) ? value : []} fileId={fileId} onChange={onChange} size={size} />
   }
   if (column.kind === 'select') {
-    return <SelectCell column={column} value={typeof value === 'string' ? value : ''} onChange={onChange} />
+    return <SelectCell column={column} value={typeof value === 'string' ? value : ''} onChange={onChange} size={size} variant={variant} />
   }
   return (
     <TextCell
@@ -45,6 +69,8 @@ export function Cell({
       onChange={onChange}
       onNavigate={onNavigate}
       autoFocus={autoFocus}
+      size={size}
+      variant={variant}
       key={`${rowId}:${column.id}`}
     />
   )
@@ -56,12 +82,16 @@ function TextCell({
   onChange,
   onNavigate,
   autoFocus,
+  size,
+  variant,
 }: {
   column: Column
   value: CellValue
   onChange: (value: CellValue) => void
   onNavigate?: (dir: 'up' | 'down' | 'next' | 'prev') => void
   autoFocus?: boolean
+  size: CellSize
+  variant: CellVariant
 }) {
   const isNumeric = column.kind === 'amount' || column.kind === 'number'
   const display = (v: CellValue) => {
@@ -132,24 +162,30 @@ function TextCell({
       type={column.kind === 'date' ? 'date' : 'text'}
       placeholder={column.kind === 'amount' ? '0' : ''}
       aria-label={column.name}
-      className={`w-full bg-transparent outline-none text-[13.5px] px-2 py-1.5 rounded
-                  focus:bg-accent-soft/60 focus:ring-1 focus:ring-accent/40 transition-colors
+      className={`w-full outline-none rounded-lg transition-colors
+                  focus:ring-2 focus:ring-accent/25 focus:border-accent
+                  ${variant === 'field'
+                    ? 'bg-surface border border-line focus:bg-surface'
+                    : 'bg-transparent border border-transparent focus:bg-accent-soft/60'}
+                  ${size === 'lg' ? 'text-[16px] h-11 px-2.5' : 'text-[13.5px] px-2 py-1.5'}
                   ${isNumeric ? 'text-right tnum' : ''}
-                  ${column.kind === 'amount' ? 'font-medium' : ''}`}
+                  ${column.kind === 'amount' ? (size === 'lg' ? 'font-semibold' : 'font-medium') : ''}`}
     />
   )
 }
 
-function SelectCell({ column, value, onChange }: { column: Column; value: string; onChange: (v: CellValue) => void }) {
+function SelectCell({ column, value, onChange, size, variant }: { column: Column; value: string; onChange: (v: CellValue) => void; size: CellSize; variant: CellVariant }) {
   const options = column.options ?? []
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value || null)}
       aria-label={column.name}
-      className="w-full bg-transparent outline-none text-[13.5px] px-1.5 py-1.5 rounded
-                 focus:bg-accent-soft/60 focus:ring-1 focus:ring-accent/40 transition-colors
-                 text-ink appearance-none cursor-pointer"
+      className={`w-full outline-none rounded-lg transition-colors text-ink cursor-pointer
+                  focus:ring-2 focus:ring-accent/25
+                  ${size === 'lg' || variant === 'field'
+                    ? 'text-[16px] h-11 px-2.5 bg-surface border border-line'
+                    : 'text-[13.5px] px-1.5 py-1.5 bg-transparent appearance-none'}`}
     >
       <option value="">Not set</option>
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -169,10 +205,12 @@ function AttachmentCell({
   value,
   fileId,
   onChange,
+  size,
 }: {
   value: AttachmentRef[]
   fileId: string
   onChange: (v: CellValue) => void
+  size: CellSize
 }) {
   const [busy, setBusy] = useState(false)
   const [over, setOver] = useState(false)
@@ -215,7 +253,9 @@ function AttachmentCell({
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-1 px-1.5 py-1 rounded transition-colors ${over ? 'drop-active' : ''}`}
+      className={`flex flex-wrap items-center gap-1 rounded transition-colors
+                  ${size === 'lg' ? 'px-1.5 py-2 min-h-11' : 'px-1.5 py-1'}
+                  ${over ? 'drop-active' : ''}`}
       onDragEnter={(e) => { if (!hasFiles(e)) return; e.preventDefault(); depth.current++; setOver(true) }}
       onDragOver={(e) => { if (hasFiles(e)) e.preventDefault() }}
       onDragLeave={(e) => {
@@ -250,7 +290,8 @@ function AttachmentCell({
       <button
         onClick={() => input.current?.click()}
         disabled={busy}
-        className="h-6 px-1.5 rounded text-faint hover:text-accent hover:bg-accent-soft transition-colors flex items-center gap-1 text-[11.5px]"
+        className={`rounded text-faint hover:text-accent hover:bg-accent-soft transition-colors flex items-center gap-1.5
+                    ${size === 'lg' ? 'h-9 px-2.5 text-[13px] border border-line' : 'h-6 px-1.5 text-[11.5px]'}`}
         aria-label="Attach a file"
         title="Pick a file, or drop one on this cell"
       >

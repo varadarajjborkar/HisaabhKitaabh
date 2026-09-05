@@ -20,6 +20,7 @@ export function ChatDock({
   onClose,
   scope,
   onApplied,
+  subtitle,
   incoming,
   onIncomingConsumed,
 }: {
@@ -27,6 +28,7 @@ export function ChatDock({
   onClose: () => void
   scope: ChatScope
   onApplied?: () => void
+  subtitle?: string
   incoming?: File[] | null
   onIncomingConsumed?: () => void
 }) {
@@ -41,16 +43,26 @@ export function ChatDock({
 
   return (
     <>
+      {/* No scrim on a phone: the panel covers the screen, so a dimmed strip
+          behind it would only be visible during the animation. */}
       <button
-        className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[1px] animate-fade cursor-default no-print"
+        className="hidden sm:block fixed inset-0 z-40 bg-black/25 backdrop-blur-[1px] animate-fade cursor-default no-print"
         onClick={onClose}
         aria-label="Close assistant"
         tabIndex={-1}
       />
+      {/*
+        * Full screen on a phone, a drawer from `sm` up.
+        *
+        * The 86dvh sheet was the worst of both: it kept a sliver of unusable
+        * page visible at the top, and once the keyboard opened the composer and
+        * the last message were fighting over about two hundred pixels. A phone
+        * chat is a screen, not a peek.
+        */}
       <aside
         className="fixed z-50 bg-surface border-line shadow-pop no-print overflow-hidden flex flex-col
-                   inset-x-0 bottom-0 h-[86dvh] rounded-t-xl2 border-t animate-rise
-                   sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[min(400px,100vw)] sm:h-auto sm:rounded-none sm:border-l sm:border-t-0 sm:animate-slide-l"
+                   inset-0 h-dvh animate-rise
+                   sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[min(400px,100vw)] sm:h-auto sm:border-l sm:animate-slide-l"
         role="dialog"
         aria-label="Assistant"
       >
@@ -58,6 +70,7 @@ export function ChatDock({
           scope={scope}
           onApplied={onApplied}
           onClose={onClose}
+          subtitle={subtitle}
           incoming={incoming}
           onIncomingConsumed={onIncomingConsumed}
           compact

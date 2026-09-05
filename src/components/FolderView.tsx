@@ -253,6 +253,7 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
           onClose={() => setChatOpen(false)}
           scope={{ fileId: null, folderId: folder.id }}
           onApplied={refresh}
+          subtitle={folder.name}
           incoming={dropped}
           onIncomingConsumed={() => setDropped(null)}
         />

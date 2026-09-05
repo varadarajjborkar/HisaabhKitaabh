@@ -8,8 +8,8 @@ structurally could not.
 |---|---|---|
 | `test:engine` | nothing | The document engine, in-process. Ordering, merge, idempotency, the revision gate, undo inversion, totals, and how a file renders into a mail draft or the clipboard. |
 | `test:e2e` | a running server | The HTTP surface with a real session. Auth, seeding, parallel writers, conflicts, attachment refusal, analytics. |
-| `test:chat` | server + `OLLAMA_API_KEY` | The assistant against the live model and the live write path. ~40s. |
-| `test:ui` | server + Chromium | A real browser. Editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, file drops, the theme switch, the phone layout. |
+| `test:chat` | server + `OLLAMA_API_KEY` | The assistant against the live model and the live write path, including that instructions planted in the data are read as data. ~40s. |
+| `test:ui` | server + Chromium | A real browser. Editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, file drops, the theme switch, the mail dialog, and the phone layout down to its tap targets. |
 
 ```bash
 npx next dev -p 3111 &     # the last three need this
@@ -32,8 +32,10 @@ that made undo reverse the wrong thing.
 
 It is also the only place the *chrome* can be checked: which element owns a
 scroll, whether opening one menu closes another, whether a pointer drag actually
-reorders anything, whether the theme choice reaches the document. None of that
-has an HTTP surface to assert against.
+reorders anything, whether the theme choice reaches the document, whether a
+control is big enough to hit with a thumb. None of that has an HTTP surface to
+assert against. It caught three copies of the same element id, too, which is the
+sort of thing that only shows up once a selector resolves to the wrong one.
 
 The chat suite is non-deterministic by nature - a model is in the loop - so it
 asserts on behaviour that must hold regardless of phrasing: reads never prompt,

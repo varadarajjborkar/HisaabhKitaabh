@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Column, ColumnKind } from '@/lib/model/types'
 import { Icon } from '../ui/Icons'
 import { Modal } from '../ui/Modal'
@@ -118,23 +118,6 @@ export function ColumnMenu({ column, sheet }: { column: Column; sheet: SheetApi 
  */
 export function NewColumnButton({ sheet }: { sheet: SheetApi }) {
   const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [kind, setKind] = useState<ColumnKind>('text')
-  const [options, setOptions] = useState('')
-
-  const create = () => {
-    if (!name.trim()) return
-    sheet.actions.addColumn(
-      name.trim(),
-      kind,
-      kind === 'select' ? options.split(',').map((o) => o.trim()).filter(Boolean) : undefined,
-    )
-    setOpen(false)
-    setName('')
-    setKind('text')
-    setOptions('')
-  }
-
   return (
     <>
       <button
@@ -145,15 +128,48 @@ export function NewColumnButton({ sheet }: { sheet: SheetApi }) {
       >
         <Icon.Plus size={15} />
       </button>
+      <AddColumnModal open={open} onClose={() => setOpen(false)} sheet={sheet} />
+    </>
+  )
+}
 
+/**
+ * The add-column form, separated from the "+" in the table header.
+ *
+ * That header does not exist on a phone: the sheet renders as cards, so the
+ * only way to add a column was to find a wider screen. The form is its own
+ * component now, opened from the header on desktop and from the columns manager
+ * on a phone.
+ */
+export function AddColumnModal({ open, onClose, sheet }: { open: boolean; onClose: () => void; sheet: SheetApi }) {
+  const [name, setName] = useState('')
+  const [kind, setKind] = useState<ColumnKind>('text')
+  const [options, setOptions] = useState('')
+
+  useEffect(() => {
+    if (open) { setName(''); setKind('text'); setOptions('') }
+  }, [open])
+
+  const create = () => {
+    if (!name.trim()) return
+    sheet.actions.addColumn(
+      name.trim(),
+      kind,
+      kind === 'select' ? options.split(',').map((o) => o.trim()).filter(Boolean) : undefined,
+    )
+    onClose()
+  }
+
+  return (
+    <>
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={onClose}
         title="Add a column"
         description="Name it after what it holds: quantity, category, receipt."
         footer={
           <>
-            <button className="btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
             <button className="btn-primary pressable" onClick={create} disabled={!name.trim()}>Add column</button>
           </>
         }
@@ -209,6 +225,142 @@ export function NewColumnButton({ sheet }: { sheet: SheetApi }) {
           </p>
         )}
       </Modal>
+    </>
+  )
+}
+
+/**
+ * The columns manager.
+ *
+ * On a wide screen every column is a table header you can click. On a phone
+ * there is no header row at all, so before this existed the only columns a
+ * phone user ever had were the three a file starts with: the "+" that the whole
+ * file model rests on was desktop-only. This is that "+", plus rename, retype
+ * and delete, in a form that works with a thumb.
+ */
+export function ColumnsModal({ open, onClose, sheet }: { open: boolean; onClose: () => void; sheet: SheetApi }) {
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [confirming, setConfirming] = useState<string | null>(null)
+
+  const doc = sheet.doc
+  const columns = doc ? [...doc.columns].sort((a, b) => (a.order < b.order ? -1 : 1)) : []
+
+  const commitRename = (id: string, current: string) => {
+    const name = draft.trim()
+    setEditing(null)
+    if (name && name !== current) sheet.actions.renameColumn(id, name)
+  }
+
+  return (
+    <>
+      <Modal
+        open={open && !adding}
+        onClose={onClose}
+        title="Columns"
+        description="Rename, change a type, or add your own: quantity, category, a receipt slot."
+        footer={
+          <>
+            <button className="btn-ghost" onClick={onClose}>Done</button>
+            <button className="btn-primary pressable" onClick={() => setAdding(true)}>
+              <Icon.Plus size={15} /> Add column
+            </button>
+          </>
+        }
+      >
+        <ul className="divide-y divide-line -my-1">
+          {columns.map((col) => (
+            <li key={col.id} className="py-2.5">
+              {editing === col.id ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    className="input h-10"
+                    value={draft}
+                    autoFocus
+                    maxLength={60}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename(col.id, col.name)
+                      if (e.key === 'Escape') setEditing(null)
+                    }}
+                    onBlur={() => commitRename(col.id, col.name)}
+                    aria-label={`Rename ${col.name}`}
+                  />
+                  <button
+                    className="btn-primary h-10 w-10 px-0 shrink-0"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => commitRename(col.id, col.name)}
+                    aria-label="Save name"
+                  >
+                    <Icon.Check size={15} />
+                  </button>
+                </div>
+              ) : confirming === col.id ? (
+                <div className="flex items-center gap-2">
+                  <p className="text-[12.5px] text-muted flex-1 min-w-0">Delete "{col.name}" and its values?</p>
+                  <button className="btn-ghost h-9 px-2.5 text-[12px]" onClick={() => setConfirming(null)}>Cancel</button>
+                  <button
+                    className="btn-danger h-9 px-3 text-[12px]"
+                    onClick={() => { sheet.actions.deleteColumn(col.id); setConfirming(null) }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px] font-medium truncate">{col.name}</p>
+                    <p className="text-[11.5px] text-muted mt-0.5">
+                      {KINDS.find((k) => k.value === col.kind)?.label ?? col.kind}
+                      {col.system && <span className="text-faint"> · built in</span>}
+                      {col.kind === 'select' && col.options?.length ? (
+                        <span className="text-faint"> · {col.options.join(', ')}</span>
+                      ) : null}
+                    </p>
+                  </div>
+
+                  {!col.system && (
+                    <select
+                      value={col.kind}
+                      onChange={(e) => sheet.actions.retypeColumn(col.id, e.target.value as ColumnKind, col.options)}
+                      className="input h-9 w-auto text-[12px] pr-7 shrink-0"
+                      aria-label={`Type of ${col.name}`}
+                    >
+                      {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                    </select>
+                  )}
+
+                  <button
+                    onClick={() => { setDraft(col.name); setEditing(col.id) }}
+                    className="h-9 w-9 grid place-items-center rounded-lg text-faint hover:text-ink hover:bg-raised transition-colors shrink-0"
+                    aria-label={`Rename ${col.name}`}
+                  >
+                    <Icon.Pencil size={15} />
+                  </button>
+
+                  {!col.system && (
+                    <button
+                      onClick={() => setConfirming(col.id)}
+                      className="h-9 w-9 grid place-items-center rounded-lg text-faint hover:text-bad hover:bg-bad/10 transition-colors shrink-0"
+                      aria-label={`Delete ${col.name}`}
+                    >
+                      <Icon.Trash size={15} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        <p className="text-[11.5px] text-faint mt-4 leading-relaxed">
+          A number column is a note, not a formula. A quantity of 3 next to ₹240
+          leaves the row at ₹240.
+        </p>
+      </Modal>
+
+      <AddColumnModal open={adding} onClose={() => setAdding(false)} sheet={sheet} />
     </>
   )
 }

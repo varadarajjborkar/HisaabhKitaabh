@@ -114,9 +114,9 @@ export function PermissionCard({
               }}
             />
             <div className="flex gap-2 mt-2 justify-end">
-              <button className="btn-ghost h-8 text-[12.5px]" onClick={() => setGuiding(false)}>Back</button>
+              <button className="btn-ghost h-10 sm:h-8 text-[12.5px]" onClick={() => setGuiding(false)}>Back</button>
               <button
-                className="btn-primary h-8 text-[12.5px] pressable"
+                className="btn-primary h-10 sm:h-8 text-[12.5px] pressable"
                 disabled={!guidance.trim() || busy}
                 onClick={() => onDecide('guide', guidance.trim())}
               >
@@ -126,20 +126,24 @@ export function PermissionCard({
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap gap-2 mt-3.5">
-              <button className="btn-primary h-8 text-[12.5px] pressable" disabled={busy} onClick={() => onDecide('allow')}>
-                <Icon.Check size={14} /> Allow
+            {/* Stacked and full width on a phone: these are the three most
+                consequential taps in the app, and wrapping them into a ragged
+                two-and-a-half-line row made Deny land under Allow at some
+                widths. A row again as soon as there is space for one. */}
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mt-3.5">
+              <button className="btn-primary h-11 sm:h-8 text-[13px] sm:text-[12.5px] pressable" disabled={busy} onClick={() => onDecide('allow')}>
+                <Icon.Check size={15} /> Allow
               </button>
-              <button className="btn-outline h-8 text-[12.5px] pressable" disabled={busy} onClick={() => setGuiding(true)}>
+              <button className="btn-outline h-11 sm:h-8 text-[13px] sm:text-[12.5px] pressable" disabled={busy} onClick={() => setGuiding(true)}>
                 Tell it what to do
               </button>
-              <button className="btn-ghost h-8 text-[12.5px] pressable" disabled={busy} onClick={() => onDecide('deny')}>
+              <button className="btn-ghost h-11 sm:h-8 text-[13px] sm:text-[12.5px] pressable" disabled={busy} onClick={() => onDecide('deny')}>
                 Deny
               </button>
             </div>
 
             <button
-              className="text-[11.5px] text-faint hover:text-muted mt-2.5 transition-colors"
+              className="text-[11.5px] text-faint hover:text-muted mt-3 sm:mt-2.5 transition-colors"
               disabled={busy}
               onClick={() => onDecide('allow_always')}
             >

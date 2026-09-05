@@ -149,7 +149,8 @@ export function SheetView({
           ) : (
             <button
               onClick={() => { setNameDraft(doc.name); setRenaming(true) }}
-              className="text-left hover:text-accent transition-colors truncate max-w-full"
+              className="text-left hover:text-accent transition-colors truncate max-w-full
+                         inline-flex items-center min-h-[34px] sm:min-h-0"
               title="Rename"
             >
               {doc.name}
@@ -157,10 +158,30 @@ export function SheetView({
           )
         }
         subtitle={
+          /*
+           * The phone gets the total instead of the folder name.
+           *
+           * On one column the running total lives at the bottom of the card
+           * list, which is a long scroll away in any file worth keeping. The
+           * folder is the screen you just came from and the back arrow leads
+           * to it, so it is the line worth giving up here.
+           */
           <span className="flex items-center gap-1.5">
-            <span className="truncate">{folderName}</span>
-            <span className="text-faint">·</span>
-            <SaveIndicator state={state} />
+            <span className="hidden sm:inline truncate">{folderName}</span>
+            <span className="hidden sm:inline text-faint">·</span>
+            <span className="sm:hidden font-semibold text-ink tnum">{formatINR(totals.total, { decimals: false })}</span>
+            <span className="sm:hidden text-faint">·</span>
+            <span className="sm:hidden">{totals.count} row{totals.count === 1 ? '' : 's'}</span>
+            {/*
+              * "Saved" is a steady state, and on a 360px header it was the word
+              * that got cut in half. Below `sm` the indicator appears only when
+              * there is something to say: unsaved, saving, offline, in
+              * conflict. Silence means saved, which is what silence should mean.
+              */}
+            <span className={`items-center gap-1.5 ${QUIET_STATES.has(state) ? 'hidden sm:flex' : 'flex'}`}>
+              <span className="text-faint">·</span>
+              <SaveIndicator state={state} />
+            </span>
           </span>
         }
         actions={
@@ -265,15 +286,28 @@ export function SheetView({
             {chatOpen && (
               <>
                 <button
-                  className="xl:hidden fixed inset-0 z-40 bg-black/25 backdrop-blur-[1px] animate-fade cursor-default no-print"
+                  className="hidden sm:block xl:hidden fixed inset-0 z-40 bg-black/25 backdrop-blur-[1px] animate-fade cursor-default no-print"
                   onClick={() => setChatOpen(false)}
                   aria-label="Close assistant"
                   tabIndex={-1}
                 />
-                <aside className="xl:hidden fixed z-50 bg-surface border-line shadow-pop no-print overflow-hidden flex flex-col
-                                  inset-x-0 bottom-0 h-[84dvh] rounded-t-xl2 border-t animate-rise
-                                  sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[min(400px,100vw)] sm:h-auto sm:rounded-none sm:border-l sm:border-t-0 sm:animate-slide-l">
-                  <ChatPanel scope={{ fileId, folderId }} onApplied={onAssistantWrite} onClose={() => setChatOpen(false)} compact />
+                {/* Full screen on a phone; a drawer once there is room beside
+                    the sheet. Same reasoning as the dock: a part-height sheet
+                    plus a keyboard leaves nothing to read. */}
+                <aside
+                  role="dialog"
+                  aria-label="Assistant"
+                  className="xl:hidden fixed z-50 bg-surface border-line shadow-pop no-print overflow-hidden flex flex-col
+                             inset-0 h-dvh animate-rise
+                             sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[min(400px,100vw)] sm:h-auto sm:border-l sm:animate-slide-l"
+                >
+                  <ChatPanel
+                    scope={{ fileId, folderId }}
+                    onApplied={onAssistantWrite}
+                    onClose={() => setChatOpen(false)}
+                    subtitle={doc.name}
+                    compact
+                  />
                 </aside>
               </>
             )}
@@ -303,6 +337,9 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
     </div>
   )
 }
+
+/** States a phone header does not need to spend characters announcing. */
+const QUIET_STATES = new Set(['idle', 'saved'])
 
 const SAVE_COPY: Record<string, { text: string; className: string }> = {
   idle: { text: 'Saved', className: 'text-faint' },

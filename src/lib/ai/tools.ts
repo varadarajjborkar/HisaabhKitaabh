@@ -71,10 +71,50 @@ const num = (v: unknown): number | null => {
 }
 const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
 
+/**
+ * Turn a fileId argument into a document.
+ *
+ * The failure path matters as much as the success path. A bare "File not found"
+ * tells the model nothing about what to do next, and what it does next is
+ * thrash: list files, list folders, guess another id, list files again. Naming
+ * the file that *is* open, and saying plainly that ids are not to be guessed,
+ * turns a dead end into a correction the model can act on in one step.
+ */
+/** Words models reach for when they mean "the one that is already open". */
+const SELF_REFERENCES = new Set(['default', 'current', 'this', 'open', 'active', 'null', 'undefined', 'none'])
+
 async function resolveDoc(ctx: ToolCtx, fileId?: unknown): Promise<SheetDoc> {
-  const id = str(fileId) || ctx.fileId
-  if (!id) throw new Error('No file is open. Ask the user which file to work in, or use list_files.')
-  return ctx.repo.getDoc(id)
+  const asked = str(fileId).trim()
+  const selfReference = !asked || SELF_REFERENCES.has(asked.toLowerCase())
+  const id = selfReference ? ctx.fileId : asked
+  if (!id) throw new Error('No file is open. Call list_files to see what exists, then pass a real fileId. Do not invent one.')
+
+  try {
+    return await ctx.repo.getDoc(id)
+  } catch {
+    /*
+     * Fall back to the file's name before giving up.
+     *
+     * Models pass the name where the id belongs constantly - "Souvenirs",
+     * "default", the title from the last tool result - and each one used to
+     * cost a failed call, a warning triangle in the transcript and a recovery
+     * turn. It is the same file either way, and the user is watching. Resolve
+     * the obvious intent, and reserve the error for a genuine miss.
+     */
+    const folderId = ctx.folderId
+    if (folderId && asked) {
+      const files = await ctx.repo.listFiles(folderId)
+      const wanted = asked.toLowerCase()
+      const hit = files.find((f) => f.name.toLowerCase() === wanted)
+        ?? files.find((f) => f.name.toLowerCase().includes(wanted))
+      if (hit) return ctx.repo.getDoc(hit.id)
+    }
+
+    const known = ctx.fileId
+      ? `The file the user has open is "${ctx.fileId}" - leave fileId out to use it.`
+      : 'Call list_files first and use an id from its result.'
+    throw new Error(`There is no file with id "${asked || id}". ${known} File ids are opaque and cannot be guessed or constructed from a name.`)
+  }
 }
 
 /** Render a row the way a person reads it, for previews and tool output. */

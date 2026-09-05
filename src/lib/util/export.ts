@@ -2,6 +2,7 @@ import type { SheetDoc } from '../model/types'
 import { computeTotals, liveRows, numeric } from '../crdt/doc'
 import { formatDate, formatINR } from './format'
 import { toDelimited } from './table'
+import { displayWidth, layoutTable, type TextColumn } from './textTable'
 
 /**
  * Export renderers.
@@ -68,103 +69,112 @@ export function toCsv(doc: SheetDoc): string {
 }
 
 /**
- * Plain-text layout with aligned columns: what "Copy" puts on the clipboard.
+ * Which columns an export may show, in table order.
  *
- * This one keeps the grid, because the clipboard's usual destinations (a code
- * block, a terminal, a monospaced note, a spreadsheet paste) either render it
- * in a fixed-pitch font or split it back into columns. Widths are capped so one
- * long caption cannot push the money column off the right of the screen.
+ * Exposed so the mail dialog can offer the same list the renderer will use,
+ * rather than the dialog and the renderer each deciding for themselves and
+ * disagreeing about a column that was renamed a second ago.
  */
-const MAX_COL_WIDTH = 34
-const GAP = '  '
+export function exportableColumns(doc: SheetDoc): Array<{ id: string; name: string; kind: string }> {
+  return [...doc.columns]
+    .sort((a, b) => (a.order < b.order ? -1 : 1))
+    .map((c) => ({ id: c.id, name: c.name, kind: c.kind }))
+}
 
-export function toPlainText(doc: SheetDoc): string {
-  const { title, lines, totals } = header(doc)
+export type ExportOptions = {
+  /** Column ids to include, in any order; table order is always the doc's. */
+  columnIds?: string[]
+  /** Line budget for the text grid. */
+  maxWidth?: number
+}
+
+function chosenColumns(doc: SheetDoc, columnIds?: string[]) {
+  const ordered = [...doc.columns].sort((a, b) => (a.order < b.order ? -1 : 1))
+  if (!columnIds || columnIds.length === 0) return ordered
+  const wanted = new Set(columnIds)
+  const kept = ordered.filter((c) => wanted.has(c.id))
+  // An empty or stale selection would render a table with no columns at all.
+  return kept.length ? kept : ordered
+}
+
+/**
+ * The aligned grid, shared by the clipboard and the mail draft.
+ *
+ * Both used to build their own layout, which is how they drifted apart: one
+ * padded by string length and the other gave up on columns entirely. There is
+ * one grid now, and `layoutTable` owns every offset in it.
+ */
+export function buildGrid(doc: SheetDoc, options: ExportOptions = {}): string[] {
+  const cols = chosenColumns(doc, options.columnIds)
   const rows = liveRows(doc)
-  const cols = doc.columns
+  const totals = computeTotals(doc)
 
-  const clip = (s: string) => (s.length > MAX_COL_WIDTH ? `${s.slice(0, MAX_COL_WIDTH - 1)}…` : s)
-  const grid = [
-    cols.map((c) => clip(c.name)),
-    ...rows.map((r) => cols.map((c) => clip(cellText(doc, r.id, c.id) || BLANK))),
-  ]
-  const widths = cols.map((_, i) => Math.max(...grid.map((r) => (r[i] ?? '').length)))
-  const numericCol = cols.map((c) => c.kind === 'amount' || c.kind === 'number')
+  const columns: TextColumn[] = cols.map((col) => {
+    const numeric = col.kind === 'amount' || col.kind === 'number'
+    return {
+      header: col.name,
+      align: numeric ? 'right' : 'left',
+      // A wrapped number is not a number, so money and counts keep their width.
+      noWrap: numeric,
+      cells: rows.map((r) => cellText(doc, r.id, col.id) || BLANK),
+    }
+  })
 
-  const line = (cells: string[]) =>
-    cells.map((cell, i) => (numericCol[i] ? cell.padStart(widths[i]) : cell.padEnd(widths[i]))).join(GAP).trimEnd()
-
-  const rule = widths.map((w) => '-'.repeat(w)).join(GAP)
-  const footer = cols.map((c, i) =>
-    c.kind === 'amount' ? formatINR(totals.total, { symbol: false }) : i === 1 ? 'TOTAL' : '',
+  // The total sits under the money, and the word "TOTAL" under the first text
+  // column so it has something to read against.
+  const firstText = cols.findIndex((c) => c.kind !== 'amount' && c.kind !== 'number')
+  const footer = cols.map((col, i) =>
+    col.kind === 'amount'
+      ? formatINR(totals.byColumn[col.id] ?? totals.total, { symbol: false })
+      : i === firstText
+        ? 'TOTAL'
+        : '',
   )
 
+  return layoutTable(columns, { maxWidth: options.maxWidth ?? 72, gap: 2, footer })
+}
+
+/** The header block every export carries: name, period, count, total. */
+function summaryLines(doc: SheetDoc): string[] {
+  const totals = computeTotals(doc)
+  const period = periodText(doc)
   return [
-    title,
-    '='.repeat(Math.min(title.length, 60)),
-    ...lines,
-    '',
-    line(grid[0]),
-    rule,
-    ...grid.slice(1).map(line),
-    rule,
-    line(footer),
-  ].join('\n')
+    ...(period ? [`Period: ${period}`] : []),
+    `Rows: ${totals.count}`,
+    `Total: ${formatINR(totals.total)}`,
+  ]
+}
+
+/** What "Copy" puts on the clipboard: the summary, then the grid. */
+export function toPlainText(doc: SheetDoc, options: ExportOptions = {}): string {
+  const grid = buildGrid(doc, options)
+  return [doc.name, '='.repeat(Math.min(Math.max(1, displayWidth(doc.name)), 60)), ...summaryLines(doc), '', ...grid].join('\n')
 }
 
 /**
  * The mail draft.
  *
- * Deliberately *not* the aligned grid. A mailto: body is plain text, and every
- * mail client renders plain text in a proportional font, so padded spaces line
- * nothing up: the columns fan out and the amounts stop sitting under each
- * other, which is exactly how the old draft came out.
- *
- * So the table is turned on its side. One block per row, the title first, the
- * amount on its own line beneath it, then only the fields that actually hold
- * something, each labelled. That reads correctly in any font at any width,
- * wraps without losing which value belongs to which label, and drops the row of
- * placeholder dashes that made up half the old body.
+ * Same grid as the clipboard, at a width a mail client will not fold. The
+ * caller picks the columns: a file with a receipt column and three custom
+ * fields does not want all of them in a mail to an accountant, and a table that
+ * is too wide is the one thing that reliably destroys the alignment, because
+ * the client re-wraps it wherever it likes.
  */
-export function toEmail(doc: SheetDoc): { subject: string; body: string } {
-  const { title, totals } = header(doc)
-  const rows = liveRows(doc)
-  const cols = doc.columns
+export function toEmail(doc: SheetDoc, options: ExportOptions = {}): { subject: string; body: string } {
   const period = periodText(doc)
-
-  const amountCol = cols.find((c) => c.kind === 'amount')
-  const titleCol = cols.find((c) => c.kind === 'text' && c.system) ?? cols.find((c) => c.id !== amountCol?.id)
-  const extras = cols.filter((c) => c.id !== amountCol?.id && c.id !== titleCol?.id)
-
-  const blocks = rows.map((row, i) => {
-    const name = (titleCol && cellText(doc, row.id, titleCol.id)) || 'Untitled'
-    const lines = [`${i + 1}. ${name}`]
-    if (amountCol) lines.push(`   ${formatINR(numeric(row.cells[amountCol.id]))}`)
-    for (const col of extras) {
-      const value = cellText(doc, row.id, col.id)
-      if (value) lines.push(`   ${col.name}: ${value}`)
-    }
-    return lines.join('\n')
-  })
-
-  const summary = [
-    period ? `Period: ${period}` : null,
-    `Rows: ${totals.count}`,
-    `Total: ${formatINR(totals.total)}`,
-  ].filter(Boolean) as string[]
+  const grid = buildGrid(doc, { ...options, maxWidth: options.maxWidth ?? 72 })
 
   const body = [
-    title,
+    doc.name,
     '',
-    ...summary,
+    ...summaryLines(doc),
     '',
-    ...(blocks.length ? [blocks.join('\n\n'), ''] : ['No rows yet.', '']),
-    `Total: ${formatINR(totals.total)} across ${totals.count} row${totals.count === 1 ? '' : 's'}`,
+    ...(grid.length ? grid : ['No rows yet.']),
     '',
     'made from HisaabKitaab',
   ].join('\n')
 
-  return { subject: `${title}${period ? ` (${period})` : ''}`, body }
+  return { subject: `${doc.name}${period ? ` (${period})` : ''}`, body }
 }
 
 /** Self-contained HTML for the print-to-PDF path. No PDF library shipped to the client. */

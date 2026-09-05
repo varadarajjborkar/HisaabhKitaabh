@@ -104,6 +104,9 @@ export const Icon = {
       <circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none" />
     </svg>
   ),
+  Columns: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15M15 4.5v15" /></svg>
+  ),
   Calendar: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" /></svg>
   ),

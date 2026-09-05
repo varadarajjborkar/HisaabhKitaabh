@@ -7,7 +7,7 @@ import { Icon } from '../ui/Icons'
 import { formatINR } from '@/lib/util/format'
 import { numeric } from '@/lib/crdt/doc'
 import type { SheetApi } from '@/lib/client/useSheet'
-import { ColumnMenu, NewColumnButton } from './ColumnMenu'
+import { ColumnMenu, ColumnsModal, NewColumnButton } from './ColumnMenu'
 import { dropEdge, useDragReorder } from '@/lib/client/useDragReorder'
 
 /**
@@ -237,6 +237,7 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
   const titleCol = columns.find((c) => c.kind === 'text' && c.system)
   const rest = columns.filter((c) => c.id !== amountCol?.id && c.id !== titleCol?.id)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [columnsOpen, setColumnsOpen] = useState(false)
   const drag = useDragReorder((from, to) => actions.moveRow(rows[from].id, to))
 
   const toggleExpand = (id: string) =>
@@ -246,52 +247,72 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
       return next
     })
 
+  /**
+   * One line summarising the fields that are folded away.
+   *
+   * The collapsed card used to say "3 more fields", which is a count of things
+   * you cannot see rather than a look at them. Showing the values themselves
+   * means most rows never need expanding at all, and the chevron is there for
+   * the ones that do.
+   */
+  const restSummary = (row: Row) =>
+    rest
+      .map((col) => {
+        const v = row.cells[col.id]
+        if (v == null || v === '') return null
+        if (Array.isArray(v)) return v.length ? `${v.length} file${v.length === 1 ? '' : 's'}` : null
+        return String(v)
+      })
+      .filter(Boolean)
+      .join(' · ')
+
   return (
     <div className="md:hidden">
       <div className="space-y-2" ref={(el) => { drag.containerRef.current = el }}>
         {rows.map((row, index) => {
           const open = expanded.has(row.id)
           const edge = dropEdge(drag, index, rows.length)
+          const summary = restSummary(row)
           return (
             <div
               key={row.id}
               data-drag-index={index}
-              className={`card px-2 py-2.5 animate-row-in transition-colors
+              className={`card px-2 py-2 animate-row-in transition-colors
                           ${selected.has(row.id) ? 'border-accent/50 bg-accent-soft/40' : ''}
                           ${highlighted.has(row.id) ? 'flash-change' : ''}
                           ${drag.from === index ? 'dragging-row' : ''}
                           ${edge === 'above' ? 'drop-line-above' : edge === 'below' ? 'drop-line-below' : ''}`}
             >
-              <div className="flex items-start gap-1.5">
+              <div className="flex items-center gap-1">
                 <span
                   {...drag.handleProps(index)}
                   role="button"
                   tabIndex={-1}
                   aria-label={`Reorder row ${index + 1}`}
-                  className="h-9 w-6 grid place-items-center rounded text-faint active:text-accent active:bg-raised shrink-0 select-none"
+                  className="h-11 w-6 grid place-items-center rounded text-faint active:text-accent active:bg-raised shrink-0 select-none"
                 >
-                  <Icon.Grip size={15} />
+                  <Icon.Grip size={16} />
                 </span>
 
                 <input
                   type="checkbox"
                   checked={selected.has(row.id)}
                   onChange={() => toggle(row.id)}
-                  className="accent-accent w-4 h-4 mt-2.5 shrink-0"
-                  aria-label="Select row"
+                  className="accent-accent w-[18px] h-[18px] shrink-0 mr-1"
+                  aria-label={`Select row ${index + 1}`}
                 />
 
                 <div className="min-w-0 flex-1">
                   {titleCol && (
                     <Cell column={titleCol} value={row.cells[titleCol.id] ?? null} rowId={row.id} fileId={doc.id}
-                          onChange={(v) => actions.setCell(row.id, titleCol.id, v)} />
+                          size="lg" onChange={(v) => actions.setCell(row.id, titleCol.id, v)} />
                   )}
                 </div>
 
                 {amountCol && (
-                  <div className="w-[98px] shrink-0">
+                  <div className="w-[104px] shrink-0">
                     <Cell column={amountCol} value={row.cells[amountCol.id] ?? null} rowId={row.id} fileId={doc.id}
-                          onChange={(v) => actions.setCell(row.id, amountCol.id, v)} />
+                          size="lg" onChange={(v) => actions.setCell(row.id, amountCol.id, v)} />
                   </div>
                 )}
               </div>
@@ -300,30 +321,39 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
                 <>
                   <button
                     onClick={() => toggleExpand(row.id)}
-                    className="text-[11.5px] text-faint hover:text-muted mt-1 ml-8 flex items-center gap-1 transition-colors"
+                    className="w-full flex items-center gap-1.5 pl-8 pr-1 py-2.5 min-h-[38px] rounded
+                               text-left active:bg-raised transition-colors"
                     aria-expanded={open}
                   >
-                    <Icon.Down size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-                    {open ? 'Fewer fields' : `${rest.length} more field${rest.length === 1 ? '' : 's'}`}
+                    <span className={`text-[12px] flex-1 min-w-0 truncate ${summary ? 'text-muted' : 'text-faint'}`}>
+                      {open ? 'Hide fields' : summary || `Add ${rest.map((c) => c.name.toLowerCase()).slice(0, 2).join(', ')}`}
+                    </span>
+                    <Icon.Down size={14} className={`text-faint shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
                   </button>
 
                   {open && (
-                    <div className="mt-2 ml-8 space-y-2 animate-rise">
+                    <div className="mt-1 ml-8 mr-1 space-y-2 animate-rise">
                       {rest.map((col) => (
-                        <div key={col.id} className="flex items-center gap-2">
-                          <span className="text-[11.5px] text-muted w-[86px] shrink-0 truncate">{col.name}</span>
-                          <div className="flex-1 min-w-0">
-                            <Cell column={col} value={row.cells[col.id] ?? null} rowId={row.id} fileId={doc.id}
-                                  onChange={(v) => actions.setCell(row.id, col.id, v)} />
-                          </div>
+                        <div key={col.id}>
+                          <span className="block text-[11px] font-medium text-muted mb-0.5">{col.name}</span>
+                          <Cell column={col} value={row.cells[col.id] ?? null} rowId={row.id} fileId={doc.id}
+                                size="lg" variant="field" onChange={(v) => actions.setCell(row.id, col.id, v)} />
                         </div>
                       ))}
-                      <button
-                        onClick={() => actions.deleteRows([row.id])}
-                        className="text-[11.5px] text-bad flex items-center gap-1.5 pt-0.5"
-                      >
-                        <Icon.Trash size={13} /> Delete this row
-                      </button>
+                      <div className="flex items-center gap-3 pt-1">
+                        <button
+                          onClick={() => setColumnsOpen(true)}
+                          className="h-9 -ml-1.5 px-1.5 rounded text-[12px] text-accent flex items-center gap-1.5 active:bg-accent-soft"
+                        >
+                          <Icon.Plus size={14} /> Add a column
+                        </button>
+                        <button
+                          onClick={() => actions.deleteRows([row.id])}
+                          className="h-9 -mr-1.5 px-1.5 rounded text-[12px] text-bad flex items-center gap-1.5 ml-auto active:bg-bad/10"
+                        >
+                          <Icon.Trash size={14} /> Delete row
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
@@ -335,20 +365,24 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
 
       {rows.length === 0 && (
         <div className="card p-8 text-center">
-          <p className="text-[13px] text-faint">No rows yet.</p>
+          <Icon.File size={22} className="mx-auto text-faint" />
+          <p className="text-[13px] font-medium mt-2.5">No rows yet</p>
+          <p className="text-[12px] text-muted mt-1">An amount and a title is all a row needs.</p>
         </div>
       )}
 
-      <button onClick={() => actions.addRow()} className="btn-outline w-full h-11 mt-2 pressable">
-        <Icon.Plus size={16} /> Add row
+      <button onClick={() => actions.addRow()} className="btn-primary w-full h-12 mt-2.5 text-[14px] pressable">
+        <Icon.Plus size={17} /> Add row
       </button>
 
       {rows.length > 0 && (
-        <div className="card px-3 py-2.5 mt-2 flex items-center justify-between">
-          <span className="text-[12px] text-muted">{rows.length} row{rows.length === 1 ? '' : 's'}</span>
-          <span className="text-[15px] font-semibold tnum">{formatINR(totals.total)}</span>
+        <div className="card px-3.5 py-3 mt-2.5 flex items-center justify-between">
+          <span className="text-[12.5px] text-muted">{rows.length} row{rows.length === 1 ? '' : 's'}</span>
+          <span className="text-[17px] font-semibold tnum">{formatINR(totals.total)}</span>
         </div>
       )}
+
+      <ColumnsModal open={columnsOpen} onClose={() => setColumnsOpen(false)} sheet={sheet} />
     </div>
   )
 }

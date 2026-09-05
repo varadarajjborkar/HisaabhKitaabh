@@ -39,6 +39,14 @@ export type RunState = {
   skillNames: string[]
   toolCallsUsed: number
   budget: number
+  /**
+   * Every tool call already made this run, keyed by name plus arguments, with
+   * a one-line record of how it went. Repeats are answered from here instead
+   * of being run again.
+   */
+  callLog?: Record<string, string>
+  /** Consecutive failures, reset by any success. */
+  failures?: number
   pending?: PendingAction
   assistantText: string
 }
@@ -72,6 +80,7 @@ export async function dropRun(userId: string, runId: string): Promise<void> {
 /** Friendly label for the "working…" line in the transcript. */
 const TOOL_LABELS: Record<string, string> = {
   get_file: 'Reading the file',
+  list_columns: 'Checking the columns',
   list_files: 'Looking through your files',
   list_folders: 'Looking through your folders',
   query_rows: 'Searching rows',
@@ -85,6 +94,12 @@ const TOOL_LABELS: Record<string, string> = {
   delete_rows: 'Preparing deletions',
   add_column: 'Preparing a new column',
   set_period: 'Setting the period',
+  rename_column: 'Preparing a rename',
+  delete_column: 'Preparing to remove a column',
+  rename_file: 'Preparing to rename the file',
+  create_file: 'Preparing a new file',
+  create_folder: 'Preparing a new folder',
+  ask_user: 'Asking you',
 }
 
 // -------------------------------------------------------------------- start
@@ -150,6 +165,8 @@ export async function startRun(params: {
     skillNames: skills.map((s) => s.name),
     toolCallsUsed: 0,
     budget: toolBudget(skills),
+    callLog: {},
+    failures: 0,
     assistantText: '',
   }
 
@@ -327,7 +344,6 @@ async function* runLoop(
           })
           break
         }
-        state.toolCallsUsed++
 
         const tool = TOOL_MAP.get(call.function.name)
         if (!tool) {
@@ -335,6 +351,31 @@ async function* runLoop(
           continue
         }
 
+        /*
+         * Repeat suppression.
+         *
+         * A model that hits an error it cannot interpret will often try the
+         * identical call again, then a neighbouring one, then the first again:
+         * the transcript fills with "looking through your files" while nothing
+         * changes. Read tools are pure within a turn, so an identical call has
+         * an identical answer, and the honest reply is the one already given
+         * plus a nudge to do something different. Write tools are excluded:
+         * "add the same two rows again" is a legitimate thing to ask for.
+         */
+        const signature = `${tool.name}:${stableArgs(call.function.arguments)}`
+        const previous = tool.mode === 'read' ? state.callLog?.[signature] : undefined
+        if (previous) {
+          yield { type: 'tool_start', name: tool.name, label: TOOL_LABELS[tool.name] ?? tool.name.replace(/_/g, ' ') }
+          yield { type: 'tool_result', name: tool.name, ok: true, summary: 'already answered' }
+          state.messages.push({
+            role: 'tool',
+            content: `You already called ${tool.name} with these arguments in this turn. The answer was: ${previous} Use it. Calling it again will not change anything - either act on what you have, ask the user, or say what is blocking you.`,
+            tool_name: tool.name,
+          })
+          continue
+        }
+
+        state.toolCallsUsed++
         yield { type: 'tool_start', name: tool.name, label: TOOL_LABELS[tool.name] ?? tool.name.replace(/_/g, ' ') }
 
         let result
@@ -343,15 +384,19 @@ async function* runLoop(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           yield { type: 'tool_result', name: tool.name, ok: false, summary: message }
-          state.messages.push({ role: 'tool', content: `Error: ${message}`, tool_name: tool.name })
+          state.messages.push({ role: 'tool', content: noteFailure(state, signature, `Error: ${message}`), tool_name: tool.name })
+          if (tooManyFailures(state)) break
           continue
         }
 
         if (result.kind === 'error') {
           yield { type: 'tool_result', name: tool.name, ok: false, summary: result.message }
-          state.messages.push({ role: 'tool', content: `Could not do that: ${result.message}`, tool_name: tool.name })
+          state.messages.push({ role: 'tool', content: noteFailure(state, signature, `Could not do that: ${result.message}`), tool_name: tool.name })
+          if (tooManyFailures(state)) break
           continue
         }
+
+        state.failures = 0
 
         if (result.kind === 'ask') {
           state.pending = undefined
@@ -364,7 +409,9 @@ async function* runLoop(
 
         if (result.kind === 'data') {
           const payload = JSON.stringify(result.data)
-          yield { type: 'tool_result', name: tool.name, ok: true, summary: summarise(tool.name, result.data) }
+          const digest = summarise(tool.name, result.data)
+          state.callLog = { ...(state.callLog ?? {}), [signature]: digest }
+          yield { type: 'tool_result', name: tool.name, ok: true, summary: digest }
           state.messages.push({
             role: 'tool',
             // Cap the payload: a huge tool result crowds out the conversation
@@ -415,6 +462,43 @@ async function* runLoop(
     yield { type: 'error', message, fatal }
     yield { type: 'done', reason: 'error' }
   }
+}
+
+/**
+ * A stable key for a set of arguments.
+ *
+ * `JSON.stringify` orders keys by insertion, so the same call arriving with its
+ * fields in a different order would look like a different call and slip past
+ * the repeat check. Sorting makes the signature depend on the arguments rather
+ * than on how the model happened to emit them.
+ */
+function stableArgs(args: unknown): string {
+  if (args == null || typeof args !== 'object') return String(args ?? '')
+  const entries = Object.entries(args as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1))
+  return JSON.stringify(entries)
+}
+
+const MAX_CONSECUTIVE_FAILURES = 3
+
+function noteFailure(state: RunState, signature: string, message: string): string {
+  state.failures = (state.failures ?? 0) + 1
+  state.callLog = { ...(state.callLog ?? {}), [signature]: message }
+  if ((state.failures ?? 0) >= MAX_CONSECUTIVE_FAILURES) {
+    return `${message}\n\nThat is ${state.failures} tool calls in a row that failed. Stop calling tools. Tell the user what you were trying to do and what went wrong, in one or two sentences.`
+  }
+  return message
+}
+
+/**
+ * Give up on tools after a run of failures.
+ *
+ * Without this, a model that has lost the thread keeps calling into the same
+ * wall until the budget runs out, and the user watches a column of warning
+ * triangles accumulate for twenty seconds before getting an answer. Three
+ * strikes and the turn goes back to producing text.
+ */
+function tooManyFailures(state: RunState): boolean {
+  return (state.failures ?? 0) >= MAX_CONSECUTIVE_FAILURES
 }
 
 const WRITE_TOOL_NAMES = [

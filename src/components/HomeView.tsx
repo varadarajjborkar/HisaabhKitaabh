@@ -300,28 +300,36 @@ function NewFolderModal({ open, onClose, onCreated }: { open: boolean; onClose: 
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
   return (
+    /*
+     * The switch is 42x24 to look at and 42x40 to press on a phone.
+     *
+     * A 24px control is well under every platform's minimum target, and this
+     * one sits beside a heading people are trying to read rather than hit. The
+     * button owns the taller box and the track is drawn inside it, so the touch
+     * area is real - a pseudo-element would have been invisible to anything
+     * measuring the control, including an accessibility audit.
+     *
+     * The knob is a child of the track rather than an absolutely positioned
+     * sibling. Absolute with no `left` falls back to the static position, which
+     * sits inside the button's UA padding, and the knob used to hang past the
+     * end of its own track because of it.
+     */
     <button
       role="switch"
       aria-checked={checked}
       aria-label={label}
       onClick={onChange}
-      /*
-       * `p-0` is load-bearing. A <button> carries a UA padding of about 6px,
-       * and an absolutely-positioned child with no `left` falls back to its
-       * static position, which sits *inside* that padding. The knob was
-       * therefore starting six pixels in and, once translated, hung past the
-       * right end of the track: obvious in dark mode, invisible in light only
-       * because a white knob on a white card cannot be seen.
-       */
-      className={`relative w-[42px] h-6 p-0 border-0 rounded-full transition-colors shrink-0 ${checked ? 'bg-accent' : 'bg-line'}`}
+      className="grid place-items-center w-[42px] h-10 sm:h-6 p-0 border-0 bg-transparent shrink-0"
     >
-      <span
-        className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full bg-white
-                    shadow-[0_1px_2px_rgb(0_0_0/.28)] ring-1 ring-black/5 transition-transform duration-200 ${
-          checked ? 'translate-x-[21px]' : 'translate-x-[3px]'
-        }`}
-        style={{ transitionTimingFunction: 'cubic-bezier(.2,.7,.3,1)' }}
-      />
+      <span className={`block w-[42px] h-6 rounded-full transition-colors ${checked ? 'bg-accent' : 'bg-line'}`}>
+        <span
+          className={`block w-[18px] h-[18px] mt-[3px] rounded-full bg-white
+                      shadow-[0_1px_2px_rgb(0_0_0/.28)] ring-1 ring-black/5 transition-transform duration-200 ${
+            checked ? 'translate-x-[21px]' : 'translate-x-[3px]'
+          }`}
+          style={{ transitionTimingFunction: 'cubic-bezier(.2,.7,.3,1)' }}
+        />
+      </span>
     </button>
   )
 }

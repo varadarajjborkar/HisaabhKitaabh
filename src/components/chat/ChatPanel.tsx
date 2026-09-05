@@ -30,6 +30,7 @@ export function ChatPanel({
   suggestions,
   compact = false,
   onClose,
+  subtitle,
   incoming,
   onIncomingConsumed,
 }: {
@@ -39,6 +40,8 @@ export function ChatPanel({
   compact?: boolean
   /** Present when the panel is an overlay that can be dismissed. */
   onClose?: () => void
+  /** What the assistant is looking at, shown when it fills the screen. */
+  subtitle?: string
   /** Files dropped on a surface outside the panel, handed over to attach. */
   incoming?: File[] | null
   onIncomingConsumed?: () => void
@@ -145,21 +148,49 @@ export function ChatPanel({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className="flex items-center gap-1.5 px-3 h-11 border-b border-line shrink-0">
-        <Icon.Sparkle size={15} className="text-accent shrink-0" />
-        <span className="text-[12.5px] font-medium">Assistant</span>
-        <div className="ml-auto flex items-center gap-0.5">
+      {/*
+        * The header is a phone app bar below `sm` and a panel header above it.
+        * On a phone the assistant fills the screen, so leaving is a back arrow
+        * on the left where a thumb expects it, not an X in the far corner.
+        */}
+      <div className="flex items-center gap-1 px-2 sm:px-3 h-[52px] sm:h-11 border-b border-line shrink-0">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="sm:hidden h-10 w-10 grid place-items-center rounded-lg text-muted active:bg-raised transition-colors shrink-0"
+            aria-label="Close assistant"
+          >
+            <Icon.Back size={20} />
+          </button>
+        )}
+        <Icon.Sparkle size={15} className="text-accent shrink-0 hidden sm:block" />
+        <div className="min-w-0">
+          <p className="text-[14px] sm:text-[12.5px] font-medium truncate leading-tight">Assistant</p>
+          {subtitle && (
+            <p className="sm:hidden text-[11.5px] text-muted truncate leading-tight mt-0.5">{subtitle}</p>
+          )}
+        </div>
+
+        <div className="ml-auto flex items-center gap-0.5 shrink-0">
           <button
             onClick={() => void loadThreads()}
-            className="btn-ghost h-7 px-2 text-[11.5px] gap-1.5 pressable"
+            className="btn-ghost h-10 w-10 sm:h-7 sm:w-auto px-0 sm:px-2 text-[11.5px] gap-1.5 pressable"
             title="Recent conversations"
+            aria-label="Recent conversations"
           >
-            <Icon.History size={13} />
+            <Icon.History size={17} className="sm:hidden" />
+            <Icon.History size={13} className="hidden sm:block" />
             <span className="hidden sm:inline">Recent</span>
           </button>
           {hasConversation && (
-            <button onClick={chat.reset} className="btn-ghost h-7 px-2 text-[11.5px] gap-1.5 pressable" title="Start a new conversation">
-              <Icon.Plus size={13} />
+            <button
+              onClick={chat.reset}
+              className="btn-ghost h-10 w-10 sm:h-7 sm:w-auto px-0 sm:px-2 text-[11.5px] gap-1.5 pressable"
+              title="Start a new conversation"
+              aria-label="Start a new conversation"
+            >
+              <Icon.Plus size={19} className="sm:hidden" />
+              <Icon.Plus size={13} className="hidden sm:block" />
               <span className="hidden sm:inline">New</span>
             </button>
           )}
@@ -169,7 +200,7 @@ export function ChatPanel({
           {onClose && (
             <button
               onClick={onClose}
-              className="h-7 w-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-raised transition-colors ml-0.5"
+              className="hidden sm:grid h-7 w-7 place-items-center rounded-md text-faint hover:text-ink hover:bg-raised transition-colors ml-0.5"
               aria-label="Close assistant"
             >
               <Icon.Close size={15} />
@@ -178,7 +209,14 @@ export function ChatPanel({
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 scroller px-3 py-3.5 space-y-2.5 min-h-0">
+      {/* An empty conversation centres itself rather than clinging to the top
+          of a full-height phone screen with six hundred pixels below it. */}
+      <div
+        ref={scrollRef}
+        className={`flex-1 scroller px-3 py-3.5 min-h-0 ${
+          hasConversation ? 'space-y-3 sm:space-y-2.5' : 'flex flex-col justify-center sm:block'
+        }`}
+      >
         {!hasConversation && <Welcome scope={scope} suggestions={suggestions} onPick={(s) => void chat.send(s)} compact={compact} />}
 
         {chat.turns.map((turn) => {
@@ -186,8 +224,8 @@ export function ChatPanel({
             case 'user':
               return (
                 <div key={turn.id} className="flex justify-end animate-slide-l">
-                  <div className="bg-accent text-white rounded-xl2 rounded-br-md px-3 py-2 max-w-[85%]">
-                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{turn.text}</p>
+                  <div className="bg-accent text-white rounded-xl2 rounded-br-md px-3.5 py-2.5 sm:px-3 sm:py-2 max-w-[85%]">
+                    <p className="text-[14.5px] sm:text-[13px] leading-relaxed whitespace-pre-wrap break-words">{turn.text}</p>
                     {turn.attachments && turn.attachments.length > 0 && (
                       <p className="text-[11px] opacity-80 mt-1.5 flex items-center gap-1">
                         <Icon.Attach size={11} /> {turn.attachments.join(', ')}
@@ -200,7 +238,7 @@ export function ChatPanel({
             case 'assistant':
               return (
                 <div key={turn.id} className="animate-slide-r">
-                  <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                  <div className="text-[14.5px] sm:text-[13px] leading-relaxed whitespace-pre-wrap break-words">
                     {turn.thinking && !turn.text ? (
                       <span className="text-faint text-[12.5px] animate-pulse-soft">Thinking…</span>
                     ) : (
@@ -285,7 +323,7 @@ export function ChatPanel({
         })}
       </div>
 
-      <div className="border-t border-line p-2.5 shrink-0 bg-surface">
+      <div className="border-t border-line p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-2.5 shrink-0 bg-surface">
         {chat.attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2 animate-rise">
             {chat.attachments.map((a) => (
@@ -308,11 +346,12 @@ export function ChatPanel({
         <div className="flex items-end gap-1.5">
           <button
             onClick={() => fileRef.current?.click()}
-            className="btn-ghost h-9 w-9 px-0 shrink-0 pressable"
+            className="btn-ghost h-11 w-11 sm:h-9 sm:w-9 px-0 shrink-0 pressable"
             title="Attach a receipt, CSV or screenshot, or drop one anywhere here"
             aria-label="Attach a file"
           >
-            <Icon.Attach size={17} />
+            <Icon.Attach size={19} className="sm:hidden" />
+            <Icon.Attach size={17} className="hidden sm:block" />
           </button>
           <input
             ref={fileRef}
@@ -339,17 +378,20 @@ export function ChatPanel({
             }}
             rows={1}
             placeholder={scope.fileId ? 'Ask, or add a row…' : 'Ask about your files…'}
-            className="input h-9 min-h-9 py-2 resize-none text-[13px] leading-snug"
+            /* 16px on a phone: anything smaller and iOS Safari zooms the page
+               the moment the field takes focus, and the layout never comes back. */
+            className="input h-11 min-h-11 sm:h-9 sm:min-h-9 py-2.5 sm:py-2 resize-none text-[16px] sm:text-[13px] leading-snug"
             disabled={chat.busy}
           />
 
           <button
             onClick={submit}
             disabled={!input.trim() || chat.busy}
-            className="btn-primary h-9 w-9 px-0 shrink-0 pressable"
+            className="btn-primary h-11 w-11 sm:h-9 sm:w-9 px-0 shrink-0 pressable"
             aria-label="Send"
           >
-            {chat.busy ? <Icon.Spinner /> : <Icon.Chevron size={17} />}
+            {chat.busy ? <Icon.Spinner /> : <Icon.Chevron size={19} className="sm:hidden" />}
+            {!chat.busy && <Icon.Chevron size={17} className="hidden sm:block" />}
           </button>
         </div>
       </div>
@@ -386,19 +428,32 @@ function Welcome({ scope, suggestions, onPick, compact }: { scope: ChatScope; su
   const list = suggestions ?? defaults
 
   return (
-    <div className={`text-center ${compact ? 'py-6' : 'py-10'} animate-rise`}>
-      <Icon.Sparkle size={22} className="mx-auto text-faint" />
-      <p className="text-[13px] font-medium mt-2.5">Ask, or tell it what to change</p>
-      <p className="text-[12px] text-muted mt-1.5 max-w-[260px] mx-auto leading-relaxed">
-        It reads your data freely. Anything that writes waits for your approval first.
-      </p>
-      <div className="flex flex-col gap-1.5 mt-4 max-w-[300px] mx-auto">
+    <div className={`${compact ? 'py-5 sm:py-6' : 'py-8 sm:py-10'} animate-rise`}>
+      <div className="text-center">
+        <Icon.Sparkle size={24} className="mx-auto text-faint" />
+        <p className="text-[15px] sm:text-[13px] font-medium mt-2.5">Ask, or tell it what to change</p>
+        <p className="text-[13px] sm:text-[12px] text-muted mt-1.5 max-w-[280px] mx-auto leading-relaxed">
+          It reads your data freely. Anything that writes waits for your approval first.
+        </p>
+      </div>
+
+      {/*
+        * Sideways on a phone, stacked on desktop.
+        *
+        * Three full-width suggestion cards ate a third of a phone screen, and
+        * the third one sat under the keyboard the moment anyone tapped the
+        * composer. As a scrolling row they cost one line and stay reachable.
+        */}
+      <div className="mt-4 -mx-3 px-3 flex gap-2 overflow-x-auto sm:mx-0 sm:px-0 sm:flex-col sm:overflow-visible
+                      [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {list.map((s) => (
           <button
             key={s}
             onClick={() => onPick(s)}
-            className="text-left text-[12.5px] px-3 py-2 rounded-lg border border-line text-muted
+            className="shrink-0 sm:shrink text-left text-[13px] sm:text-[12.5px] px-3.5 py-2.5 sm:py-2 rounded-full sm:rounded-lg
+                       border border-line text-muted bg-surface max-w-[80%] sm:max-w-none truncate sm:whitespace-normal
                        hover:bg-raised hover:text-ink hover:border-faint transition-colors pressable"
+            title={s}
           >
             {s}
           </button>

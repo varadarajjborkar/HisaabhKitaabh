@@ -58,7 +58,7 @@ export function DurationBar({ duration, onChange }: { duration: Duration; onChan
                 <button
                   key={m}
                   onClick={() => set({ mode: m, from: undefined, to: undefined })}
-                  className={`h-7 rounded-md text-[11.5px] font-medium transition-colors ${
+                  className={`h-9 sm:h-7 rounded-md text-[12px] sm:text-[11.5px] font-medium transition-colors ${
                     duration.mode === m
                       ? 'bg-surface text-accent border border-line shadow-sm'
                       : 'text-muted hover:text-ink border border-transparent'
@@ -101,7 +101,8 @@ export function DurationBar({ duration, onChange }: { duration: Duration; onChan
               <p className="text-[11.5px] text-muted flex-1 min-w-0 truncate">{summary}</p>
               <button
                 onClick={() => set({ from: undefined, to: undefined })}
-                className="text-[11px] text-faint hover:text-ink transition-colors shrink-0"
+                className="h-8 sm:h-auto px-2 sm:px-0 -mr-2 sm:mr-0 text-[11.5px] sm:text-[11px]
+                           text-faint hover:text-ink transition-colors shrink-0"
               >
                 Clear
               </button>

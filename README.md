@@ -26,10 +26,9 @@ Folder  →  File  →  Rows
   attachment cell to upload it; drop a statement on a folder and it goes to the
   assistant, which proposes rows for your approval rather than importing
   silently.
-- **Save, discard, PDF, CSV, copy, mail** - all client-side and instant. Copy
-  gives you an aligned grid for a monospaced destination; the mail draft is one
-  labelled block per row, because plain-text mail renders in a proportional
-  font and a padded grid falls apart there.
+- **Save, discard, PDF, CSV, copy, mail** - all client-side and instant. Mail
+  opens a dialog: pick the columns, watch the grid redraw, then open the draft.
+  Copy puts the same grid on the clipboard at a wider budget.
 - **Light, dark, or follow the system**, from the account menu. The choice is
   stamped before first paint, so a dark-theme user never sees a white flash.
 - **An assistant** in the folder view and beside the sheet. It reads freely;
@@ -38,9 +37,12 @@ Folder  →  File  →  Rows
   folders and files you choose.
 - **A calculator** you can drag anywhere on screen, with AC and CE as separate
   keys. Desktop only: every phone ships one already.
-- **Works on a phone.** The mobile layout is its own design, not a squeezed
-  desktop - rows become cards, the assistant becomes a sheet, and the ledger
-  comes before the summary rail rather than under it.
+- **Works on a phone**, and the phone layout is its own design rather than a
+  squeezed desktop. Rows are cards with the fields that hold something shown on
+  the face of them; columns are managed from a sheet, because the table header
+  the "+" used to live in does not exist here; the file actions collapse into
+  one menu instead of scrolling off the right edge; and the assistant takes the
+  whole screen with a back arrow rather than peering out of the bottom third.
 
 ## Running it
 
@@ -66,14 +68,14 @@ npm test                       # all four suites
 npm run test:engine            # or one at a time
 ```
 
-125 tests in four layers:
+144 tests in four layers:
 
 | Suite | Tests | What it exercises |
 |---|---|---|
-| `test:engine` | 44 | The document engine in-process - ordering, merge, idempotency, the revision gate, undo, totals, export rendering |
+| `test:engine` | 53 | The document engine in-process - ordering, merge, idempotency, the revision gate, undo, totals, and the text grid every export is laid out on |
 | `test:e2e` | 30 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal |
-| `test:chat` | 16 | The assistant against the live model and the live write path |
-| `test:ui` | 35 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the phone layout |
+| `test:chat` | 20 | The assistant against the live model and the live write path, including where its instructions are allowed to come from |
+| `test:ui` | 41 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, and the phone layout down to its tap targets |
 
 Each layer exists because it caught something the one below it structurally
 could not. See [tests/README.md](tests/README.md).
@@ -207,6 +209,64 @@ Model defaults are pinned to what a free Ollama Cloud key can reach:
 `gpt-oss:120b` (chat), `gpt-oss:20b` (fast), `gemma4:31b` (vision + extraction -
 the only image-capable model available, and the most faithful to nested
 schemas).
+
+---
+
+## The text grid
+
+Exports are the one place a layout bug is permanent: the mail is sent, the
+paste is in someone else's document. So both the mail draft and the clipboard
+copy go through one layouter, and "the columns line up" is an invariant it
+enforces rather than an effect it hopes for.
+
+Three things break the naive `padEnd` version, and all three are handled:
+
+- **Width is not length.** A CJK ideograph occupies two character cells, a
+  combining accent occupies none, and an emoji with a variation selector is one
+  glyph made of several code points. Padding by `.length` puts every column
+  after it at a different offset on that row alone.
+- **Long values have to go somewhere.** Truncating loses data; letting a cell
+  run pushes its neighbours sideways for that one row. Values wrap, and the
+  continuation lines are padded to sit under their own column.
+- **The table has to fit.** Mail folds at around 78 characters, and a client
+  folding a table at a point of its choosing destroys the grid far more
+  thoroughly than anything else. Columns shrink to fit, widest first, and never
+  below what their own longest word needs. Money and counts never wrap at all.
+
+The mail dialog exists for the same reason: fewer columns is the most effective
+thing a user can do to keep a table narrow, so it shows the rendered width as
+they choose. The engine suite asserts the invariant directly, by walking each
+rendered line and checking that the cells between columns hold nothing but
+spaces.
+
+---
+
+## Where the assistant's instructions come from
+
+Everything the assistant reads is text somebody could have put there: a row
+title, a caption, a file name, an uploaded receipt, a tool result. Anyone who
+can get a row into a ledger can get text into the model's context.
+
+The prompt draws the line at provenance rather than at keywords. Instructions
+come from the person in the chat box; everything else is content, and cannot
+grant permissions or change the rules however it is dressed up. There is no
+privileged channel to imitate, and no mode in which writes stop needing
+approval, so `<admin>` in the middle of a caption is just a word someone typed.
+
+Two loop-level rules keep a confused turn from becoming a spectacle:
+
+- **Identical read calls are answered from the log.** A model that hits an error
+  it cannot interpret will retry the same call, try a neighbour, then retry the
+  first. Read tools are pure within a turn, so the honest reply is the answer it
+  already got plus a nudge to do something else.
+- **Three failures in a row end the tool phase.** The turn goes back to
+  producing text and saying what went wrong, instead of filling the transcript
+  with warning triangles until the budget runs out.
+
+Errors are written to be recoverable, too. A bad `fileId` used to return "File
+not found"; it now names the file that *is* open, says ids cannot be guessed,
+and falls back to matching the file by name first, because passing the name
+where the id belongs is the single most common thing a model does here.
 
 ---
 

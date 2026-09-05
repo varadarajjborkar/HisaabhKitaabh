@@ -1,7 +1,7 @@
 'use client'
 
 import type { SheetDoc } from '@/lib/model/types'
-import { toCsv, toEmail, toPlainText, toPrintableHtml } from '@/lib/util/export'
+import { toCsv, toEmail, toPlainText, toPrintableHtml, type ExportOptions } from '@/lib/util/export'
 import { toast } from '@/components/ui/Toast'
 
 /**
@@ -46,8 +46,11 @@ export function downloadPdf(doc: SheetDoc): void {
   toast.info('Choose "Save as PDF" in the print dialog')
 }
 
-export async function copyToClipboard(doc: SheetDoc): Promise<void> {
-  const text = toPlainText(doc)
+export async function copyToClipboard(doc: SheetDoc, options: ExportOptions = {}): Promise<void> {
+  // A clipboard destination is usually wider than a mail window: a note, a
+  // code block, a spreadsheet paste. 100 columns keeps captions on one line
+  // where the mail budget of 72 would have wrapped them.
+  const text = toPlainText(doc, { maxWidth: 100, ...options })
   try {
     await navigator.clipboard.writeText(text)
     toast.success('Copied', 'Columns are space-aligned, ready to paste.')
@@ -65,21 +68,31 @@ export async function copyToClipboard(doc: SheetDoc): Promise<void> {
   }
 }
 
-export function openMailDraft(doc: SheetDoc): void {
-  const { subject, body } = toEmail(doc)
+export function openMailDraft(doc: SheetDoc, options: ExportOptions = {}): void {
+  const { subject, body } = toEmail(doc, options)
 
   // mailto: has a practical length ceiling of a couple of thousand characters
-  // in most clients. Beyond that the body silently truncates, so a long file
-  // gets a summary in the draft and its detail on the clipboard.
+  // in most clients. Beyond that the body silently truncates mid-line, which
+  // would cut the table in half. Cut it at a line boundary instead, keeping
+  // whole rows, and put the complete table on the clipboard to paste in.
   const MAILTO_LIMIT = 1800
   let finalBody = body
 
   if (body.length > MAILTO_LIMIT) {
-    void copyToClipboard(doc)
+    void copyToClipboard(doc, options)
+    const lines = body.split('\n')
+    const kept: string[] = []
+    let used = 0
+    for (const line of lines) {
+      if (used + line.length + 1 > MAILTO_LIMIT - 160) break
+      kept.push(line)
+      used += line.length + 1
+    }
     finalBody = [
-      body.split('\n').slice(0, 6).join('\n'),
+      ...kept,
       '',
-      `(${doc.rows.filter((r) => !r.deleted).length} rows. The full table has been copied to your clipboard. Paste it below.)`,
+      `(This file has ${doc.rows.filter((r) => !r.deleted).length} rows and the draft could not hold all of them.`,
+      'The complete table is on your clipboard. Paste it here.)',
     ].join('\n')
   }
 

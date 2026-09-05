@@ -453,6 +453,40 @@ await check('dropping a file on the assistant attaches it', async () => {
   ok(/statement\.csv/.test(await panel.innerText()), `the file was not attached:\n${await panel.innerText().then((t) => t.slice(-200))}`)
 })
 
+await check('the mail dialog previews an aligned grid and follows the column choice', async () => {
+  await page.locator('button:has-text("Mail"):visible').first().click()
+  const dialog = page.locator('dialog[open]')
+  await dialog.waitFor({ state: 'visible', timeout: 8000 })
+
+  const preview = dialog.locator('pre')
+  const before = await preview.innerText()
+  ok(/INR/.test(before), `the preview has no amount column:\n${before}`)
+
+  // The invariant the whole layout exists for: one grid, and no line wider
+  // than the rule that draws it.
+  const lines = before.split('\n')
+  const rule = lines.find((l) => /^-{3,}/.test(l.trim()))
+  ok(rule, `the preview has no rule under its header:\n${before}`)
+  const width = rule.length
+  for (const line of lines) {
+    ok(line.length <= width || !rule, `a line runs past the grid: ${JSON.stringify(line)}`)
+  }
+
+  // Every column chip is a real filter.
+  const chips = dialog.locator('button[aria-pressed=true]')
+  const last = chips.last()
+  const name = (await last.innerText()).trim()
+  await last.click()
+  await page.waitForTimeout(350)
+  const after = await preview.innerText()
+  ok(!after.split('\n')[0].includes(name), `"${name}" is still in the table after being switched off`)
+  ok(after !== before, 'the preview did not react to the column choice')
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(250)
+  eq(await page.locator('dialog[open]').count(), 0, 'the mail dialog did not close:')
+})
+
 await page.screenshot({ path: `${SHOTS}/04-gestures.png`, fullPage: false })
 
 log('\nMobile layout')
@@ -495,6 +529,86 @@ await check('the calculator is absent on a phone', async () => {
   const visible = await mobile.locator('button[aria-label="Open calculator"]').isVisible().catch(() => false)
   ok(!visible, 'the calculator launcher is showing on a phone')
 })
+await check('the header carries the running total, not the folder name', async () => {
+  const header = await mobile.locator('header').first().innerText()
+  ok(/₹/.test(header), `no total in the phone header: ${JSON.stringify(header)}`)
+  ok(/row/.test(header), `no row count in the phone header: ${JSON.stringify(header)}`)
+})
+
+await check('columns can be added from a phone', async () => {
+  // This is the mechanism the file model rests on, and until the columns
+  // manager existed it was reachable only from a table header no phone renders.
+  await mobile.locator('button:has-text("Columns")').first().click()
+  const dialog = mobile.locator('dialog[open]')
+  await dialog.waitFor({ state: 'visible', timeout: 8000 })
+  ok(/INR/.test(await dialog.innerText()), 'the columns manager does not list the columns')
+
+  await dialog.locator('button:has-text("Add column")').click()
+  await mobile.waitForSelector('#col-name', { timeout: 8000 })
+  const name = `Phone ${Date.now().toString(36).slice(-4)}`
+  await mobile.fill('#col-name', name)
+  await mobile.locator('dialog[open] button:has-text("Add column")').last().click()
+  await mobile.waitForTimeout(2200)
+
+  await mobile.reload({ waitUntil: 'networkidle' })
+  await mobile.waitForTimeout(1500)
+  await mobile.locator('button:has-text("Columns")').first().click()
+  await mobile.locator('dialog[open]').waitFor({ state: 'visible', timeout: 8000 })
+  ok((await mobile.locator('dialog[open]').innerText()).includes(name), 'the column added from the phone did not persist')
+  await mobile.keyboard.press('Escape')
+  await mobile.waitForTimeout(300)
+})
+
+await check('the rest of the file actions live behind one sheet', async () => {
+  await mobile.locator('button:has-text("More")').first().click()
+  const dialog = mobile.locator('dialog[open]')
+  await dialog.waitFor({ state: 'visible', timeout: 8000 })
+  const text = await dialog.innerText()
+  for (const action of ['Mail', 'Copy', 'PDF', 'CSV', 'Discard']) {
+    ok(text.includes(action), `"${action}" is not reachable from a phone: ${JSON.stringify(text)}`)
+  }
+  await mobile.keyboard.press('Escape')
+  await mobile.waitForTimeout(300)
+})
+
+await check('the assistant fills the screen and leaves by a back arrow', async () => {
+  await mobile.locator('button[aria-label=Assistant]').first().click()
+  const panel = mobile.locator('aside[aria-label=Assistant]')
+  await panel.waitFor({ state: 'visible', timeout: 8000 })
+
+  const box = await panel.boundingBox()
+  const view = mobile.viewportSize()
+  ok(box.height >= view.height - 2, `the assistant is ${Math.round(box.height)}px in a ${view.height}px screen`)
+  ok(box.width >= view.width - 2, `the assistant is ${Math.round(box.width)}px in a ${view.width}px screen`)
+
+  const back = panel.locator('button[aria-label="Close assistant"]:visible')
+  eq(await back.count(), 1, 'expected exactly one visible dismiss control:')
+  const backBox = await back.boundingBox()
+  ok(backBox.height >= 38, `the dismiss control is only ${Math.round(backBox.height)}px tall`)
+
+  await back.click()
+  await mobile.waitForTimeout(400)
+  eq(await mobile.locator('aside[aria-label=Assistant]').count(), 0, 'the assistant did not close:')
+})
+
+await check('the controls a thumb has to hit are big enough to hit', async () => {
+  const targets = await mobile.evaluate(() => {
+    const small = []
+    for (const el of document.querySelectorAll('button, input[type=checkbox], select')) {
+      const style = getComputedStyle(el)
+      if (style.display === 'none' || style.visibility === 'hidden') continue
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) continue
+      // Checkboxes get their target from the padding around them; judge the
+      // things people aim at deliberately.
+      if (el.tagName === 'INPUT') continue
+      if (r.height < 32) small.push(`${el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 24)} (${Math.round(r.height)}px)`)
+    }
+    return small
+  })
+  ok(targets.length === 0, `controls under 32px tall on a phone: ${targets.join(', ')}`)
+})
+
 await check('an amount cell is editable by touch', async () => {
   // The desktop table is display:none but still in the DOM, so its inputs
   // would match first - scope to what is actually on screen.
