@@ -369,12 +369,12 @@ await check('storage offers both homes and marks the one in use', async () => {
   eq(await page.locator('dialog[open]').count(), 0, 'the storage dialog survived Escape:')
 })
 
-await check('holding the theme button opens a stack you can swipe and release on', async () => {
+await check('holding the theme button fans the options out to be swiped at', async () => {
   /*
    * Two gestures on one control, so both need proving: a tap still cycles, and
-   * a hold opens the picker. The hold also has to survive the finger leaving
-   * the 36px button - without pointer capture the gesture dies halfway and the
-   * release selects nothing, which is exactly how it first behaved.
+   * a hold fans the options out of the corner. The hold also has to survive the
+   * finger leaving the 36px button - without pointer capture the gesture dies
+   * halfway and the release selects nothing, which is exactly how it behaved.
    */
   const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 860 } })
   const p2 = await ctx2.newPage()
@@ -390,12 +390,12 @@ await check('holding the theme button opens a stack you can swipe and release on
   await p2.waitForTimeout(250)
   eq(await p2.locator('[role=listbox]').count(), 0, 'a tap opened the picker instead of cycling:')
   // A fresh context has no stored preference, so it starts on "system" and one
-  // tap lands on "light" - the first card. Swiping down is therefore the
-  // direction with somewhere to go.
+  // tap lands on "light".
   const afterTap = await p2.evaluate(() => localStorage.getItem('hisaabhkitaabh-theme'))
   eq(afterTap, 'light', 'a tap from the default did not cycle to light:')
 
-  // A hold opens the stack; swiping up one card and releasing commits it.
+  // A hold fans them out; aiming at one and releasing commits it. The options
+  // sit left, down-left and down, so down-left is dark.
   const box = await btn.boundingBox()
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2
@@ -404,26 +404,26 @@ await check('holding the theme button opens a stack you can swipe and release on
   await p2.waitForTimeout(700)
   ok(await p2.locator('[role=listbox]').isVisible(), 'holding did not open the picker')
   const cards = await p2.locator('[role=option]').count()
-  eq(cards, 3, 'the stack should hold all three choices:')
+  eq(cards, 3, 'the fan should hold all three choices:')
 
-  await p2.mouse.move(cx, cy + 46) // one card down: light -> dark
+  await p2.mouse.move(cx - 54, cy + 54) // aimed down-left: dark
   await p2.waitForTimeout(200)
   await p2.mouse.up()
   await p2.waitForTimeout(300)
 
   const afterSwipe = await p2.evaluate(() => localStorage.getItem('hisaabhkitaabh-theme'))
-  eq(afterSwipe, 'dark', 'releasing on the second card did not select it:')
+  eq(afterSwipe, 'dark', 'releasing while aimed down-left did not select dark:')
   eq(await p2.getAttribute('html', 'data-theme'), 'dark', 'the choice never reached the document:')
-  eq(await p2.locator('[role=listbox]').count(), 0, 'the picker stayed open after releasing:')
+  eq(await p2.locator('[role=listbox]').count(), 0, 'the fan stayed open after releasing:')
   await ctx2.close()
 })
 
-await check('the theme stack follows the thumb instead of jumping a card at a time', async () => {
+await check('the theme fan leans towards the thumb rather than snapping at a boundary', async () => {
   /*
-   * The gesture used to round the travel to whole cards before drawing
-   * anything, so nothing moved until it had moved all the way. Half a card of
-   * travel has to look like half a card, or there is no telling a gesture that
-   * is being ignored from one that has not been noticed yet.
+   * Aim is a direction, and every option has some of whatever direction the
+   * thumb is pointing. If only the winner responded, the fan would sit still
+   * until the aim crossed a line and then jump, which is how you get a control
+   * that feels like it is arguing with you. The neighbour has to lean too.
    */
   const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 860 } })
   const p3 = await ctx3.newPage()
@@ -435,22 +435,21 @@ await check('the theme stack follows the thumb instead of jumping a card at a ti
   const box = await btn.boundingBox()
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2
-  const depth = () =>
+  const scales = () =>
     p3.locator('[role=option]').evaluateAll((els) =>
-      els.map((el) => +new DOMMatrix(getComputedStyle(el).transform).m43.toFixed(1)))
+      els.map((el) => +new DOMMatrix(getComputedStyle(el).transform).a.toFixed(3)))
 
   await p3.mouse.move(cx, cy)
   await p3.mouse.down()
   await p3.waitForTimeout(700)
-  const rest = await depth()
 
-  await p3.mouse.move(cx, cy - 16) // a third of a card
-  await p3.waitForTimeout(120)
-  const part = await depth()
+  // Aimed squarely at the first option, which sits directly to the left.
+  await p3.mouse.move(cx - 60, cy)
+  await p3.waitForTimeout(150)
+  const [light, dark, system] = await scales()
 
-  const moved = part.map((z, i) => Math.abs(z - rest[i]))
-  ok(moved.some((d) => d > 2), 'a third of a card of travel moved nothing at all')
-  ok(moved.every((d) => d < 40), `the stack jumped a whole card for a third of one: ${moved.join(', ')}`)
+  ok(light > system, `the option being aimed at is no bigger than the one opposite it: ${light} vs ${system}`)
+  ok(dark > system && dark < light, `the neighbour did not lean part of the way: ${light}, ${dark}, ${system}`)
 
   await p3.mouse.up()
   await ctx3.close()
