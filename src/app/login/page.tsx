@@ -41,20 +41,19 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
        * Its ground is painted rather than left transparent so the two halves
        * read as two surfaces instead of one page with a line down it.
        */}
-      <section className="hidden lg:flex flex-col items-center justify-center p-12 xl:p-14 auth-bg border-r border-line relative overflow-hidden">
+      <section className="hidden lg:flex flex-col items-start justify-center p-12 xl:p-14 auth-bg border-r border-line relative overflow-hidden">
         {/*
          * The wordmark is lifted out of the flow so the pitch can sit on the
-         * panel's true centre line rather than on whatever is left over below a
-         * logo. That is the line the sign-in card opposite it sits on too, and
-         * the two halves only read as a pair if they agree about where the
-         * middle is.
+         * panel's vertical centre rather than on whatever is left over below a
+         * logo. It stays on the left margin the logo starts from: centred down,
+         * not centred across.
          */}
         <div className="absolute top-12 left-12 xl:top-14 xl:left-14 flex items-center gap-3">
           <Logo size={34} />
           <span className="text-[16px] font-semibold tracking-tight">HisaabhKitaabh</span>
         </div>
 
-        <div className="w-full max-w-[420px] relative">
+        <div className="max-w-[420px] relative">
           <h1 className="text-[34px] xl:text-[38px] font-semibold leading-[1.1] tracking-tight animate-rise">
             Folders, files, rows.
           </h1>
