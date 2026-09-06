@@ -177,6 +177,14 @@ export type TableOptions = {
   maxWidth?: number
   /** Spaces between columns. Two reads as a column break; one reads as a typo. */
   gap?: number
+  /**
+   * What sits between each pair of columns, overriding `gap` where given.
+   *
+   * One entry per boundary, so a format can put " : " after the amount and
+   * leave the rest as plain spacing. The rule line uses the same list, or the
+   * columns under it stop lining up with the columns above it.
+   */
+  separators?: string[]
   /** A rule under the header, and above the footer if there is one. */
   rule?: boolean
   /** One extra row, rendered under a rule. Same shape as a data row. */
@@ -193,11 +201,14 @@ const MIN_TEXT_WIDTH = 8
  * offset in the table.
  */
 export function layoutTable(columns: TextColumn[], options: TableOptions = {}): string[] {
-  const { maxWidth = 72, gap = 2, rule = true, footer } = options
+  const { maxWidth = 72, gap = 2, rule = true, footer, separators } = options
   if (columns.length === 0) return []
 
   const rowCount = Math.max(0, ...columns.map((c) => c.cells.length))
   const gapText = ' '.repeat(gap)
+  const between = (i: number) => separators?.[i] ?? gapText
+  const joinCells = (parts: string[]) =>
+    parts.reduce((line, part, i) => (i === 0 ? part : line + between(i - 1) + part), '')
 
   // Natural width: the widest thing the column has to show.
   const natural = columns.map((col, i) => {
@@ -215,7 +226,8 @@ export function layoutTable(columns: TextColumn[], options: TableOptions = {}): 
   })
 
   const widths = [...natural]
-  const totalGap = gap * (columns.length - 1)
+  let totalGap = 0
+  for (let i = 0; i < columns.length - 1; i++) totalGap += displayWidth(between(i))
   const width = () => widths.reduce((a, b) => a + b, 0) + totalGap
 
   // Shrink the widest shrinkable column, one cell at a time. Taking from the
@@ -238,19 +250,22 @@ export function layoutTable(columns: TextColumn[], options: TableOptions = {}): 
     const lines: string[] = []
     for (let line = 0; line < height; line++) {
       const parts = columns.map((col, i) => padTo(wrapped[i][line] ?? '', widths[i], col.align))
-      lines.push(parts.join(gapText).trimEnd())
+      lines.push(joinCells(parts).trimEnd())
     }
     return lines
   }
 
-  const ruleLine = widths.map((w) => '-'.repeat(w)).join(gapText)
+  const ruleLine = joinCells(widths.map((w) => '-'.repeat(w)))
 
   const out: string[] = []
-  out.push(...renderRow(columns.map((c) => c.header)))
-  if (rule) out.push(ruleLine)
+  const headed = columns.some((c) => c.header !== '')
+  if (headed) out.push(...renderRow(columns.map((c) => c.header)))
+  if (rule && headed) out.push(ruleLine)
   for (let r = 0; r < rowCount; r++) out.push(...renderRow(columns.map((c) => c.cells[r] ?? '')))
   if (footer) {
-    if (rule) out.push(ruleLine)
+    // A total that butts straight up against the last row reads as one more
+    // row. Where there is no rule to separate it, a blank line does the job.
+    out.push(rule ? ruleLine : '')
     out.push(...renderRow(footer))
   }
   return out

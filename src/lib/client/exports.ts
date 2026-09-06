@@ -46,11 +46,18 @@ export function downloadPdf(doc: SheetDoc): void {
   toast.info('Choose "Save as PDF" in the print dialog')
 }
 
-export async function copyToClipboard(doc: SheetDoc, options: ExportOptions = {}): Promise<void> {
+/**
+ * Put the table on the clipboard.
+ *
+ * `override` is the text the user is actually looking at, once they have edited
+ * the preview. Regenerating from the doc at this point would quietly copy
+ * something other than what is on screen.
+ */
+export async function copyToClipboard(doc: SheetDoc, options: ExportOptions = {}, override?: string): Promise<void> {
   // A clipboard destination is usually wider than a mail window: a note, a
   // code block, a spreadsheet paste. 100 columns keeps captions on one line
   // where the mail budget of 72 would have wrapped them.
-  const text = toPlainText(doc, { maxWidth: 100, ...options })
+  const text = override ?? toPlainText(doc, { maxWidth: 100, ...options })
   try {
     await navigator.clipboard.writeText(text)
     toast.success('Copied', 'Columns are space-aligned, ready to paste.')
@@ -68,8 +75,10 @@ export async function copyToClipboard(doc: SheetDoc, options: ExportOptions = {}
   }
 }
 
-export function openMailDraft(doc: SheetDoc, options: ExportOptions = {}): void {
-  const { subject, body } = toEmail(doc, options)
+export function openMailDraft(doc: SheetDoc, options: ExportOptions = {}, override?: string): void {
+  const generated = toEmail(doc, options)
+  const subject = generated.subject
+  const body = override ?? generated.body
 
   // mailto: has a practical length ceiling of a couple of thousand characters
   // in most clients. Beyond that the body silently truncates mid-line, which
@@ -79,7 +88,7 @@ export function openMailDraft(doc: SheetDoc, options: ExportOptions = {}): void 
   let finalBody = body
 
   if (body.length > MAILTO_LIMIT) {
-    void copyToClipboard(doc, options)
+    void copyToClipboard(doc, options, override)
     const lines = body.split('\n')
     const kept: string[] = []
     let used = 0

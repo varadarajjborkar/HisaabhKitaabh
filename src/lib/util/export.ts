@@ -81,11 +81,29 @@ export function exportableColumns(doc: SheetDoc): Array<{ id: string; name: stri
     .map((c) => ({ id: c.id, name: c.name, kind: c.kind }))
 }
 
+/**
+ * How the text grid is laid out.
+ *
+ *  - `grid`    headings, rules, columns separated by spaces. The default.
+ *  - `colon`   the same, with a colon after the amount, which reads as
+ *              "this much, for this" rather than as two adjacent columns.
+ *  - `plain`   no headings and no rules: just the rows and the total, for a
+ *              short mail where the frame is more furniture than help.
+ */
+export type GridStyle = 'grid' | 'colon' | 'plain'
+
+export const GRID_STYLES: Array<{ value: GridStyle; label: string; hint: string }> = [
+  { value: 'grid', label: 'Grid', hint: 'Headings and rules' },
+  { value: 'colon', label: 'Colon', hint: 'Amount : title' },
+  { value: 'plain', label: 'Plain', hint: 'Rows only' },
+]
+
 export type ExportOptions = {
   /** Column ids to include, in any order; table order is always the doc's. */
   columnIds?: string[]
   /** Line budget for the text grid. */
   maxWidth?: number
+  style?: GridStyle
 }
 
 function chosenColumns(doc: SheetDoc, columnIds?: string[]) {
@@ -108,11 +126,13 @@ export function buildGrid(doc: SheetDoc, options: ExportOptions = {}): string[] 
   const cols = chosenColumns(doc, options.columnIds)
   const rows = liveRows(doc)
   const totals = computeTotals(doc)
+  const style: GridStyle = options.style ?? 'grid'
+  const bare = style === 'plain'
 
   const columns: TextColumn[] = cols.map((col) => {
     const numeric = col.kind === 'amount' || col.kind === 'number'
     return {
-      header: col.name,
+      header: bare ? '' : col.name,
       align: numeric ? 'right' : 'left',
       // A wrapped number is not a number, so money and counts keep their width.
       noWrap: numeric,
@@ -131,24 +151,51 @@ export function buildGrid(doc: SheetDoc, options: ExportOptions = {}): string[] 
         : '',
   )
 
-  return layoutTable(columns, { maxWidth: options.maxWidth ?? 72, gap: 2, footer })
+  // A colon belongs after the money and nowhere else: it reads as "this much,
+  // for this". Between two prose columns it would read as a typo.
+  const separators =
+    style === 'grid' || cols.length < 2
+      ? undefined
+      : cols.slice(0, -1).map((col, i) => (i === 0 && col.kind === 'amount' ? ' : ' : '  '))
+
+  return layoutTable(columns, {
+    maxWidth: options.maxWidth ?? 72,
+    gap: 2,
+    rule: !bare,
+    separators,
+    footer,
+  })
 }
 
-/** The header block every export carries: name, period, count, total. */
-function summaryLines(doc: SheetDoc): string[] {
+/**
+ * The header block every text export carries.
+ *
+ * The total is deliberately conditional. The grid below already carries one, on
+ * its own rule and aligned under the money column, so printing it up here too
+ * gave every mail two totals - and two of a number is one more than anybody
+ * needs to read. It comes back only when the chosen columns contain no money
+ * at all and the grid therefore has nothing to total.
+ */
+function summaryLines(doc: SheetDoc, includeTotal: boolean): string[] {
   const totals = computeTotals(doc)
   const period = periodText(doc)
   return [
     ...(period ? [`Period: ${period}`] : []),
     `Rows: ${totals.count}`,
-    `Total: ${formatMoney(totals.total, doc.currency)}`,
+    ...(includeTotal ? [`Total: ${formatMoney(totals.total, doc.currency)}`] : []),
   ]
+}
+
+/** Whether the grid will be able to print a total of its own. */
+function gridHasMoney(doc: SheetDoc, columnIds?: string[]): boolean {
+  return chosenColumns(doc, columnIds).some((c) => c.kind === 'amount')
 }
 
 /** What "Copy" puts on the clipboard: the summary, then the grid. */
 export function toPlainText(doc: SheetDoc, options: ExportOptions = {}): string {
   const grid = buildGrid(doc, options)
-  return [doc.name, '='.repeat(Math.min(Math.max(1, displayWidth(doc.name)), 60)), ...summaryLines(doc), '', ...grid].join('\n')
+  const summary = summaryLines(doc, !gridHasMoney(doc, options.columnIds))
+  return [doc.name, '='.repeat(Math.min(Math.max(1, displayWidth(doc.name)), 60)), ...summary, '', ...grid].join('\n')
 }
 
 /**
@@ -167,7 +214,7 @@ export function toEmail(doc: SheetDoc, options: ExportOptions = {}): { subject: 
   const body = [
     doc.name,
     '',
-    ...summaryLines(doc),
+    ...summaryLines(doc, !gridHasMoney(doc, options.columnIds)),
     '',
     ...(grid.length ? grid : ['No rows yet.']),
     '',
