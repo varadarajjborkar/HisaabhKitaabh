@@ -14,6 +14,10 @@ Folder  →  File  →  Rows
 
 - **Folders and files.** A folder groups files; a file is a table of rows. Every
   new account gets a worked sample so the model is obvious without a tour.
+  Folders can be renamed, given a different icon and colour, viewed as cards or
+  as a list, selected in bulk, and paged - the page size has a ceiling, because
+  analytics sits below the folder list and a hundred folders in one go put it a
+  very long scroll away.
 - **Three columns to start** - INR, Title, Extra Captions - and a `+` to add your
   own: quantity, category, payment method, a receipt slot. Attachments accept
   images, PDFs, CSVs, spreadsheets and documents. Video is refused.
@@ -26,17 +30,37 @@ Folder  →  File  →  Rows
   attachment cell to upload it; drop a statement on a folder and it goes to the
   assistant, which proposes rows for your approval rather than importing
   silently.
+- **Search that reaches the rows.** One box on the home screen and inside a
+  folder. It looks past file names into captions, payment methods, dates and
+  amounts, and returns one list ranked by what matched - not folders, then
+  files, then rows, which would answer a different question. Where you are
+  standing is a tie-break at home and a filter inside a folder. Recent searches
+  are one click away.
 - **Save, discard, PDF, CSV, copy, mail** - all client-side and instant. Mail
-  opens a dialog: pick the columns, watch the grid redraw, then open the draft.
-  Copy puts the same grid on the clipboard at a wider budget.
+  opens a dialog: pick the columns and one of three layouts, edit the message
+  in place - it is a text box, not a preview - then open the draft. Copy puts
+  the same grid on the clipboard at a wider budget.
+- **Your account is yours.** A name, a handle you can also sign in with, a
+  phone number that is stored and never used, and a picture scaled to 128px in
+  your browser before it is sent. Two ways to stop: empty the account and keep
+  it, or delete it outright.
 - **Light, dark, or follow the system**, from the account menu. The choice is
   stamped before first paint, so a dark-theme user never sees a white flash.
-- **An assistant** in the folder view and beside the sheet. It reads freely;
-  every write becomes an approval card you Allow, Deny, or redirect.
+- **An assistant** in the folder view and beside the sheet, where the column
+  folds away and the sheet takes the width back. It reads freely; every write
+  becomes an approval card you Allow, Deny, or redirect. Attach a PDF and each
+  page is rendered to an image in your browser, so a document arrives on the
+  path the assistant already reads.
+- **Graph mode**, a switch on the composer. With it on, answers come back as
+  charts drawn from your rows - you say "compare travel between Goa and
+  Bangalore", it decides which words select a travel row, and the figures are
+  computed from the ledger rather than recited by the model. Leave the switch on
+  and ask something that wants prose and it says so and offers you the choice.
 - **Analytics** on the home screen, off until you turn it on, scoped to the
   folders and files you choose.
 - **A calculator** you can drag anywhere on screen, with AC and CE as separate
-  keys. Desktop only: every phone ships one already.
+  keys, results rounded to six decimals so a third of ten does not come back as
+  sixteen digits. Desktop only: every phone ships one already.
 - **Works on a phone**, and the phone layout is its own design rather than a
   squeezed desktop. Rows are cards with the fields that hold something shown on
   the face of them; columns are managed from a sheet, because the table header
@@ -86,7 +110,7 @@ npm run test:engine            # or one at a time
 | `test:db` | 30 | The Postgres store against a real database - expiry, atomic claims, concurrent appends, per-account isolation, receipts through `bytea` |
 | `test:e2e` | 38 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal, storage backends |
 | `test:chat` | 24 | The assistant against the live model and the live write path, including where its instructions are allowed to come from and that a foreign-currency amount is converted rather than asked about |
-| `test:ui` | 48 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch, the mail dialog, the storage chooser, the currency picker, the theme long-press and the stack it drags, the phone layout down to its tap targets, and where things actually land on the page: the sign-in panel on its centre line, a card's menu button clear of its chip |
+| `test:ui` | 48 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, the theme switch and the stack it drags, the mail dialog, the storage chooser, the currency picker, the phone layout down to its tap targets, and where things actually land on the page: the sign-in panel on its centre line, a card's menu button clear of its chip |
 
 `test:db` skips itself unless `DATABASE_URL` is set, so nothing else in the
 project needs a database installed to run.
@@ -176,6 +200,32 @@ instructions: |
 
 Add a file, restart, and it is live.
 
+### Graph mode
+
+A switch on the composer, not something inferred from a sentence, and it says
+what it is doing while it is on - a mode you cannot see is a mode you forget you
+left on.
+
+`make_chart` takes a *question about the data*, never the numbers: which files,
+which words select the rows that count as travel, what the bars stand for. The
+figures are computed from the rows. Asking a model for the bars themselves gets
+bars it half remembers from a tool result three steps ago, and nobody - the
+model included - can say afterwards which rows they came from. Every chart
+carries a line naming the files it read, the terms that selected the rows and
+how many matched, because a chart of travel spend is only worth something if you
+can see what it decided travel was.
+
+The mismatch runs both ways. With the switch on, a request to *change* something
+is unaffected: the approval card is already where that gets checked, and a
+question about charts first would be one too many. A question that wants prose is
+the case where the switch was probably left on by mistake, so it asks once, with
+the choice in it. With the switch off, "chart it" is an instruction and gets a
+chart; only an *implied* chart earns a one-line offer after the written answer.
+
+The mode is a flag on the message, read once while the prompt is built and never
+stored - so there is no thread state to keep in sync, and turning it off takes
+effect on the very next message rather than whenever the history is next read.
+
 ### Memory is four tiers
 
 | Tier | What | Where |
@@ -225,6 +275,36 @@ the only image-capable model available, and the most faithful to nested
 schemas).
 
 ---
+
+## Search
+
+One box, on the home screen and inside a folder, and it reaches past file names
+into the rows: a caption, a payment method, a date, an amount.
+
+**Ranked by what matched, then by where you are.** Results come back as a single
+list, not folders followed by files followed by rows. Grouping by kind would
+answer "what sorts of thing matched", which is a different question - if you type
+`insurance` and there is a row called Insurance and a folder called Insurance
+stuff, the closer of the two names should win, and one of them being further up
+the tree is not what makes it the better answer. Every term has to land
+somewhere, so a two-word query cannot be satisfied by one word.
+
+Where you are standing is a tie-break on the home screen and a filter inside a
+folder. In there the folder is part of the question: asked from inside Goa,
+"where did that 450 go" is not asking about Bangalore.
+
+**The narrowing happens in the database.** The row search is the expensive half,
+so it is the half that is cut down first: one query returns the documents whose
+stored JSON mentions every term, and only those are opened and scored. The
+alternative is pulling every document across the wire to look at it, and the
+documents are the largest thing an account owns. What comes back is a candidate
+list rather than an answer - `v::text` sees column ids and stamps too - and the
+ranker decides what actually matched.
+
+Numbers needed two fixes. Splitting terms on commas turned `5,500` into `5` and
+`500`, which every document in an account satisfies somewhere; and the narrowing
+has to look for `5500`, because grouping only exists once a figure has been
+formatted for a person to read.
 
 ## The text grid
 
@@ -361,9 +441,10 @@ src/
     db/           Postgres: schema, key/value store, attachment bytes
     store/        repository, key routing, locks, idempotency, seeding, migration
     drive/        Drive REST client and document store
-    ai/           Ollama client, tools, agent loop, memory, skills
+    search/       matching and ranking, no I/O
+    ai/           Ollama client, tools, agent loop, memory, skills, charts
     client/       hooks - useSheet, useChat, exports, useDismiss,
-                  useDragReorder, useFileDrop, useThemeMode
+                  useDragReorder, useFileDrop, useThemeMode, pdf
   skills/         *.yaml
 public/           logo at 96, 192 and 512
 tests/            engine, db, e2e, chat, ui

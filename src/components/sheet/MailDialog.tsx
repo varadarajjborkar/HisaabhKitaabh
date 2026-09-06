@@ -141,6 +141,9 @@ export function MailDialog({ open, onClose, doc }: { open: boolean; onClose: () 
               key={col.id}
               onClick={() => toggle(col.id)}
               aria-pressed={on}
+              // Named, because the format chips above are also pressable and
+              // "the last pressed chip" is no longer a way to find a column.
+              aria-label={`Include ${col.name}`}
               className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[12.5px] border transition-colors pressable ${
                 on
                   ? 'bg-accent-soft border-accent/45 text-accent font-medium'

@@ -637,8 +637,8 @@ await check('the mail dialog previews an aligned grid and follows the column cho
   const dialog = page.locator('dialog[open]')
   await dialog.waitFor({ state: 'visible', timeout: 8000 })
 
-  const preview = dialog.locator('pre')
-  const before = await preview.innerText()
+  const preview = dialog.locator('textarea[aria-label=Message]')
+  const before = await preview.inputValue()
   ok(/INR/.test(before), `the preview has no amount column:\n${before}`)
 
   // The invariant the whole layout exists for: one grid, and no line wider
@@ -651,13 +651,15 @@ await check('the mail dialog previews an aligned grid and follows the column cho
     ok(line.length <= width || !rule, `a line runs past the grid: ${JSON.stringify(line)}`)
   }
 
-  // Every column chip is a real filter.
-  const chips = dialog.locator('button[aria-pressed=true]')
+  // Every column chip is a real filter. Scoped to the column chips: the format
+  // chips above them are pressable too, and picking one of those would prove
+  // nothing about columns.
+  const chips = dialog.locator('button[aria-pressed=true][aria-label^="Include "]')
   const last = chips.last()
   const name = (await last.innerText()).trim()
   await last.click()
   await page.waitForTimeout(350)
-  const after = await preview.innerText()
+  const after = await preview.inputValue()
   ok(!after.split('\n')[0].includes(name), `"${name}" is still in the table after being switched off`)
   ok(after !== before, 'the preview did not react to the column choice')
 
