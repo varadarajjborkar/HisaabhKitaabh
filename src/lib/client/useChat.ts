@@ -347,15 +347,24 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
     try {
       const res = await fetch(`/api/chat/threads?threadId=${encodeURIComponent(id)}`)
       const body = await res.json()
-      const messages = (body.messages ?? []) as Array<{ id: string; role: string; content: string }>
+      const messages = (body.messages ?? []) as Array<{
+        id: string
+        role: string
+        content: string
+        meta?: { chart?: ChartSpec }
+      }>
       setTurns(
         messages
           .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .map((m) =>
-            m.role === 'user'
-              ? { id: m.id, kind: 'user' as const, text: m.content }
-              : { id: m.id, kind: 'assistant' as const, text: m.content, streaming: false },
-          ),
+          .map((m): Turn => {
+            // A stored chart comes back as a chart. Reopening a conversation
+            // and finding the text that described a picture, with no picture,
+            // is worse than not keeping the conversation at all.
+            if (m.meta?.chart) return { id: m.id, kind: 'chart', spec: m.meta.chart }
+            return m.role === 'user'
+              ? { id: m.id, kind: 'user', text: m.content }
+              : { id: m.id, kind: 'assistant', text: m.content, streaming: false }
+          }),
       )
     } catch {
       toast.error('Could not load that conversation.')

@@ -226,6 +226,17 @@ The mode is a flag on the message, read once while the prompt is built and never
 stored - so there is no thread state to keep in sync, and turning it off takes
 effect on the very next message rather than whenever the history is next read.
 
+**A chart outlives the turn that drew it.** The tool result is only in front of
+the model until that run ends, and the next turn is rebuilt from the stored
+thread - so a chart that was never written down simply did not happen. The
+conversation *after* a chart is usually about the chart ("which bar was
+biggest", "why is that one higher", "add flights to it"), and answering any of
+that needs more than the picture: it needs which files were read, which words
+selected the rows, and what the bars were grouped by. That line is stored
+alongside the figures, and the full spec with it, so reopening a conversation
+draws the charts again instead of showing the text that described a picture
+with no picture.
+
 ### Memory is four tiers
 
 | Tier | What | Where |

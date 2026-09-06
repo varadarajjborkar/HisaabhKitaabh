@@ -155,6 +155,7 @@ export function buildSystemPrompt(params: {
   blocks.push(
     '',
     '## Graph mode',
+    'A line beginning "[chart drawn]" earlier in this conversation is a chart the user is still looking at. It carries what the chart was built from - the files, the words that selected the rows, the grouping - and the figures it produced. When they say "that chart", or ask about a bar in it, that line is what they mean. Answer from it rather than redrawing, unless they are asking for something it does not contain.',
     params.graphMode
       ? [
           'The user has graph mode ON. This switch controls one thing only: whether an answer comes back as a chart. It does not change how writing works.',

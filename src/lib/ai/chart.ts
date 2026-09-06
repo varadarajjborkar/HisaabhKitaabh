@@ -167,10 +167,34 @@ export function buildChart(input: {
   }
 }
 
-/** The one-line digest the model sees, so it can talk about what it drew. */
+/**
+ * The chart, as one line of text.
+ *
+ * This is the only form of a chart that survives the turn it was drawn in. A
+ * picture is not something the model can look at again, and the conversation
+ * that follows one is usually *about* it: which bar was biggest, why is that
+ * one higher, add flights to it. Without this, the next turn has the user
+ * saying "that chart" and nothing to attach it to - and would have to guess,
+ * or silently answer about something else.
+ *
+ * So it carries the definition as well as the result. Which files, which terms
+ * selected the rows, what the bars were grouped by: that is what "add flights
+ * to it" needs, and none of it is recoverable from the figures alone.
+ *
+ * Bounded on purpose. Eight buckets is enough to answer a follow-up and short
+ * enough that a conversation with several charts in it does not spend its whole
+ * context replaying them.
+ */
 export function describeChart(spec: ChartSpec): string {
-  const top = spec.points.slice(0, 6).map((p) => `${p.key}: ${Math.round(p.total)}`).join('; ')
-  return `Charted ${spec.points.length} groups. ${spec.note} ${top}`
+  const shown = spec.points.slice(0, 8)
+  const top = shown.map((p) => `${p.key}: ${Math.round(p.total)}`).join('; ')
+  const more = spec.points.length > shown.length ? ` (+${spec.points.length - shown.length} more groups)` : ''
+  return `"${spec.title}", ${spec.kind} chart of ${spec.points.length} groups. ${spec.note} ${top}${more}`
+}
+
+/** The same line, marked as a record of something already on the user's screen. */
+export function chartRecord(spec: ChartSpec): string {
+  return `[chart drawn] ${describeChart(spec)}`
 }
 
 /** Whether there is anything worth drawing. */

@@ -10,7 +10,7 @@ import { analystTool, buildSystemPrompt, extractTool } from './agents'
 import { allowedTools, selectSkills, toolBudget, type Skill } from './skills'
 import { appendMessage, getSummary, isGranted, grantTool, recallFacts, recentMessages } from './memory'
 import { rateLimit } from '../store/locks'
-import type { ChartSpec } from './chart'
+import { chartRecord, type ChartSpec } from './chart'
 
 /** Specialist tools are registered here so the loop and the skill router agree. */
 TOOL_MAP.set(extractTool.name, extractTool)
@@ -440,7 +440,26 @@ async function* runLoop(
           // figures as text, so it can say something about what it drew rather
           // than narrating a picture it cannot see.
           const drawn = (result.data as { chart?: ChartSpec } | null)?.chart
-          if (drawn) yield { type: 'chart', spec: drawn }
+          if (drawn) {
+            yield { type: 'chart', spec: drawn }
+            /*
+             * A chart has to outlive the turn that drew it.
+             *
+             * The tool result is only in front of the model until this run
+             * ends; the next turn is rebuilt from the stored thread, and a
+             * chart that was never stored simply did not happen. Since the
+             * conversation after a chart is usually about the chart, it is
+             * written down as a line of text the next prompt will read, with
+             * the full spec alongside it so reopening the conversation can draw
+             * it again rather than showing a gap where a picture was.
+             */
+            await appendMessage(session.userId, state.threadId, {
+              role: 'assistant',
+              content: chartRecord(drawn),
+              toolName: 'make_chart',
+              meta: { chart: drawn },
+            })
+          }
           state.messages.push({
             role: 'tool',
             // Cap the payload: a huge tool result crowds out the conversation
