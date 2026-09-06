@@ -152,19 +152,21 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
           </div>
         </section>
 
+        {/* The bar wraps rather than clipping: at 390px the four controls do not
+            fit on one line, and the one that ran off the end was Delete. */}
         {selecting && (
-          <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg border border-line bg-accent-soft/50 animate-rise">
-            <span className="text-[12.5px] font-medium text-accent">
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5 mb-3 px-3 py-2 rounded-lg border border-line bg-accent-soft/50 animate-rise">
+            <span className="text-[12.5px] font-medium text-accent whitespace-nowrap mr-1">
               {picked.size} selected
             </span>
-            <button onClick={toggleAllOnPage} className="btn-ghost h-7 text-[12px]">
-              {pageAllPicked ? 'Clear page' : 'Select all on this page'}
+            <button onClick={toggleAllOnPage} className="btn-ghost h-7 text-[12px] whitespace-nowrap">
+              {pageAllPicked ? 'Clear page' : <><span className="sm:hidden">All</span><span className="hidden sm:inline">Select all on this page</span></>}
             </button>
             <button onClick={stopSelecting} className="btn-ghost h-7 text-[12px]">Done</button>
             <button
               onClick={() => setConfirmBulk(true)}
               disabled={picked.size === 0}
-              className="btn-ghost h-7 text-[12px] text-bad ml-auto pressable disabled:opacity-40"
+              className="btn-ghost h-7 text-[12px] text-bad ml-auto pressable disabled:opacity-40 whitespace-nowrap"
             >
               <Icon.Trash size={14} /> Delete
             </button>
