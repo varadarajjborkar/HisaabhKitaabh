@@ -52,9 +52,11 @@ Folder  →  File  →  Rows
   page is rendered to an image in your browser, so a document arrives on the
   path the assistant already reads.
 - **Graph mode**, a switch on the composer. With it on, answers come back as
-  charts drawn from your rows - you say "compare travel between Goa and
-  Bangalore", it decides which words select a travel row, and the figures are
-  computed from the ledger rather than recited by the model. Leave the switch on
+  charts drawn from your rows - sixteen kinds, switchable after the fact, and
+  downloadable as a PNG or SVG that is the same drawing you are looking at. You
+  say "compare travel between Goa and Bangalore", it decides which words select
+  a travel row, and the figures are computed from the ledger rather than
+  recited by the model. Leave the switch on
   and ask something that wants prose and it says so and offers you the choice.
 - **Analytics** on the home screen, off until you turn it on, scoped to the
   folders and files you choose.
@@ -236,6 +238,67 @@ selected the rows, and what the bars were grouped by. That line is stored
 alongside the figures, and the full spec with it, so reopening a conversation
 draws the charts again instead of showing the text that described a picture
 with no picture.
+
+### The chart engine
+
+Charts are drawn, not generated. That distinction is the whole design, and it
+is worth being blunt about why, because "let an image model make the graph"
+sounds reasonable until you try it. Asked for two bars labelled Uncategorised
+and UPI with values 18,735 and 450, a free text-to-image model returns five
+bars, then nine, with a title in no language, axis labels that are single
+broken glyphs, and heights in no proportion to anything. It has no arithmetic -
+only a sense of what charts tend to look like. A ledger cannot use a picture
+whose numbers are decorative, and every hosted generator has the same problem
+plus a second one: the rows would have to leave the machine to reach it.
+
+So the engine is local, and it is four layers, because the limit on what a
+chart *can* be was never the drawing code:
+
+    rows                aggregate, in src/lib/ai/chart.ts
+      -> ChartSpec      buckets, an optional second breakdown, raw amounts
+      -> Plot           scales and marks, pure geometry, no SVG  (charts/plot.ts)
+      -> SVG            five shapes and a string                 (charts/svg.ts)
+      -> PNG            rasterised in the browser            (client/chartImage.ts)
+
+The middle layer is what earns its keep. A new chart type is a *composition of
+marks* rather than a new renderer - a waterfall is rectangles plus connectors,
+a pareto is rectangles plus a path - which is why there are sixteen kinds and
+not three: bar, column, line, area, donut, pie, grouped, stacked, stacked 100%,
+scatter, bubble, histogram, heatmap, treemap, waterfall and pareto. Deliberately
+not every chart a plotting library can draw; contour plots and violin plots have
+no honest reading over a table of expenses, and offering them would make the
+list harder to choose from without making any question easier to answer.
+
+Two things follow from geometry being plain data. The first is that correctness
+is testable without rendering: *the bar for 18,400 is 7.67 times the bar for
+2,400* is an assertion about an array, and the suite makes it, along with a
+sweep confirming no mark lands outside the canvas across every kind, six shapes
+of data and five widths - eleven thousand marks. That sweep found two real bugs
+that no screenshot would have: a legend key long enough to leave the frame, and
+`stacked100` degrading to a single series, where it kept normalising and plotted
+a bar for 500 about a hundred thousand pixels above the chart.
+
+The second is that **the picture and the file cannot drift apart**, because the
+panel displays the same SVG the download writes. This app has been bitten by the
+two-renderers shape of bug before, when the clipboard and the mail draft each
+built their own table and disagreed about alignment; there is one grid now, and
+one chart.
+
+Text is measured before it is placed, since SVG has no layout engine and a label
+too long for its column simply runs across the next one. The width table is
+calibrated at 13px, which matters: a first pass measured at 200px and
+under-estimated every string by up to 18%, because the system font has optical
+sizes and the tight Display cut is not the wide Text cut a chart actually draws.
+The estimate is then deliberately generous, fitted so it is never short by more
+than a pixel - being a little wide costs an early ellipsis, being narrow
+overlaps two labels.
+
+The exported SVG carries no stylesheet, no font file and no external reference
+of any kind. That is not tidiness: the browser rasterises it through an `<img>`,
+where a CSS variable resolves to nothing and an external reference taints the
+canvas. It is also why the font stack quotes `'Segoe UI'` with an apostrophe.
+A double quote there closes the XML attribute early, the document stops parsing,
+and the failure is completely silent - the image simply never fires `load`.
 
 ### Memory is four tiers
 
@@ -453,7 +516,8 @@ src/
     store/        repository, key routing, locks, idempotency, seeding, migration
     drive/        Drive REST client and document store
     search/       matching and ranking, no I/O
-    ai/           Ollama client, tools, agent loop, memory, skills, charts
+    ai/           Ollama client, tools, agent loop, memory, skills, aggregation
+    charts/       the chart engine - spec, scales, marks, plot, svg
     client/       hooks - useSheet, useChat, exports, useDismiss,
                   useDragReorder, useFileDrop, useThemeMode, pdf
   skills/         *.yaml

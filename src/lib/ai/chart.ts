@@ -1,4 +1,5 @@
 import type { SheetDoc } from '../model/types'
+import type { ChartGroup, ChartKind, ChartMetric, ChartPoint, ChartSpec } from '../charts/spec'
 import { computeTotals, liveRows, numeric } from '../crdt/doc'
 import { cellText, matchStrength } from '../search/rank'
 import { formatDate } from '../util/format'
@@ -18,25 +19,14 @@ import { formatDate } from '../util/format'
  * is only worth anything if you can see what it decided travel was.
  */
 
-export type ChartKind = 'bar' | 'line' | 'donut'
-export type ChartMetric = 'sum' | 'count' | 'average'
-export type ChartGroup = 'file' | 'folder' | 'category' | 'column' | 'day'
-
-export type ChartPoint = { key: string; total: number; count: number }
-
-export type ChartSpec = {
-  kind: ChartKind
-  title: string
-  subtitle?: string
-  /** Null when the files disagree, so the figures print without a symbol. */
-  currency: string | null
-  metric: ChartMetric
-  points: ChartPoint[]
-  /** What this chart actually looked at. Shown under it, not hidden in a tooltip. */
-  note: string
-  matchedRows: number
-  scannedRows: number
-}
+/*
+ * The shapes live in src/lib/charts, and are re-exported here so the many
+ * callers that reached for them through the assistant keep working. The
+ * direction matters: charting is the domain, and the assistant is one of its
+ * callers, not the other way round.
+ */
+export type { ChartKind, ChartMetric, ChartGroup, ChartPoint, ChartSpec } from '../charts/spec'
+export { chartIsEmpty, KINDS, kindInfo, availableKinds, hasSeries, seriesOf } from '../charts/spec'
 
 /** A row counts if any term lands anywhere in it. No terms means every row counts. */
 function rowMatches(doc: SheetDoc, row: SheetDoc['rows'][number], terms: string[]): boolean {
@@ -82,6 +72,12 @@ function groupKey(doc: SheetDoc, row: SheetDoc['rows'][number], group: ChartGrou
   return value || 'Uncategorised'
 }
 
+/** How many individual amounts a spec will carry for distribution charts. */
+const MAX_VALUES = 500
+
+/** How many distinct series a breakdown may have before the tail is folded in. */
+const MAX_SERIES = 8
+
 export function buildChart(input: {
   kind: ChartKind
   title: string
@@ -90,13 +86,18 @@ export function buildChart(input: {
   match: string[]
   group: ChartGroup
   column?: string
+  /** A second grouping, breaking each bucket down again. */
+  splitBy?: ChartGroup
+  splitColumn?: string
   metric: ChartMetric
   maxPoints?: number
 }): ChartSpec {
-  const { kind, title, docs, folderName, match, group, column, metric } = input
+  const { kind, title, docs, folderName, match, group, column, splitBy, splitColumn, metric } = input
   const maxPoints = input.maxPoints ?? 12
 
-  const buckets = new Map<string, { total: number; count: number }>()
+  const buckets = new Map<string, { total: number; count: number; parts: Map<string, number> }>()
+  const seriesTotals = new Map<string, number>()
+  const values: number[] = []
   let matched = 0
   let scanned = 0
 
@@ -106,17 +107,37 @@ export function buildChart(input: {
       if (!rowMatches(doc, row, match)) continue
       matched++
       const key = groupKey(doc, row, group, column, folderName(doc.folderId))
-      const bucket = buckets.get(key) ?? { total: 0, count: 0 }
-      bucket.total += amountOf(doc, row)
+      const bucket = buckets.get(key) ?? { total: 0, count: 0, parts: new Map<string, number>() }
+      const amount = amountOf(doc, row)
+      bucket.total += amount
       bucket.count += 1
+      if (values.length < MAX_VALUES) values.push(amount)
+
+      // The second dimension. Collected whether or not this chart kind uses
+      // it, because the user can switch the kind afterwards and re-running the
+      // whole aggregation to answer that would mean going back to the files.
+      if (splitBy) {
+        const part = groupKey(doc, row, splitBy, splitColumn, folderName(doc.folderId))
+        const measured = metric === 'count' ? 1 : amount
+        bucket.parts.set(part, (bucket.parts.get(part) ?? 0) + measured)
+        seriesTotals.set(part, (seriesTotals.get(part) ?? 0) + Math.abs(measured))
+      }
       buckets.set(key, bucket)
     }
   }
+
+  // Series are ordered by size and capped, so a breakdown with sixty distinct
+  // values does not produce sixty indistinguishable stack segments.
+  const series = [...seriesTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_SERIES).map(([k]) => k)
+  const kept = new Set(series)
+  const foldedTail = seriesTotals.size > series.length
+  if (foldedTail) series.push('Other')
 
   let points: ChartPoint[] = [...buckets.entries()].map(([key, b]) => ({
     key,
     total: metric === 'count' ? b.count : metric === 'average' ? (b.count ? b.total / b.count : 0) : b.total,
     count: b.count,
+    parts: splitBy ? foldParts(b.parts, kept, foldedTail, metric, b.count) : undefined,
   }))
 
   // A day axis is a sequence; everything else is a ranking.
@@ -160,9 +181,13 @@ export function buildChart(input: {
     currency,
     metric,
     points,
+    series: splitBy ? series : undefined,
+    values: values.length ? values : undefined,
     matchedRows: matched,
     scannedRows: scanned,
-    note: `${measured} from ${where}, ${selection}, grouped by ${group === 'column' ? (column ?? 'a column') : group}.`,
+    note:
+      `${measured} from ${where}, ${selection}, grouped by ${group === 'column' ? (column ?? 'a column') : group}` +
+      `${splitBy ? `, split by ${splitBy === 'column' ? (splitColumn ?? 'a column') : splitBy}` : ''}.`,
     subtitle: codes.size > 1 ? 'Mixed currencies, so figures are shown without a symbol' : undefined,
   }
 }
@@ -187,7 +212,13 @@ export function buildChart(input: {
  */
 export function describeChart(spec: ChartSpec): string {
   const shown = spec.points.slice(0, 8)
-  const top = shown.map((p) => `${p.key}: ${Math.round(p.total)}`).join('; ')
+  const top = shown
+    .map((p) => {
+      const parts = p.parts ? Object.entries(p.parts).filter(([, v]) => v !== 0) : []
+      const breakdown = parts.length ? ` (${parts.map(([k, v]) => `${k} ${Math.round(v)}`).join(', ')})` : ''
+      return `${p.key}: ${Math.round(p.total)}${breakdown}`
+    })
+    .join('; ')
   const more = spec.points.length > shown.length ? ` (+${spec.points.length - shown.length} more groups)` : ''
   return `"${spec.title}", ${spec.kind} chart of ${spec.points.length} groups. ${spec.note} ${top}${more}`
 }
@@ -197,9 +228,22 @@ export function chartRecord(spec: ChartSpec): string {
   return `[chart drawn] ${describeChart(spec)}`
 }
 
-/** Whether there is anything worth drawing. */
-export function chartIsEmpty(spec: ChartSpec): boolean {
-  return spec.points.length === 0 || spec.points.every((p) => p.total === 0)
+/** Series past the cap are summed into one "Other" entry rather than dropped. */
+function foldParts(
+  parts: Map<string, number>,
+  kept: Set<string>,
+  foldedTail: boolean,
+  metric: ChartMetric,
+  count: number,
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  let other = 0
+  for (const [k, v] of parts) {
+    if (kept.has(k)) out[k] = metric === 'average' ? (count ? v / count : 0) : v
+    else other += v
+  }
+  if (foldedTail && other !== 0) out.Other = metric === 'average' ? (count ? other / count : 0) : other
+  return out
 }
 
 export { computeTotals }

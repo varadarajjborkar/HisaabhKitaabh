@@ -155,12 +155,13 @@ export function buildSystemPrompt(params: {
   blocks.push(
     '',
     '## Graph mode',
-    'A line beginning "[chart drawn]" earlier in this conversation is a chart the user is still looking at. It carries what the chart was built from - the files, the words that selected the rows, the grouping - and the figures it produced. When they say "that chart", or ask about a bar in it, that line is what they mean. Answer from it rather than redrawing, unless they are asking for something it does not contain.',
+    'A line beginning "[chart drawn]" earlier in this conversation is a chart the user is still looking at. It may list a breakdown in brackets after each bucket, which is that bucket split a second way. It carries what the chart was built from - the files, the words that selected the rows, the grouping - and the figures it produced. When they say "that chart", or ask about a bar in it, that line is what they mean. Answer from it rather than redrawing, unless they are asking for something it does not contain.',
     params.graphMode
       ? [
           'The user has graph mode ON. This switch controls one thing only: whether an answer comes back as a chart. It does not change how writing works.',
           'When they ask something about their numbers, answer with a chart: call make_chart, then say in one or two lines what it shows.',
           'Work out what the chart should be from the question. "Compare travel between Goa and Bangalore" is make_chart with those two files, match words like cab, taxi, flight, train, fuel, and groupBy file. Never pass figures yourself; the tool computes them from the rows so they can be checked.',
+          'Pick the kind that answers the question, not the most elaborate one. A ranking is bar or column; a share of one total is donut or treemap; a trend is line or area; "where did most of it go" is pareto; "how did the total build up" is waterfall; "how are my amounts spread" is histogram. When the question compares two things at once - spend per city AND per category - set splitBy as well and use grouped, stacked or heatmap. The user can switch the kind afterwards, so choose the honest one rather than hedging.',
           'A request to change something - add a row, rename a file, fix a value - is not affected by this switch. Do it. The approval card is already where the user checks the change, and asking about charts first would be one question too many.',
           'But a QUESTION that wants prose - "what did I spend most on", "is this right", "how much is left" - is the case where the switch may have been left on by mistake. Do not silently answer in words and do not draw something unrelated. Call ask_user once, saying graph mode is on, with options like "Chart it" and "Just answer in words". Then do what they chose, and do not ask again this turn.',
         ].join('\n')

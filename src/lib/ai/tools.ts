@@ -438,7 +438,12 @@ const makeChart: ToolDef = {
     type: 'object',
     properties: {
       title: { type: 'string', description: 'What the chart shows, in the user\'s own terms. "Travel: Goa vs Bangalore".' },
-      kind: { type: 'string', enum: ['bar', 'line', 'donut'], description: 'bar to compare, line for a trend over days, donut for a breakdown of one total.' },
+      kind: {
+        type: 'string',
+        enum: ['bar', 'column', 'line', 'area', 'donut', 'pie', 'grouped', 'stacked', 'stacked100', 'scatter', 'bubble', 'histogram', 'heatmap', 'treemap', 'waterfall', 'pareto'],
+        description:
+          'bar (ranked, horizontal) or column (vertical) to compare; line or area for a trend over days; donut, pie or treemap for share of one total; grouped, stacked, stacked100 or heatmap to compare two dimensions - these need splitBy; scatter or bubble for rows against amount; histogram for how amounts are spread; waterfall for how a total builds up; pareto for where most of the money went. Pick the one that answers the question, not the fanciest.',
+      },
       files: {
         type: 'array',
         items: { type: 'string' },
@@ -451,6 +456,12 @@ const makeChart: ToolDef = {
       },
       groupBy: { type: 'string', enum: ['file', 'folder', 'category', 'column', 'day'], description: 'What each bar or point stands for.' },
       column: { type: 'string', description: 'Column name when groupBy is column.' },
+      splitBy: {
+        type: 'string',
+        enum: ['file', 'folder', 'category', 'column', 'day'],
+        description: 'A second breakdown inside each bar. "Travel per city, split by category" is groupBy file, splitBy category. Required for grouped, stacked, stacked100 and heatmap; harmless on the others, which ignore it.',
+      },
+      splitColumn: { type: 'string', description: 'Column name when splitBy is column.' },
       metric: { type: 'string', enum: ['sum', 'count', 'average'], description: 'Defaults to sum.' },
     },
     required: ['title', 'kind', 'groupBy'],
@@ -493,6 +504,8 @@ const makeChart: ToolDef = {
       match: arr<string>(args.match).map((m) => str(m).trim().toLowerCase()).filter(Boolean).slice(0, 12),
       group: (str(args.groupBy, 'file') as ChartGroup),
       column: str(args.column) || undefined,
+      splitBy: (str(args.splitBy) || undefined) as ChartGroup | undefined,
+      splitColumn: str(args.splitColumn) || undefined,
       metric: (str(args.metric, 'sum') as ChartMetric),
     })
 
@@ -503,7 +516,14 @@ const makeChart: ToolDef = {
       }
     }
 
-    return { kind: 'data', data: { chart: spec }, display: describeChart(spec) }
+    // The transcript shows this line above the picture, so it stays short. The
+    // full description is written into the thread separately, where it is the
+    // model's only record of a chart it cannot look at again.
+    return {
+      kind: 'data',
+      data: { chart: spec },
+      display: `${spec.points.length} group${spec.points.length === 1 ? '' : 's'}${spec.series?.length ? `, split ${spec.series.length} ways` : ''}`,
+    }
   },
 }
 
