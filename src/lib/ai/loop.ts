@@ -66,6 +66,7 @@ export type AgentEvent =
   | { type: 'applied'; fileId: string; rev: number; total: number; rowCount: number; summary: string; currency?: string }
   | { type: 'conflict'; message: string; fileId: string }
   | { type: 'location'; label: string }
+  | { type: 'settings'; format: string }
   | { type: 'error'; message: string; fatal: boolean }
   | { type: 'done'; reason: 'complete' | 'awaiting_permission' | 'awaiting_answer' | 'budget' | 'error' }
 
@@ -505,7 +506,12 @@ async function* runLoop(
           // A chart goes to the transcript as a chart. The model still gets the
           // figures as text, so it can say something about what it drew rather
           // than narrating a picture it cannot see.
-          const drawn = (result.data as { chart?: ChartSpec } | null)?.chart
+          // A preference the assistant changed reaches the page it is displayed on,
+    // rather than waiting for a reload to be noticed.
+    const changed = result.data as { format?: string; changed?: boolean } | null
+    if (changed?.changed && changed.format) yield { type: 'settings', format: changed.format }
+
+    const drawn = (result.data as { chart?: ChartSpec } | null)?.chart
           if (drawn) {
             yield { type: 'chart', spec: drawn }
             /*

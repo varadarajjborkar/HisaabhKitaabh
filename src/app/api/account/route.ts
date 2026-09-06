@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 const Patch = z.object({
   name: z.string().min(1).max(80).optional(),
   username: z.string().max(24).nullable().optional(),
-  phone: z.string().max(28).nullable().optional(),
+  phone: z.string().max(34).nullable().optional(),
   picture: z.string().max(30_000).nullable().optional(),
 })
 

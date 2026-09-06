@@ -6,6 +6,9 @@ import { Modal, ConfirmModal } from './ui/Modal'
 import { Icon } from './ui/Icons'
 import { toast } from './ui/Toast'
 import { ExportDialog } from './ExportDialog'
+import { DATE_FORMATS, type DateFormat } from '@/lib/util/dateFormat'
+import { DIAL_CODES, joinDial, splitDial } from '@/lib/util/dialling'
+import { setDateFormat, useDateFormat } from '@/lib/client/useDateFormat'
 import { del, get, patch, post } from '@/lib/client/api'
 
 type Profile = {
@@ -66,6 +69,8 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [picture, setPicture] = useState('')
   const [busy, setBusy] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const dateFormat = useDateFormat()
+  const dial = splitDial(phone)
   const [error, setError] = useState('')
   const [emptying, setEmptying] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -208,16 +213,34 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
           </div>
           <div>
             <label className="label" htmlFor="pf-phone">Phone</label>
-            <input
-              id="pf-phone"
-              className="input"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Optional"
-              maxLength={28}
-              inputMode="tel"
-            />
-            <p className="text-[11px] text-faint mt-1">Stored, and nothing sends to it.</p>
+            {/* The dialling code is a separate control because it is a choice
+                from a list, not something to be typed and mistyped. What gets
+                stored is still one string, which is what a phone number is
+                when it is written down or dialled. */}
+            <div className="flex gap-1.5">
+              <select
+                value={dial.code}
+                onChange={(e) => setPhone(joinDial(e.target.value, dial.rest))}
+                aria-label="Country code"
+                className="input w-[104px] shrink-0 px-2"
+              >
+                {DIAL_CODES.map((d) => (
+                  <option key={d.code} value={d.code}>{d.flag} {d.code}</option>
+                ))}
+              </select>
+              <input
+                id="pf-phone"
+                className="input min-w-0 flex-1"
+                value={dial.rest}
+                onChange={(e) => setPhone(joinDial(dial.code, e.target.value))}
+                placeholder="Optional"
+                maxLength={20}
+                inputMode="tel"
+              />
+            </div>
+            <p className="text-[11px] text-faint mt-1">
+              {dial.rest ? `Stored as ${joinDial(dial.code, dial.rest)}. Nothing sends to it.` : 'Stored, and nothing sends to it.'}
+            </p>
           </div>
         </div>
 
@@ -226,6 +249,36 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
             <Icon.Warning size={14} /> {error}
           </p>
         )}
+
+        {/*
+          * Defaults.
+          *
+          * Date format lives here because there is no correct answer to it,
+          * only a local one: 06-09-2026 is the sixth of September to most of
+          * the world and the ninth of June in the United States. A ledger that
+          * guesses will be misread by somebody.
+          */}
+        <div className="mt-6 pt-5 border-t border-line">
+          <p className="text-[11px] uppercase tracking-wide text-faint">Defaults</p>
+          <div className="flex items-start justify-between gap-3 mt-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium">Date format</p>
+              <p className="text-[12px] text-muted mt-0.5 leading-relaxed">
+                How dates are written across the app. You can also just ask the assistant to change it.
+              </p>
+            </div>
+            <select
+              value={dateFormat}
+              onChange={(e) => setDateFormat(e.target.value as DateFormat)}
+              aria-label="Date format"
+              className="input h-8 text-[12.5px] w-[178px] shrink-0"
+            >
+              {DATE_FORMATS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label} · {f.hint}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {/* Above the danger zone on purpose: someone reading their way down
             to "delete my account" should pass the way to take their data with

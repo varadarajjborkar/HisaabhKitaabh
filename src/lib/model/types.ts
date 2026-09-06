@@ -126,6 +126,8 @@ export type User = {
     analyticsEnabled: boolean
     analyticsSelection: { folderId: string | null; fileIds: string[] }
     theme: 'light' | 'dark' | 'system'
+    /** How dates are written. See src/lib/util/dateFormat.ts. */
+    dateFormat?: string
   }
 }
 
@@ -145,6 +147,15 @@ export type Session = {
   userId: string
   email: string
   name: string
+  /**
+   * Whether an avatar exists - not the avatar itself.
+   *
+   * One boolean, so the shell knows whether to request the image at all.
+   * Without it every account with no picture fetched one and got a 404 on
+   * every page, which is a console full of failed requests for a state that
+   * is not an error.
+   */
+  hasPicture: boolean
   role: 'user' | 'admin'
   backend: StorageBackend
   provider: User['provider']

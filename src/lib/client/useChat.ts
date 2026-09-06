@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AttachmentRef } from '@/lib/model/types'
 import { shortId } from '@/lib/util/ids'
 import { toast } from '@/components/ui/Toast'
+import { adoptStoredFormat } from './useDateFormat'
 import { isPdf, pdfToImages, type PdfPage } from './pdf'
 import type { ChartSpec } from '@/lib/ai/chart'
 
@@ -175,6 +176,12 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
 
           case 'chart':
             push({ id: `chart_${shortId(8)}`, kind: 'chart', spec: evt.spec as ChartSpec })
+            break
+
+          case 'settings':
+            // A preference the assistant just changed takes effect on the page
+            // straight away, rather than at the next reload.
+            adoptStoredFormat((evt as { format?: string }).format)
             break
 
           case 'location':

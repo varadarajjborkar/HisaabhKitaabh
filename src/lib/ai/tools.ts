@@ -10,6 +10,8 @@ import { formatMoney } from '../util/format'
 import { isImage, isTabularText } from '../util/mime'
 import { parseTable } from '../util/table'
 import { convertAmount, currencyCode, describeConversion, describeRate, knownCurrency, rateFor } from '../util/currency'
+import { DATE_FORMATS, DEFAULT_DATE_FORMAT, resolveDateFormat } from '../util/dateFormat'
+import { getUser, updateSettings } from '../auth'
 import { buildChart, chartIsEmpty, describeChart, type ChartGroup, type ChartKind, type ChartMetric } from './chart'
 
 /**
@@ -524,6 +526,64 @@ const makeChart: ToolDef = {
       data: { chart: spec },
       display: `${spec.points.length} group${spec.points.length === 1 ? '' : 's'}${spec.series?.length ? `, split ${spec.series.length} ways` : ''}`,
     }
+  },
+}
+
+
+/**
+ * Changing how dates are written, from the conversation.
+ *
+ * The setting lives in the account screen, and most people will never go
+ * looking for it - "why is it showing 09-06" is a thought you have while
+ * staring at a row, not one that survives a trip through settings. So it can
+ * be asked for in words instead.
+ *
+ * It confirms first, using the same ask the assistant uses everywhere else,
+ * because a format is easy to describe ambiguously: "day first" and "06-09-26"
+ * are both requests, and showing the user a worked example of what they are
+ * about to get is the only reliable way to check the two agree.
+ */
+const setDateFormat: ToolDef = {
+  name: 'set_date_format',
+  description:
+    'Change how dates are written across the app. Pass what the user asked for in their own words - "day first", "dd-mm-yyyy", "06 Sep 2026", "the American one" all work. Call it once without `confirmed` to show them an example and let them agree; call it again with confirmed true only after they have.',
+  mode: 'meta',
+  risk: 'low',
+  parameters: {
+    type: 'object',
+    properties: {
+      format: { type: 'string', description: 'The format the user asked for, in their words or as a pattern.' },
+      confirmed: { type: 'boolean', description: 'Only true once the user has agreed to the example you showed them.' },
+    },
+    required: ['format'],
+  },
+  async run(args, ctx) {
+    const wanted = resolveDateFormat(str(args.format))
+    if (!wanted) {
+      return {
+        kind: 'error',
+        message: `"${str(args.format)}" does not name a date format. The ones on offer are: ${DATE_FORMATS.map((f) => `${f.value} (${f.label})`).join(', ')}.`,
+      }
+    }
+
+    const sample = DATE_FORMATS.find((f) => f.value === wanted)!
+    const user = await getUser(ctx.userId)
+    const current = DATE_FORMATS.find((f) => f.value === (user?.settings.dateFormat ?? DEFAULT_DATE_FORMAT)) ?? DATE_FORMATS[0]
+
+    if (current.value === wanted) {
+      return { kind: 'data', data: { format: wanted, changed: false }, display: `already ${sample.label}` }
+    }
+
+    if (!args.confirmed) {
+      return {
+        kind: 'ask',
+        question: `Write dates as ${sample.label}? They are ${current.label} at the moment.`,
+        options: [`Yes, use ${sample.label}`, `Keep ${current.label}`, 'Show me the other formats'],
+      }
+    }
+
+    await updateSettings(ctx.userId, { dateFormat: wanted })
+    return { kind: 'data', data: { format: wanted, changed: true }, display: sample.label }
   },
 }
 
@@ -1105,13 +1165,13 @@ export const TOOLS: ToolDef[] = [
   listFolders, listFiles, getFile, listColumns, queryRows, computeStats, readAttachment, buildExport, makeChart,
   addRows, updateRows, deleteRows, addColumn, renameColumn, deleteColumn, setPeriod, renameFile,
   createFile, createFolder, convertCurrency,
-  askUser,
+  askUser, setDateFormat,
 ]
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]))
 
 /** Tools every request gets regardless of which skill matched. */
-export const ALWAYS_TOOLS = ['get_file', 'list_folders', 'list_files', 'query_rows', 'compute_stats', 'convert_currency', 'make_chart', 'ask_user']
+export const ALWAYS_TOOLS = ['get_file', 'list_folders', 'list_files', 'query_rows', 'compute_stats', 'convert_currency', 'make_chart', 'ask_user', 'set_date_format']
 
 export function toolSpecs(names: string[]): ToolSpec[] {
   return names

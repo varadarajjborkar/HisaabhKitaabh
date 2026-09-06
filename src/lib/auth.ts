@@ -61,6 +61,7 @@ export async function verifySessionToken(token: string): Promise<Session | null>
       userId: String(payload.userId),
       email: String(payload.email),
       name: String(payload.name),
+      hasPicture: Boolean(payload.hasPicture),
       role: (payload.role === 'admin' ? 'admin' : 'user') as Session['role'],
       // 'kv' is the old name for app storage; sessions issued before the
       // rename are still valid and mean the same thing.
@@ -248,6 +249,7 @@ export function toSession(user: User): Session {
     userId: user.id,
     email: user.email,
     name: user.name,
+    hasPicture: Boolean(user.picture),
     role: user.role,
     backend: user.backend,
     provider: user.provider,
@@ -291,7 +293,8 @@ export async function updateProfile(userId: string, patch: ProfilePatch): Promis
 
   if (patch.phone !== undefined) {
     const phone = (patch.phone ?? '').trim()
-    if (phone && !/^[+\d][\d\s().-]{5,24}$/.test(phone)) throw new Error('That phone number does not look right')
+    // Now carries a dialling code, so the pattern allows for the longer string.
+    if (phone && !/^[+\d][\d\s().-]{5,30}$/.test(phone)) throw new Error('That phone number does not look right')
     next.phone = phone || undefined
   }
 

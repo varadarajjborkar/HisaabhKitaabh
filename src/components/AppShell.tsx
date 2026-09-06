@@ -108,18 +108,23 @@ export function TopBar({
  * instance on the page re-fetches immediately rather than showing the old
  * face until a reload.
  */
-function Avatar({ initial, size }: { initial: string; size: number }) {
+function Avatar({ initial, size, has }: { initial: string; size: number; has: boolean }) {
   const [version, setVersion] = useState(0)
   const [failed, setFailed] = useState(false)
+  // A picture added a moment ago is not in the session yet - that arrives with
+  // the next render. Try to load it immediately and fall back if it is not
+  // there, rather than showing the initial until the refresh lands.
+  const [justSet, setJustSet] = useState(false)
 
   useEffect(() => {
-    const onChange = () => { setFailed(false); setVersion((v) => v + 1) }
+    const onChange = () => { setFailed(false); setJustSet(true); setVersion((v) => v + 1) }
     window.addEventListener('avatarChanged', onChange)
     return () => window.removeEventListener('avatarChanged', onChange)
   }, [])
 
-  // A 404 means no picture is set, which is the common case and not an error.
-  if (failed) return <>{initial}</>
+  // No picture is the common case, and it is not an error - so nothing is
+  // requested at all rather than requesting one and handling a 404.
+  if ((!has && !justSet) || failed) return <>{initial}</>
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -160,7 +165,7 @@ export function AccountMenu({ session }: { session: Session }) {
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <Avatar initial={initial} size={32} />
+        <Avatar initial={initial} size={32} has={session.hasPicture} />
       </button>
 
       {open && (
@@ -179,7 +184,7 @@ export function AccountMenu({ session }: { session: Session }) {
                 already know from looking at the tab. */}
             <span className="h-[30px] w-[30px] rounded-full bg-accent-soft text-accent grid place-items-center
                              text-[12px] font-semibold border border-line overflow-hidden shrink-0">
-              <Avatar initial={initial} size={30} />
+              <Avatar initial={initial} size={30} has={session.hasPicture} />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium truncate">{session.name}</p>

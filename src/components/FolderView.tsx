@@ -8,6 +8,8 @@ import { Icon } from './ui/Icons'
 import { AccountMenu, TopBar, useShell } from './AppShell'
 import { del, get, post } from '@/lib/client/api'
 import { formatMoney, relativeTime } from '@/lib/util/format'
+import { formatStamp } from '@/lib/util/dateFormat'
+import { useDateFormat } from '@/lib/client/useDateFormat'
 import { Modal, ConfirmModal } from './ui/Modal'
 import { toast } from './ui/Toast'
 import { ChatDock } from './chat/ChatDock'
@@ -15,7 +17,7 @@ import { ulid } from '@/lib/util/ids'
 import { useFileDrop } from '@/lib/client/useFileDrop'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { SearchBar } from './SearchBar'
-import { ViewBar, useViewPrefs, windowOf } from './ViewBar'
+import { useViewPrefs } from './ViewBar'
 
 type Sort = 'recent' | 'name' | 'total' | 'rows' | 'created'
 
@@ -41,14 +43,14 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
   const [files, setFiles] = useState(initialFiles)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
+  const dateFormat = useDateFormat()
   const [sort, setSort] = useState<Sort>('recent')
   const [creating, setCreating] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [dropped, setDropped] = useState<File[] | null>(null)
-  const [view, setView] = useViewPrefs('files', { layout: 'list' as const, pageSize: 24 })
-  const [page, setPage] = useState(0)
+  const [view] = useViewPrefs('files', { layout: 'list' as const, pageSize: 24 })
 
   /*
    * Dropping a statement or a receipt on the folder hands it to the assistant.
@@ -97,7 +99,14 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
    */
   const currencies = new Set(files.map((f) => (f.currency || 'INR').toUpperCase()))
   const folderCurrency = currencies.size === 1 ? [...currencies][0] : null
-  const win = windowOf(visible, page, view.pageSize)
+  /*
+   * Every file, on one page.
+   *
+   * The home screen windows its folders because analytics sits underneath and
+   * a long list would push it off the screen. Nothing sits under this list, so
+   * paging it only hid files behind a control the user then had to find.
+   */
+  const win = { slice: visible, page: 1, pages: 1 }
   // Select-all covers the page in front of you, not everything the filter
   // matched somewhere off screen.
   const allSelected = win.slice.length > 0 && win.slice.every((f) => selected.has(f.id))
@@ -189,15 +198,6 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
           <h2 className="text-[13px] font-medium text-muted">Files</h2>
           <div className="flex items-center gap-1.5 flex-wrap">
             <SortMenu value={sort} onChange={setSort} />
-            <ViewBar
-              pageSize={view.pageSize}
-              onPageSize={(pageSize) => setView({ pageSize })}
-              page={win.page}
-              pages={win.pages}
-              onPage={setPage}
-              total={visible.length}
-              noun="files"
-            />
             <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">
               <Icon.Plus size={15} />
               <span className="hidden sm:inline">New file</span>
@@ -252,7 +252,10 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
                         </div>
                         <span className="hidden sm:block w-16 text-right text-[12.5px] text-muted tnum">{file.rowCount}</span>
                         <span className="hidden sm:block w-28 text-right text-[13px] tnum font-medium">{formatMoney(file.total, file.currency, { decimals: false })}</span>
-                        <span className="hidden sm:block w-24 text-right text-[11.5px] text-faint" title={new Date(file.createdAt).toLocaleString()}>{relativeTime(file.createdAt)}</span>
+                        {/* Created is a fact about the file, so it shows the
+                            date. Updated is about how stale it is, which
+                            "13m ago" answers better than a date does. */}
+                        <span className="hidden sm:block w-24 text-right text-[11.5px] text-faint tnum" title={new Date(file.createdAt).toLocaleString()}>{formatStamp(file.createdAt, dateFormat)}</span>
                         <span className="hidden sm:block w-24 text-right text-[11.5px] text-faint" title={new Date(file.updatedAt).toLocaleString()}>{relativeTime(file.updatedAt)}</span>
                       </Link>
                     </div>

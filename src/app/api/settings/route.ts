@@ -6,6 +6,7 @@ const Patch = z.object({
   analyticsEnabled: z.boolean().optional(),
   analyticsSelection: z.object({ folderId: z.string().nullable(), fileIds: z.array(z.string()).max(50) }).optional(),
   theme: z.enum(['light', 'dark', 'system']).optional(),
+  dateFormat: z.string().max(24).optional(),
 })
 
 export const GET = withAuth(async ({ session, repo }) => {
