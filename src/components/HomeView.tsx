@@ -122,8 +122,12 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
           </>
         }
       >
+        {/* Centred, not merely capped. `max-w-xl` alone left the box pinned to
+            the left edge under a title bar whose own weight sits at both ends,
+            so the search read as another left-hand control rather than as the
+            thing the whole screen is for. */}
         <div className="px-3 sm:px-5 pb-2.5">
-          <SearchBar className="max-w-xl" placeholder="Search folders, files and rows" />
+          <SearchBar className="max-w-xl mx-auto" placeholder="Search folders, files and rows" />
         </div>
       </TopBar>
 
