@@ -58,6 +58,36 @@ export const env = {
     },
   },
 
+  /**
+   * Outbound email, for the one thing that cannot be done in the browser:
+   * proving that whoever is resetting a password can read that mailbox.
+   *
+   * Two providers, both over plain HTTPS rather than SMTP, because a
+   * serverless function cannot reliably hold an SMTP connection open and
+   * several hosts block the port outright. Either one's free tier is far
+   * more than a password reset needs. Set one:
+   *
+   *   RESEND_API_KEY  - resend.com, 3,000 a month free
+   *   BREVO_API_KEY   - brevo.com, 300 a day free
+   *
+   * MAIL_FROM has to be an address the provider will send as: a verified
+   * domain, or Resend's shared onboarding sender, which only delivers to the
+   * address that owns the Resend account.
+   */
+  mail: {
+    resendKey: opt('RESEND_API_KEY'),
+    brevoKey: opt('BREVO_API_KEY'),
+    from: opt('MAIL_FROM') ?? 'HisaabhKitaabh <onboarding@resend.dev>',
+    get provider(): 'resend' | 'brevo' | null {
+      if (opt('RESEND_API_KEY')) return 'resend'
+      if (opt('BREVO_API_KEY')) return 'brevo'
+      return null
+    },
+    get enabled() {
+      return Boolean(opt('RESEND_API_KEY') ?? opt('BREVO_API_KEY'))
+    },
+  },
+
   ollama: {
     /** Ollama Cloud: https://ollama.com  - self-hosted: http://127.0.0.1:11434 */
     host: (opt('OLLAMA_HOST') ?? 'https://ollama.com').replace(/\/+$/, ''),
@@ -151,6 +181,15 @@ export function deploymentProblems(): DeploymentProblem[] {
       key: 'DEV_PASSWORD',
       severity: 'warning',
       message: 'Developer login was requested but stays off: DEV_PASSWORD is still the published default. Set a real one to enable it.',
+    })
+  }
+  if (!env.mail.enabled) {
+    problems.push({
+      key: 'RESEND_API_KEY',
+      severity: 'warning',
+      message: isProd
+        ? 'No email provider is configured, so "Forgot password" cannot send a code and says so instead of sending one. Set RESEND_API_KEY or BREVO_API_KEY.'
+        : 'No email provider is configured. Reset codes are written to the server log rather than sent, which is fine locally and refused in production.',
     })
   }
   if (env.dev.enabled && isProd) {

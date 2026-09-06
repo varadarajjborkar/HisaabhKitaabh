@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/ui/Icons'
 import { post } from '@/lib/client/api'
 import { toast } from '@/components/ui/Toast'
+import { ForgotPassword } from './ForgotPassword'
 
 const OAUTH_ERRORS: Record<string, string> = {
   google_not_configured: 'Google sign-in is not set up on this deployment.',
@@ -17,16 +18,19 @@ const OAUTH_ERRORS: Record<string, string> = {
 export function LoginForm({
   google,
   devLogin,
+  passwordReset,
   next,
   oauthError,
 }: {
   google: boolean
   devLogin: boolean
+  /** Whether this deployment can actually send a code. See env.mail. */
+  passwordReset: boolean
   next?: string
   oauthError?: string
 }) {
   const router = useRouter()
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin')
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -56,6 +60,10 @@ export function LoginForm({
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setBusy(false)
     }
+  }
+
+  if (mode === 'forgot') {
+    return <ForgotPassword next={next} onBack={() => { setMode('signin'); setError(null) }} />
   }
 
   return (
@@ -116,7 +124,20 @@ export function LoginForm({
         </div>
 
         <div className="mb-2">
-          <label className="label" htmlFor="password">Password</label>
+          {/* The way out sits on the label line, where someone who cannot get
+              past this field is already looking. */}
+          <div className="flex items-baseline justify-between">
+            <label className="label" htmlFor="password">Password</label>
+            {mode === 'signin' && passwordReset && (
+              <button
+                type="button"
+                onClick={() => { setMode('forgot'); setError(null); setShowPassword(false) }}
+                className="text-[12px] text-muted hover:text-accent transition-colors mb-1.5"
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
           {/*
            * Reveal is a button inside the field rather than a checkbox beside
            * it: the eye stays put when the label changes between the sign-in

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { readSession } from '@/lib/auth'
-import { env } from '@/lib/env'
+import { env, isProd } from '@/lib/env'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeCycleButton } from '@/components/ui/ThemeSwitch'
 import { LoginForm } from './LoginForm'
@@ -82,7 +82,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <Logo size={34} />
             <span className="text-[16px] font-semibold tracking-tight">HisaabhKitaabh</span>
           </div>
-          <LoginForm google={env.google.enabled} devLogin={env.dev.enabled} next={params.next} oauthError={params.error} />
+          <LoginForm
+            google={env.google.enabled}
+            devLogin={env.dev.enabled}
+            passwordReset={env.mail.enabled || !isProd}
+            next={params.next}
+            oauthError={params.error}
+          />
         </div>
       </section>
     </main>

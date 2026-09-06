@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { env } from '@/lib/env'
+import { env, isProd } from '@/lib/env'
 import { loginAsDev, loginWithPassword, setSessionCookie, toSession } from '@/lib/auth'
 import { fail, handle, ok, parse } from '@/lib/http/route'
 import { rateCheck, rateNote } from '@/lib/store/locks'
@@ -41,5 +41,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  return ok({ google: env.google.enabled, devLogin: env.dev.enabled })
+  // Password reset needs somewhere to send the code. Locally it goes to the
+  // server log, which is a real answer, so the option is offered there too.
+  return ok({ google: env.google.enabled, devLogin: env.dev.enabled, passwordReset: env.mail.enabled || !isProd })
 }

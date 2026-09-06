@@ -266,6 +266,9 @@ export const K = {
   userByUsername: (name: string) => `u:name:${name.toLowerCase()}`,
   userIndex: 'u:all',
   oauth: (state: string) => `oauth:${state}`,
+  /** A password reset in flight: the code by mailbox, then the ticket it earns. */
+  resetCode: (email: string) => `pwr:code:${email.toLowerCase()}`,
+  resetTicket: (digest: string) => `pwr:tkt:${digest}`,
   googleTokens: (userId: string) => `gtok:${userId}`,
 
   folders: (userId: string) => `d:${userId}:folders`,
