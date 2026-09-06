@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '../ui/Icons'
+import { Markdown } from '../ui/Markdown'
 import { PermissionCard } from './PermissionCard'
 import { ChatChart } from './ChatChart'
 import { RecentPanel, type Thread } from './RecentPanel'
@@ -240,11 +241,11 @@ export function ChatPanel({
             case 'assistant':
               return (
                 <div key={turn.id} className="animate-slide-r">
-                  <div className="text-[14.5px] sm:text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                  <div className="text-[14.5px] sm:text-[13px] leading-relaxed break-words">
                     {turn.thinking && !turn.text ? (
                       <span className="text-faint text-[12.5px] animate-pulse-soft">Thinking…</span>
                     ) : (
-                      <span className={turn.streaming ? 'caret' : ''}>{turn.text}</span>
+                      <Markdown text={turn.text} streaming={turn.streaming} />
                     )}
                   </div>
                 </div>

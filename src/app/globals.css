@@ -215,6 +215,35 @@ body {
   animation: caret 1s steps(2) infinite;
 }
 
+/* Formatted assistant text.
+
+   Blocks space themselves rather than the transcript spacing them, because the
+   gap between a paragraph and the list under it is a property of the two
+   blocks, not of the message they happen to sit in. Sizes stay in `em` so the
+   same markup reads at the phone's 14.5px and the desktop's 13px. */
+.md > * + *      { margin-top: .6em; }
+.md > h3, .md > h4, .md > h5, .md > h6 { margin-top: 1em; }
+.md > :first-child { margin-top: 0; }
+.md > hr         { margin: .9em 0; }
+
+/* While the answer is still arriving the caret belongs at the end of the last
+   thing written, wherever that is - the final bullet, a table cell, a line of
+   prose - rather than after the whole block. */
+.md-streaming > :last-child::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: rgb(var(--accent));
+  animation: caret 1s steps(2) infinite;
+}
+.md-streaming > ul:last-child::after,
+.md-streaming > ol:last-child::after,
+.md-streaming > pre:last-child::after,
+.md-streaming > div:last-child::after { display: none; }
+
 /* Pressable surfaces get a small, immediate scale - the one piece of motion
    that exists purely to confirm the tap landed. */
 .pressable { transition: transform var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
