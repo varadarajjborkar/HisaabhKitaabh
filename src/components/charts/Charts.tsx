@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { formatDate, formatMoney } from '@/lib/util/format'
+import { useMemo, useState, type ReactNode } from 'react'
+import { formatDate, formatMoney, compactMoney } from '@/lib/util/format'
+import { Figure } from '@/components/ui/Figure'
 import { niceTicks, seriesColor } from './palette'
 import { useIsDark } from './useTheme'
 
@@ -67,7 +68,7 @@ export function BarChart({
                 <span className="text-[12.5px] text-ink truncate min-w-0" title={r.key}>{r.key}</span>
                 {/* Direct label on every bar: the light palette needs the relief. */}
                 <span className="text-[12.5px] text-muted tnum shrink-0">
-                  {formatMoney(r.total, currency ?? 'INR', { decimals: false, symbol: !!currency })}
+                  <Figure value={r.total} currency={currency} align="right" />
                   {r.count != null && <span className="text-faint ml-1.5">· {r.count}</span>}
                 </span>
               </div>
@@ -147,8 +148,18 @@ export function LineChart({
       {title && (
         <figcaption className="flex items-baseline justify-between mb-2">
           <span className="text-[13px] font-medium">{title}</span>
-          <span className="text-[12px] text-muted tnum">
-            {active ? `${formatDate(active.day)} · ${formatMoney(active.value, currency ?? 'INR', { decimals: false, symbol: !!currency })}` : `${formatMoney(last.value, currency ?? 'INR', { decimals: false, symbol: !!currency })} latest`}
+          <span className="text-[12px] text-muted tnum flex items-baseline gap-1">
+            {active ? (
+              <>
+                <span>{formatDate(active.day)} ·</span>
+                <Figure value={active.value} currency={currency} align="right" />
+              </>
+            ) : (
+              <>
+                <Figure value={last.value} currency={currency} align="right" />
+                <span>latest</span>
+              </>
+            )}
           </span>
         </figcaption>
       )}
@@ -167,8 +178,12 @@ export function LineChart({
           {ticks.map((t) => (
             <g key={t}>
               <line x1={PAD_L} x2={W - PAD_R} y1={y(t)} y2={y(t)} className="stroke-line" strokeWidth={1} />
+              {/* Axis labels are 10px and stacked five deep, so they are the one
+                  place a short figure is plainly better. The exact one is on
+                  the element, which is where a tooltip can live inside an SVG. */}
               <text x={PAD_L - 8} y={y(t) + 4} textAnchor="end" className="fill-faint text-[10px] tnum">
-                {formatMoney(t, currency ?? 'INR', { symbol: false })}
+                <title>{formatMoney(t, currency ?? 'INR', { decimals: true, symbol: !!currency })}</title>
+                {compactMoney(t, currency ?? 'INR', { symbol: false })}
               </text>
             </g>
           ))}
@@ -203,8 +218,9 @@ export function StatTile({
   tone = 'neutral',
 }: {
   label: string
-  value: string
-  hint?: string
+  /** A node, not a string, so a figure can carry its own exact value. */
+  value: ReactNode
+  hint?: ReactNode
   tone?: 'neutral' | 'good' | 'bad'
 }) {
   return (

@@ -23,6 +23,9 @@ function eq(actual, expected, msg = '') {
   const a = JSON.stringify(actual), b = JSON.stringify(expected)
   if (a !== b) throw new Error(`${msg} expected ${b}, got ${a}`)
 }
+function ne(actual, unwanted, msg = '') {
+  if (JSON.stringify(actual) === JSON.stringify(unwanted)) throw new Error(`${msg} expected anything but ${JSON.stringify(unwanted)}`)
+}
 function ok(cond, msg) { if (!cond) throw new Error(msg || 'expected truthy') }
 
 const { newSheet, applyOps, computeTotals, liveRows, parseAmount, checkRev, SYSTEM_COLUMNS } =
@@ -570,6 +573,27 @@ check('compact form uses lakh and crore for rupees, million for the rest', () =>
   eq(compactMoney(250000, 'INR'), '₹2.5L')
   eq(compactMoney(15000000, 'USD'), '$15M')
   eq(compactMoney(2500, 'USD'), '$2.5k')
+})
+
+check('a compact figure can drop its symbol, for an axis that has one already', () => {
+  eq(compactMoney(250000, 'INR', { symbol: false }), '2.5L')
+  eq(compactMoney(450, 'INR', { symbol: false }), '450')
+  eq(compactMoney(-250000, 'INR', { symbol: false }), '-2.5L')
+})
+
+/*
+ * Every abbreviated figure in the interface is paired with the exact one, so
+ * what matters is that the pair never collapses: if the short form is what the
+ * long form would have been anyway, the interface shows the long one and
+ * offers nothing to hover. Below a thousand that is always the case.
+ */
+check('a figure is only shortened when shortening it loses something', () => {
+  for (const n of [0, 7, 99, 450, 999]) {
+    eq(compactMoney(n, 'INR'), formatMoney(n, 'INR'))
+  }
+  for (const n of [1000, 99500, 250000, 15000000]) {
+    ne(compactMoney(n, 'INR'), formatMoney(n, 'INR'))
+  }
 })
 
 check('a missing currency is treated as rupees, which is what every old file is', () => {

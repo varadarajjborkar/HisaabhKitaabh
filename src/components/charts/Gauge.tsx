@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { formatMoney } from '@/lib/util/format'
+import { compactMoney, formatMoney } from '@/lib/util/format'
 import { seriesColor, withOther } from './palette'
 import { useIsDark } from './useTheme'
 
@@ -103,10 +103,9 @@ export function Gauge({
    * type you can read beats 3,14,020 in type you cannot.
    */
   const hover3 = hover !== null && segments[hover] ? segments[hover] : null
-  // The figure is never abbreviated. A long one is made to fit by sizing the
-  // type to it, below, rather than by rounding it into something else.
-  const full = hover3 ? formatMoney(hover3.total, currency) : formatMoney(total, currency)
-  const hero = full
+  const shown = hover3 ? hover3.total : total
+  const full = formatMoney(shown, currency)
+  const exact = formatMoney(shown, currency, { decimals: true })
   const ceiling = compact ? 24 : 30
   /*
    * The hole is 128 across at its widest and narrower where the type actually
@@ -115,7 +114,15 @@ export function Gauge({
    * 0.55em per character is measured, not guessed - a seven-character total
    * renders 114.8px wide at 30px in this face.
    */
-  const heroSize = Math.max(14, Math.min(ceiling, Math.floor(104 / (hero.length * 0.55))))
+  const fit = (text: string) => Math.max(14, Math.min(ceiling, Math.floor(104 / (text.length * 0.55))))
+  /*
+   * Shrink the type to fit the figure, and past the point where shrinking would
+   * make it unreadable, shorten the figure instead: 3.1L in type you can read
+   * beats 3,14,020 in type you cannot. The exact amount is on the element
+   * either way, so nothing is lost by rounding it here.
+   */
+  const hero = fit(full) > 16 ? full : compactMoney(shown, currency)
+  const heroSize = fit(hero)
 
   return (
     <div className="flex flex-col items-center">
@@ -160,9 +167,9 @@ export function Gauge({
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pointer-events-none">
           {/* Hero figure: proportional digits, not tabular - tabular looks loose at display size. */}
           <span
-            className="font-semibold leading-none tracking-tight max-w-[130px] truncate"
+            className={`font-semibold leading-none tracking-tight max-w-[130px] truncate pointer-events-auto ${hero === full ? '' : 'cursor-help'}`}
             style={{ fontSize: `${heroSize}px` }}
-            title={hero}
+            title={exact}
           >
             {hero}
           </span>

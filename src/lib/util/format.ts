@@ -77,11 +77,19 @@ export function formatMoney(
   return `${sign}${sym}${gap}${grouped}${frac ? '.' + frac : ''}`
 }
 
-export function compactMoney(amount: number, currency = 'INR'): string {
+/**
+ * A figure shortened to fit: 1,20,450 becomes 1.2L.
+ *
+ * Rounding a total is a real loss, so nothing in the interface shows one of
+ * these on its own - every call site pairs it with the exact figure, on hover
+ * or in a tooltip. Short enough to scan, one gesture away from the truth.
+ */
+export function compactMoney(amount: number, currency = 'INR', opts: { symbol?: boolean } = {}): string {
+  const { symbol = true } = opts
   const code = (currency || 'INR').toUpperCase()
   const abs = Math.abs(amount)
   const sign = amount < 0 ? '-' : ''
-  const sym = currencySymbol(code)
+  const sym = symbol ? currencySymbol(code) : ''
   const gap = sym.length > 1 ? ' ' : ''
   const head = `${sign}${sym}${gap}`
 
@@ -93,7 +101,7 @@ export function compactMoney(amount: number, currency = 'INR'): string {
     if (abs >= 1e6) return `${head}${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M`
   }
   if (abs >= 1e3) return `${head}${(abs / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}k`
-  return formatMoney(amount, code, { decimals: false })
+  return formatMoney(amount, code, { decimals: false, symbol })
 }
 
 /** Indian digit grouping: ₹12,34,567.89 - not ₹1,234,567.89. */

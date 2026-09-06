@@ -48,10 +48,14 @@ export function renderChartFile(spec: ChartSpec, options: SvgOptions = {}): stri
 
 function draw(mark: Mark, theme: ChartTheme): string {
   switch (mark.m) {
-    case 'rect':
-      return `<rect x="${n(mark.x)}" y="${n(mark.y)}" width="${n(Math.max(0, mark.w))}" height="${n(Math.max(0, mark.h))}"${
+    case 'rect': {
+      const rect = `<rect x="${n(mark.x)}" y="${n(mark.y)}" width="${n(Math.max(0, mark.w))}" height="${n(Math.max(0, mark.h))}"${
         mark.rx ? ` rx="${n(mark.rx)}"` : ''
-      } fill="${mark.fill}"${mark.stroke ? ` stroke="${mark.stroke}" stroke-width="1"` : ''}${opacity(mark.opacity)}/>`
+      } fill="${mark.fill}"${mark.stroke ? ` stroke="${mark.stroke}" stroke-width="1"` : ''}${opacity(mark.opacity)}`
+      // A shape with a tooltip has to be an element with children, so it closes
+      // rather than self-closes. Without one the extra bytes are not spent.
+      return mark.title ? `${rect}><title>${esc(mark.title)}</title></rect>` : `${rect}/>`
+    }
 
     case 'path':
       return `<path d="${mark.d}" fill="${mark.fill ?? 'none'}"${
@@ -79,7 +83,7 @@ function draw(mark: Mark, theme: ChartTheme): string {
         mark.weight && mark.weight !== 400 ? ` font-weight="${mark.weight}"` : ''
       } fill="${mark.fill}"${mark.anchor && mark.anchor !== 'start' ? ` text-anchor="${mark.anchor}"` : ''}${
         opacity(mark.opacity)
-      }${tnum}${transform}>${esc(mark.s)}</text>`
+      }${tnum}${transform}>${mark.title ? `<title>${esc(mark.title)}</title>` : ''}${esc(mark.s)}</text>`
     }
   }
   void theme

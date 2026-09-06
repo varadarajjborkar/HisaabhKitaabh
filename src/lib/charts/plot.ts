@@ -1,4 +1,4 @@
-import { formatMoney } from '../util/format'
+import { compactMoney, formatMoney } from '../util/format'
 import { textWidth, truncate, wrap } from './measure'
 import { band, extent, linear, niceTicks, type Band, type Linear } from './scale'
 import { arcPath, barPath, hBarPath, linePath, smoothPath, type Mark } from './marks'
@@ -52,6 +52,8 @@ type Ctx = {
   fmt: (v: number) => string
   /** A short figure, for axis ticks where room is scarce. */
   brief: (v: number) => string
+  /** The unrounded figure behind a brief one, for a tooltip. */
+  exact: (v: number) => string
   colour: (i: number) => string
   push: (...m: Mark[]) => void
 }
@@ -80,17 +82,21 @@ export function buildPlot(spec: ChartSpec, opts: PlotOptions = {}): Plot {
   const fmt = (v: number) =>
     money ? String(Math.round(v)) : formatMoney(v, currency ?? 'INR', { decimals: false, symbol: !!currency })
   /*
-   * Axis figures are written out, not abbreviated.
+   * Axis figures are short, and carry the long one.
    *
-   * A tick reading "1.2L" is a rounded number that looks exact, and the gutter
-   * is measured from the labels anyway - so a longer one costs a few pixels of
-   * plot width rather than accuracy.
+   * A gutter wide enough for "1,20,450" at every tick is plot width spent on
+   * five numbers nobody reads precisely; they are there for the shape of the
+   * scale. So the tick says 1.2L and the exact amount is on the element, which
+   * is where a tooltip lives inside an SVG - `exact`, below, is what a reader
+   * gets by putting the pointer on it.
    */
   const brief = (v: number) =>
-    money ? String(Math.round(v)) : formatMoney(v, currency ?? 'INR', { symbol: false })
+    money ? String(Math.round(v)) : compactMoney(v, currency ?? 'INR', { symbol: false })
+  const exact = (v: number) =>
+    money ? String(Math.round(v)) : formatMoney(v, currency ?? 'INR', { decimals: true, symbol: !!currency })
 
   const ctx: Ctx = {
-    spec, theme, points, series, split, fmt, brief,
+    spec, theme, points, series, split, fmt, brief, exact,
     colour: (i) => theme.series[i % theme.series.length],
     push,
   }
@@ -272,7 +278,7 @@ function yAxis(box: Box, scale: Linear, ctx: Ctx, format: (v: number) => string)
     const y = scale.map(t)
     ctx.push(
       { m: 'line', x1: inner.x, y1: y, x2: inner.x + inner.w, y2: y, stroke: ctx.theme.line, width: 1, opacity: t === 0 ? 1 : 0.6 },
-      { m: 'text', x: inner.x - 6, y: y + 3.5, s: format(t), size: TICK_SIZE, fill: ctx.theme.faint, anchor: 'end', tnum: true },
+      { m: 'text', x: inner.x - 6, y: y + 3.5, s: format(t), size: TICK_SIZE, fill: ctx.theme.faint, anchor: 'end', tnum: true, title: ctx.exact(t) },
     )
   }
   return inner
@@ -418,7 +424,7 @@ function drawColumns(box: Box, ctx: Ctx, mode: ColumnMode): void {
       ctx.push({ m: 'path', d: barPath(left, top, x.bandwidth, zero - top, 4), fill: ctx.colour(i) })
       // A figure over every column, so the chart can be read without the axis.
       if (x.bandwidth > textWidth(ctx.brief(p.total), TICK_SIZE) - 2) {
-        ctx.push({ m: 'text', x: left + x.bandwidth / 2, y: top - 6, s: ctx.brief(p.total), size: TICK_SIZE, fill: theme.muted, anchor: 'middle', tnum: true })
+        ctx.push({ m: 'text', x: left + x.bandwidth / 2, y: top - 6, s: ctx.brief(p.total), size: TICK_SIZE, fill: theme.muted, anchor: 'middle', tnum: true, title: ctx.exact(p.total) })
       }
       return
     }
@@ -621,7 +627,7 @@ function drawHeatmap(box: Box, ctx: Ctx): void {
       ctx.push({ m: 'rect', x: cols.map(k), y: rows.map(p.key), w: cols.bandwidth, h: rows.bandwidth, rx: 3, fill })
       if (v > 0 && cols.bandwidth > 42 && rows.bandwidth > 16) {
         ctx.push({
-          m: 'text', x: cols.centre(k), y: rows.centre(p.key) + 3.5, s: ctx.brief(v), size: TICK_SIZE,
+          m: 'text', x: cols.centre(k), y: rows.centre(p.key) + 3.5, s: ctx.brief(v), size: TICK_SIZE, title: ctx.exact(v),
           fill: t > 0.55 ? readableOn(base) : theme.muted, anchor: 'middle', tnum: true,
         })
       }

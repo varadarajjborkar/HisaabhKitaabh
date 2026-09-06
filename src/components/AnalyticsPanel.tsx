@@ -5,7 +5,7 @@ import type { FolderMeta } from '@/lib/model/types'
 import { get } from '@/lib/client/api'
 import { BarChart, DataTable, LineChart, StatTile } from './charts/Charts'
 import { Gauge } from './charts/Gauge'
-import { formatMoney } from '@/lib/util/format'
+import { Figure } from '@/components/ui/Figure'
 import { Icon } from './ui/Icons'
 
 type Analytics = {
@@ -85,16 +85,13 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
    * unit it is.
    */
   const code = data.summary.currency
-  const money = (n: number, opts?: { decimals?: boolean }) => formatMoney(n, code ?? 'INR', { ...opts, symbol: !!code })
   /*
-   * Figures here are written out in full.
-   *
-   * "₹1.2L" is a rounded number wearing the clothes of a precise one, and this
-   * is the screen people come to in order to find out what something actually
-   * cost. Decimals appear only when the amount has them, so a whole number of
-   * rupees is not padded with a pointless .00.
+   * Four totals side by side are only comparable when they are short, and a
+   * short total is a rounded one. Neither half of that is negotiable on this
+   * screen, so the figures are compact and each one carries its own exact
+   * value, a hover away. See ui/Figure.tsx.
    */
-  const short = (n: number) => formatMoney(n, code || 'INR', { symbol: Boolean(code) })
+  const fig = (n: number) => <Figure value={n} currency={code} />
 
   return (
     <div className="space-y-3 animate-rise">
@@ -173,16 +170,16 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
             {/* auto-rows-fr, so the four split the gauge's height evenly instead
                 of hugging the top and leaving a gap above the line chart. */}
             <div className="grid grid-cols-2 gap-3 auto-rows-fr">
-              <StatTile label="Total" value={money(data.summary.total, { decimals: false })} hint={`${data.summary.files} file${data.summary.files === 1 ? '' : 's'}`} />
-              <StatTile label="Rows" value={String(data.summary.rows)} hint={`avg ${short(data.summary.average)}`} />
+              <StatTile label="Total" value={fig(data.summary.total)} hint={`${data.summary.files} file${data.summary.files === 1 ? '' : 's'}`} />
+              <StatTile label="Rows" value={String(data.summary.rows)} hint={<>avg {fig(data.summary.average)}</>} />
               <StatTile
                 label="Largest single row"
-                value={data.topRows[0] ? short(data.topRows[0].amount) : 'None yet'}
+                value={data.topRows[0] ? fig(data.topRows[0].amount) : 'None yet'}
                 hint={data.topRows[0]?.title.slice(0, 28)}
               />
               <StatTile
                 label="Busiest file"
-                value={data.perFile[0] ? short(data.perFile[0].total) : 'None yet'}
+                value={data.perFile[0] ? fig(data.perFile[0].total) : 'None yet'}
                 hint={data.perFile[0]?.name.slice(0, 28)}
               />
             </div>

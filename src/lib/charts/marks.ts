@@ -21,7 +21,7 @@ export type Mark =
   | { m: 'path'; d: string; fill?: string; stroke?: string; width?: number; opacity?: number; dash?: string; join?: 'round' | 'miter' }
   | { m: 'circle'; cx: number; cy: number; r: number; fill: string; stroke?: string; width?: number; opacity?: number; title?: string }
   | { m: 'line'; x1: number; y1: number; x2: number; y2: number; stroke: string; width?: number; dash?: string; opacity?: number }
-  | { m: 'text'; x: number; y: number; s: string; size: number; fill: string; weight?: number; anchor?: Anchor; baseline?: Baseline; opacity?: number; tnum?: boolean; rotate?: number }
+  | { m: 'text'; x: number; y: number; s: string; size: number; fill: string; weight?: number; anchor?: Anchor; baseline?: Baseline; opacity?: number; tnum?: boolean; rotate?: number; title?: string }
 
 /** A rounded-top rectangle, for bars that should not look like bricks. */
 export function barPath(x: number, y: number, w: number, h: number, r: number, up = true): string {

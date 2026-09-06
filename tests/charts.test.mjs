@@ -234,5 +234,19 @@ for (const max of [120, 200, 320]) {
   ok(`wrap to ${max} keeps every line inside`, wrap('totals from "grocery", all 7 rows, grouped by Paid via and then some more text', max, 11, 400, 3).every((l) => textWidth(l, 11) <= max + 0.01))
 }
 
+group('A shortened axis label carries the figure it shortened')
+{
+  const spec = {
+    kind: 'column', title: 'Spend by file', metric: 'sum', currency: 'INR',
+    points: [{ key: 'week 2', total: 128900.5, count: 4 }, { key: 'october trip', total: 94310, count: 7 }],
+    note: '',
+  }
+  const svg = renderChartSvg(spec, { width: 640 })
+  ok('the axis is written short', /<text[^>]*>(<title>[^<]*<\/title>)?[\d.]+[kL]<\/text>/.test(svg), svg.slice(0, 200))
+  ok('every short label has a title beside it', (svg.match(/[\d.]+[kL]<\/text>/g) ?? []).length > 0 && !/<text[^>]*>[\d.]+[kL]<\/text>/.test(svg))
+  ok('a title spells the amount out in full', /<title>₹[\d,]+\.\d\d<\/title>/.test(svg), (svg.match(/<title>[^<]*<\/title>/g) ?? []).slice(0, 4).join(' '))
+  ok('the document still parses', svg.split('<').length === svg.split('>').length)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
