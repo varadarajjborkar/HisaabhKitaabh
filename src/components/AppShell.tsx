@@ -1,10 +1,9 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@/lib/model/types'
 import { Icon } from './ui/Icons'
-import { Logo } from './ui/Logo'
 import { Calculator, CalculatorButton } from './ui/Calculator'
 import { ThemeSwitch } from './ui/ThemeSwitch'
 import { StorageDialog } from './StorageDialog'
@@ -96,6 +95,46 @@ export function TopBar({
   )
 }
 
+/**
+ * The signed-in user's picture, or their initial.
+ *
+ * Fetched from /api/account/avatar rather than read out of the session,
+ * because an uploaded avatar is a data URL far too large to travel in a
+ * cookie - putting it there produced a cookie the browser silently dropped,
+ * which logged the user out. Serving it also means a change appears
+ * everywhere at once instead of waiting for the next sign-in.
+ *
+ * `avatarChanged` is dispatched when the profile screen saves, so every
+ * instance on the page re-fetches immediately rather than showing the old
+ * face until a reload.
+ */
+function Avatar({ initial, size }: { initial: string; size: number }) {
+  const [version, setVersion] = useState(0)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const onChange = () => { setFailed(false); setVersion((v) => v + 1) }
+    window.addEventListener('avatarChanged', onChange)
+    return () => window.removeEventListener('avatarChanged', onChange)
+  }, [])
+
+  // A 404 means no picture is set, which is the common case and not an error.
+  if (failed) return <>{initial}</>
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/api/account/avatar?v=${version}`}
+      alt=""
+      width={size}
+      height={size}
+      className="w-full h-full object-cover"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 export function AccountMenu({ session }: { session: Session }) {
   const [open, setOpen] = useState(false)
   const [storage, setStorage] = useState(false)
@@ -121,10 +160,7 @@ export function AccountMenu({ session }: { session: Session }) {
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        {session.picture
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={session.picture} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          : initial}
+        <Avatar initial={initial} size={32} />
       </button>
 
       {open && (
@@ -138,7 +174,13 @@ export function AccountMenu({ session }: { session: Session }) {
             className="w-full flex items-start gap-2.5 px-3.5 py-2.5 border-b border-line text-left
                        hover:bg-raised transition-colors group"
           >
-            <Logo size={30} />
+            {/* The account's own face, not the app's. This row is about who is
+                signed in, and the app logo told the user nothing they did not
+                already know from looking at the tab. */}
+            <span className="h-[30px] w-[30px] rounded-full bg-accent-soft text-accent grid place-items-center
+                             text-[12px] font-semibold border border-line overflow-hidden shrink-0">
+              <Avatar initial={initial} size={30} />
+            </span>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium truncate">{session.name}</p>
               <p className="text-[11.5px] text-muted truncate">{session.email}</p>

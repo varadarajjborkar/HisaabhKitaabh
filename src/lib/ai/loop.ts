@@ -65,6 +65,7 @@ export type AgentEvent =
   | { type: 'chart'; spec: ChartSpec }
   | { type: 'applied'; fileId: string; rev: number; total: number; rowCount: number; summary: string; currency?: string }
   | { type: 'conflict'; message: string; fileId: string }
+  | { type: 'location'; label: string }
   | { type: 'error'; message: string; fatal: boolean }
   | { type: 'done'; reason: 'complete' | 'awaiting_permission' | 'awaiting_answer' | 'budget' | 'error' }
 
@@ -154,12 +155,45 @@ export async function startRun(params: {
     if (m.role === 'user') messages.push({ role: 'user', content: m.content })
     else if (m.role === 'assistant' && m.content) messages.push({ role: 'assistant', content: m.content })
   }
+
+  /*
+   * Where the conversation is standing, written into the conversation.
+   *
+   * One thread follows the user around rather than a separate thread per file,
+   * because the questions worth asking are not file-shaped: comparing two
+   * trips, charting across a folder, "what did I call that column in the other
+   * one". A thread per file has nowhere to put any of those, and nowhere at
+   * all to put a conversation started from the home screen.
+   *
+   * But the thread moving silently is what went wrong before. The scope was
+   * sent with every message and the system prompt described the current file,
+   * so the model was told it was in Bangalore while reading a conversation
+   * about Goa, with nothing between the two saying a move had happened. "Add a
+   * column" then means one thing to the user and something else in the history.
+   *
+   * So a move is an event in the transcript, in order, visible to both sides.
+   * After the marker "add a column" can only mean the file named in it, and
+   * the file before it is still named for anything that refers back.
+   */
+  const here = locationLabel(scope)
+  const before = lastLocation(history)
+  const moved = before != null && before !== here
+  if (moved) {
+    const marker = `[the user is now in ${here}, having been in ${before}. Later requests mean this one unless they name another.]`
+    messages.push({ role: 'assistant', content: marker })
+    await appendMessage(session.userId, threadId, { role: 'assistant', content: marker, meta: { location: here } })
+  }
+
   const userContent = inbox.length
     ? `${message}\n\n[Attached: ${inbox.map((a) => `${a.name} (${a.mime})`).join(', ')}]`
     : message
   messages.push({ role: 'user', content: userContent })
 
-  await appendMessage(session.userId, threadId, { role: 'user', content: message, meta: { fileId, attachments: inbox.map((a) => a.name) } })
+  await appendMessage(session.userId, threadId, {
+    role: 'user',
+    content: message,
+    meta: { fileId, folderId, at: here, attachments: inbox.map((a) => a.name) },
+  })
 
   const state: RunState = {
     runId: shortId(14),
@@ -177,7 +211,39 @@ export async function startRun(params: {
     assistantText: '',
   }
 
-  return runLoop(state, { session, repo, skills, first: true })
+  const run = runLoop(state, { session, repo, skills, first: true })
+  if (!moved) return run
+  return (async function* () {
+    yield { type: 'location', label: here } as AgentEvent
+    yield* run
+  })()
+}
+
+/**
+ * Where the conversation is standing, as one line.
+ *
+ * Deliberately the same phrasing the user would use for the place, so a marker
+ * in the transcript reads as a sentence rather than as an id.
+ */
+function locationLabel(scope: { fileName?: string; folderName?: string }): string {
+  if (scope.fileName) return scope.folderName ? `"${scope.fileName}" in ${scope.folderName}` : `"${scope.fileName}"`
+  if (scope.folderName) return `the folder ${scope.folderName}`
+  return 'the home screen'
+}
+
+/**
+ * The place the last message was sent from, or null.
+ *
+ * Null for a thread that predates this being recorded, which is the right
+ * answer: without a previous place there is no move to announce, and
+ * inventing one would put a marker at the top of every old conversation.
+ */
+function lastLocation(history: Array<{ role: string; meta?: Record<string, unknown> }>): string | null {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const at = history[i].meta?.at
+    if (history[i].role === 'user' && typeof at === 'string') return at
+  }
+  return null
 }
 
 // ------------------------------------------------------------------- resume

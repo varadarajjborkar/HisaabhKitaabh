@@ -94,6 +94,10 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
       await patch('/api/account', { name, username: username || null, phone: phone || null, picture: picture || null })
       toast.success('Profile saved')
       setProfile((p) => (p ? { ...p, name, username, phone, picture } : p))
+      // Every avatar on the page re-fetches now rather than showing the old
+      // face until the next reload. The name and email come back through
+      // router.refresh(), which re-reads the freshly re-issued session.
+      window.dispatchEvent(new Event('avatarChanged'))
       router.refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save that')

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { clearSessionCookie, deleteAccount, getUser, updateProfile } from '@/lib/auth'
+import { clearSessionCookie, deleteAccount, getUser, setSessionCookie, toSession, updateProfile } from '@/lib/auth'
 import { ok, parse, withAuth } from '@/lib/http/route'
 
 export const dynamic = 'force-dynamic'
@@ -29,8 +29,19 @@ export const GET = withAuth(async ({ session }) => {
   })
 })
 
+/*
+ * Saving the profile re-issues the session.
+ *
+ * The name in the cookie is the name the whole shell renders, so without this
+ * a rename showed the old one until the next sign-in. The cookie stays small
+ * because the avatar is no longer in it - it is served by
+ * /api/account/avatar, after a version that carried it produced a cookie over
+ * the browser's 4KB limit, which was silently dropped and looked exactly like
+ * being signed out.
+ */
 export const PATCH = withAuth(async ({ session }, req: Request) => {
   const user = await updateProfile(session.userId, await parse(req, Patch))
+  await setSessionCookie(toSession(user))
   return ok({ profile: { name: user.name, username: user.username ?? '', phone: user.phone ?? '', picture: user.picture ?? '' } })
 })
 

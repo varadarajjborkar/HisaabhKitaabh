@@ -155,6 +155,7 @@ export function buildSystemPrompt(params: {
   blocks.push(
     '',
     '## Graph mode',
+    'A line beginning "[the user is now in ...]" is the user having navigated somewhere else mid-conversation. Everything after it is happening there. A request that does not name a file means the place in the most recent such line, not the one being discussed before it - and the earlier place is still named above, so "the other file" and "what did we call that column" still resolve.',
     'A line beginning "[chart drawn]" earlier in this conversation is a chart the user is still looking at. It may list a breakdown in brackets after each bucket, which is that bucket split a second way. It carries what the chart was built from - the files, the words that selected the rows, the grouping - and the figures it produced. When they say "that chart", or ask about a bar in it, that line is what they mean. Answer from it rather than redrawing, unless they are asking for something it does not contain.',
     params.graphMode
       ? [

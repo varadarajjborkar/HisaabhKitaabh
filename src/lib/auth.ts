@@ -61,7 +61,6 @@ export async function verifySessionToken(token: string): Promise<Session | null>
       userId: String(payload.userId),
       email: String(payload.email),
       name: String(payload.name),
-      picture: payload.picture ? String(payload.picture) : undefined,
       role: (payload.role === 'admin' ? 'admin' : 'user') as Session['role'],
       // 'kv' is the old name for app storage; sessions issued before the
       // rename are still valid and mean the same thing.
@@ -249,7 +248,6 @@ export function toSession(user: User): Session {
     userId: user.id,
     email: user.email,
     name: user.name,
-    picture: user.picture,
     role: user.role,
     backend: user.backend,
     provider: user.provider,

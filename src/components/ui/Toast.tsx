@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icons'
 
 /**
@@ -59,20 +59,54 @@ const DOT: Record<ToastKind, string> = {
   error: 'bg-bad',
 }
 
+/**
+ * Where toasts live in the stack.
+ *
+ * A dialog opened with showModal() is promoted to the browser's top layer,
+ * which sits above the entire page no matter what z-index anything else
+ * claims. So a toast at z-100 was painted *under* the modal's blurred
+ * backdrop: saving the profile looked like nothing had happened, or like the
+ * app had stalled, because the confirmation was behind the blur.
+ *
+ * A popover is promoted to that same top layer, so this joins the dialog there
+ * instead of competing with it from below. Order within the layer is order of
+ * promotion, so it is re-shown whenever a toast arrives - that puts it above a
+ * dialog that was opened first, which is exactly the case that was broken.
+ */
 export function Toaster() {
   const [list, setList] = useState<ToastItem[]>([])
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     listeners.add(setList)
     return () => { listeners.delete(setList) }
   }, [])
 
-  if (list.length === 0) return null
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof el.showPopover !== 'function') return
+    if (list.length === 0) {
+      if (el.matches(':popover-open')) el.hidePopover()
+      return
+    }
+    // Re-promote on every change, so a toast raised while a modal is open
+    // lands above it rather than under its backdrop.
+    try {
+      if (el.matches(':popover-open')) el.hidePopover()
+      el.showPopover()
+    } catch { /* an unsupported browser keeps the fixed positioning below */ }
+  }, [list])
 
   return (
     <div
-      className="fixed z-[100] bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0
-                 flex flex-col gap-2 w-[calc(100vw-2rem)] sm:w-[360px] no-print"
+      ref={ref}
+      popover="manual"
+      // The popover default styles would centre it in the viewport and give it
+      // a border, so the box is reset and positioned the same way it always was.
+      className={`fixed z-[100] bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0
+                 flex-col gap-2 w-[calc(100vw-2rem)] sm:w-[360px] no-print
+                 bg-transparent border-0 p-0 m-0 overflow-visible
+                 [&:popover-open]:flex ${list.length === 0 ? 'hidden' : 'flex'}`}
       role="status"
       aria-live="polite"
     >

@@ -290,6 +290,20 @@ export function ChatPanel({
             case 'chart':
               return <ChatChart key={turn.id} spec={turn.spec} />
 
+            case 'location':
+              // The conversation follows the user between files, so the move
+              // is shown rather than left to be inferred from what the
+              // assistant starts talking about.
+              return (
+                <div key={turn.id} className="flex items-center gap-2 py-0.5 animate-fade" aria-label={`Now in ${turn.label}`}>
+                  <span className="h-px flex-1 bg-line" />
+                  <span className="text-[11px] text-faint flex items-center gap-1.5 shrink-0">
+                    <Icon.File size={11} /> now in {turn.label}
+                  </span>
+                  <span className="h-px flex-1 bg-line" />
+                </div>
+              )
+
             case 'conflict':
               return (
                 <div key={turn.id} className="card border-warn/40 px-3 py-2.5 animate-rise">

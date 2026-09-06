@@ -15,6 +15,7 @@ import { AnimatedNumber } from '../ui/AnimatedNumber'
 import { formatMoney } from '@/lib/util/format'
 import { ConfirmModal } from '../ui/Modal'
 import { Calculator } from '../ui/Calculator'
+import { useDismiss } from '@/lib/client/useDismiss'
 import { numeric } from '@/lib/crdt/doc'
 import { del } from '@/lib/client/api'
 
@@ -32,6 +33,68 @@ const ASSISTANT_KEY = 'hisaabhkitaabh-assistant-open'
  * able to say "not now" to a panel is the difference between a tool that is
  * available and one that is simply there.
  */
+const BY_ROW = '__row__'
+const GROUP_KEY = (fileId: string) => `hisaabhkitaabh-gauge-group:${fileId}`
+
+/**
+ * Which column the composition is broken down by.
+ *
+ * Sits under the chart rather than behind a settings menu: it is the label for
+ * what is on screen as much as it is a control, and a breakdown whose basis is
+ * not stated is a breakdown that can be misread.
+ */
+function GroupPicker({
+  columns,
+  value,
+  activeName,
+  onChange,
+}: {
+  columns: Array<{ id: string; name: string }>
+  value: string
+  activeName: string
+  onChange: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false))
+
+  return (
+    <div className="relative mt-2.5" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label="Break the total down by"
+        // Taller on a phone: a 28px control is under the size a thumb can
+        // reliably hit, and this one sits directly under the chart it labels.
+        className="w-full h-9 sm:h-7 px-2 rounded-md text-[11.5px] text-faint hover:text-ink hover:bg-raised
+                   transition-colors inline-flex items-center justify-center gap-1"
+      >
+        by {activeName}
+        <Icon.Down size={10} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-30 card shadow-pop py-1 max-h-[240px] overflow-y-auto overscroll-contain animate-scale-in origin-top">
+          {[{ id: BY_ROW, name: 'Each row' }, ...columns].map((c) => {
+            // The tick follows what is drawn, so an auto-picked column that
+            // gave way to the row breakdown ticks "Each row", not itself.
+            const on = c.id === BY_ROW ? activeName === 'each row' : activeName === c.name
+            return (
+              <button
+                key={c.id}
+                onClick={() => { onChange(c.id); setOpen(false) }}
+                className={`w-full text-left px-2.5 py-1.5 text-[12.5px] hover:bg-raised transition-colors flex items-center gap-2 ${on ? 'text-accent' : ''}`}
+              >
+                <span className="w-3.5 shrink-0">{on && <Icon.Check size={12} />}</span>
+                <span className="truncate">{c.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SheetView({
   fileId,
   folderId,
@@ -45,6 +108,16 @@ export function SheetView({
 }) {
   const sheet = useSheet(fileId, initialDoc)
   const { session, aiEnabled } = useShell()
+  // Remembered per file: which column the composition is broken down by. The
+  // empty string means "whichever one looks useful", the state it shipped in.
+  const [groupBy, setGroupBy] = useState('')
+  useEffect(() => {
+    try { setGroupBy(localStorage.getItem(GROUP_KEY(fileId)) ?? '') } catch { /* a default is fine */ }
+  }, [fileId])
+  const chooseGroup = (id: string) => {
+    setGroupBy(id)
+    try { localStorage.setItem(GROUP_KEY(fileId), id) } catch { /* preference only */ }
+  }
   const router = useRouter()
 
   const [chatOpen, setChatOpen] = useState(false)
@@ -125,36 +198,65 @@ export function SheetView({
     )
   }
 
-  // Composition for the gauge: group by the first choice-like column, else by row.
-  const groupCol = doc.columns.find((c) => c.kind === 'select') ?? doc.columns.find((c) => !c.system && c.kind === 'text')
+  /*
+   * What the gauge breaks the total down by.
+   *
+   * It used to pick a column and never say so, which is fine right up until it
+   * picks the wrong one: a file with a payment method and a category has two
+   * honest answers and the useful one is whichever the user is thinking about
+   * at the time. So the choice is theirs, remembered per file, and the picker
+   * names the column it is currently using.
+   */
   const amountCol = doc.columns.find((c) => c.kind === 'amount')
+  const groupable = doc.columns.filter((c) => c.kind === 'select' || c.kind === 'text')
+  const autoCol = doc.columns.find((c) => c.kind === 'select') ?? doc.columns.find((c) => !c.system && c.kind === 'text')
+
+  /*
+   * The grouping is decided once, and both the chart and its label read that
+   * one answer.
+   *
+   * They used to be worked out separately, which left room for the label to
+   * name a column while the arc showed something else: an auto-picked column
+   * that turns out to be empty falls back to a breakdown by row, and the label
+   * would have gone on claiming the column. A caption that disagrees with the
+   * picture is worse than no caption.
+   */
+  const grouping = (() => {
+    if (!amountCol) return null
+    if (groupBy === BY_ROW) return null
+    const chosen = groupable.find((c) => c.id === groupBy)
+    const col = chosen ?? autoCol
+    if (!col) return null
+
+    let categorised = 0
+    const distinct = new Set<string>()
+    for (const r of sheet.rows) {
+      const raw = r.cells[col.id]
+      if (raw != null && raw !== '' && !Array.isArray(raw)) { categorised++; distinct.add(String(raw)) }
+    }
+    // One slice fills the whole arc, which reads as a progress bar at 100% and
+    // tells the user nothing. A column that is not earning its place yet gives
+    // way to the row breakdown - unless the user named it, in which case they
+    // are entitled to see what it actually contains, empty or not.
+    if (!chosen && (categorised === 0 || distinct.size < 2)) return null
+    return col
+  })()
+
   const slices = (() => {
     if (!amountCol) return []
-    const titleCol = doc.columns.find((c) => c.kind === 'text' && c.system)
-    const byRow = () =>
-      sheet.rows.map((r) => ({
+    if (!grouping) {
+      const titleCol = doc.columns.find((c) => c.kind === 'text' && c.system)
+      return sheet.rows.map((r) => ({
         key: String(r.cells[titleCol?.id ?? ''] ?? 'Untitled').slice(0, 30) || 'Untitled',
         total: numeric(r.cells[amountCol.id]),
       }))
-
-    if (!groupCol) return byRow()
-
-    const map = new Map<string, number>()
-    let categorised = 0
-    for (const r of sheet.rows) {
-      const raw = r.cells[groupCol.id]
-      const filled = raw != null && raw !== '' && !Array.isArray(raw)
-      if (filled) categorised++
-      const key = filled ? String(raw).slice(0, 30) : 'Not set'
-      map.set(key, (map.get(key) ?? 0) + numeric(r.cells[amountCol.id]))
     }
-
-    // One slice fills the whole arc, which reads as a progress bar at 100% and
-    // tells the user nothing. If the grouping column isn't earning its place
-    // yet, show the composition by row instead.
-    const distinctFilled = [...map.keys()].filter((k) => k !== 'Not set').length
-    if (categorised === 0 || distinctFilled < 2) return byRow()
-
+    const map = new Map<string, number>()
+    for (const r of sheet.rows) {
+      const raw = r.cells[grouping.id]
+      const filled = raw != null && raw !== '' && !Array.isArray(raw)
+      map.set(filled ? String(raw).slice(0, 30) : 'Not set', (map.get(filled ? String(raw).slice(0, 30) : 'Not set') ?? 0) + numeric(r.cells[amountCol.id]))
+    }
     return [...map.entries()].map(([key, total]) => ({ key, total }))
   })()
 
@@ -299,6 +401,14 @@ export function SheetView({
                     currency={doc.currency}
                     compact
                   />
+                  {groupable.length > 0 && (
+                    <GroupPicker
+                      columns={groupable.map((c) => ({ id: c.id, name: c.name }))}
+                      value={groupBy}
+                      activeName={grouping ? grouping.name : 'each row'}
+                      onChange={chooseGroup}
+                    />
+                  )}
                 </div>
 
                 <div className="card divide-y divide-line">

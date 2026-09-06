@@ -35,6 +35,7 @@ export type Turn =
   | { id: string; kind: 'chart'; spec: ChartSpec }
   | { id: string; kind: 'assistant'; text: string; streaming: boolean; thinking?: boolean }
   | { id: string; kind: 'tool'; label: string; status: 'running' | 'ok' | 'failed'; detail?: string }
+  | { id: string; kind: 'location'; label: string }
   | { id: string; kind: 'permission'; action: PendingAction; runId: string; resolved?: 'allow' | 'allow_always' | 'deny' | 'guide' }
   | { id: string; kind: 'applied'; summary: string; fileId: string; total: number; rowCount: number; currency?: string }
   | { id: string; kind: 'conflict'; message: string }
@@ -174,6 +175,10 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
 
           case 'chart':
             push({ id: `chart_${shortId(8)}`, kind: 'chart', spec: evt.spec as ChartSpec })
+            break
+
+          case 'location':
+            push({ id: `loc_${shortId(8)}`, kind: 'location', label: String(evt.label) })
             break
 
           case 'error':
@@ -351,7 +356,7 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
         id: string
         role: string
         content: string
-        meta?: { chart?: ChartSpec }
+        meta?: { chart?: ChartSpec; location?: string }
       }>
       setTurns(
         messages
@@ -361,6 +366,9 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
             // and finding the text that described a picture, with no picture,
             // is worse than not keeping the conversation at all.
             if (m.meta?.chart) return { id: m.id, kind: 'chart', spec: m.meta.chart }
+            // A move is part of the conversation, so reopening one shows where
+            // each stretch of it was happening.
+            if (m.meta?.location) return { id: m.id, kind: 'location', label: m.meta.location }
             return m.role === 'user'
               ? { id: m.id, kind: 'user', text: m.content }
               : { id: m.id, kind: 'assistant', text: m.content, streaming: false }

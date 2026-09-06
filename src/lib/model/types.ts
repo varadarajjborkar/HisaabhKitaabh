@@ -129,11 +129,22 @@ export type User = {
   }
 }
 
+/*
+ * What travels in the session cookie, and nothing more.
+ *
+ * Every field here is signed into a JWT and sent on every single request, and
+ * a browser refuses to store a cookie over about 4KB - silently, with no error
+ * anywhere. So this type has a hard rule: small, bounded fields only.
+ *
+ * The avatar used to be here. An uploaded one is a data URL of up to 24KB,
+ * which made a cookie the browser simply dropped, and dropping the session
+ * cookie looks exactly like never having signed in. It is fetched from the
+ * account instead, by /api/account/avatar.
+ */
 export type Session = {
   userId: string
   email: string
   name: string
-  picture?: string
   role: 'user' | 'admin'
   backend: StorageBackend
   provider: User['provider']

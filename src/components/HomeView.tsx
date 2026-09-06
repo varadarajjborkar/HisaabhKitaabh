@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { FolderMeta } from '@/lib/model/types'
 import { Icon } from './ui/Icons'
+import { Logo } from './ui/Logo'
 import { Modal, ConfirmModal } from './ui/Modal'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { AccountMenu, TopBar, useShell } from './AppShell'
@@ -101,7 +102,15 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
   return (
     <>
       <TopBar
-        title="HisaabhKitaabh"
+        title={
+          // The mark belongs next to the name it is the mark for. It used to
+          // sit beside the account row in the menu, where it identified the
+          // app to someone already inside it and said nothing about them.
+          <span className="inline-flex items-center gap-2">
+            <Logo size={20} />
+            HisaabhKitaabh
+          </span>
+        }
         subtitle={`${folders.length} folder${folders.length === 1 ? '' : 's'} · ${total} file${total === 1 ? '' : 's'}`}
         actions={
           <>
