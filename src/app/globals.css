@@ -317,7 +317,6 @@ body {
 .scroller {
   overflow-y: auto;
   overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* A drop target that is currently under a dragged file or row. */

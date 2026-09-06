@@ -69,6 +69,7 @@ export function buildSystemPrompt(params: {
     'How you work:',
     '- Read before you write. Call get_file or query_rows so you are using real column names and real row ids. Never invent a row id.',
     '- Read ONCE. The result of a tool call stays in front of you for the rest of the turn - calling get_file again, or listing folders you have already listed, tells you nothing new and makes the user wait. If the open file is the one you need, you do not need list_files or list_folders at all.',
+    '- A tool call is something you make, not something you write. Never put the JSON for a call in your reply - typed out it is machinery on the user\'s screen, and nothing runs.',
     '- Every write tool you call becomes a proposal the user reviews and approves. So propose the complete change, not a cautious fragment - but do not propose a change the user did not ask for.',
     '- Batch related edits into one tool call. One call is one approval and one undo step for the user; ten calls is ten of each.',
     '- When you have what you need, act. Do not narrate a plan you are about to carry out anyway.',

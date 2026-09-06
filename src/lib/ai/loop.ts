@@ -11,6 +11,7 @@ import { allowedTools, selectSkills, toolBudget, type Skill } from './skills'
 import { appendMessage, getSummary, isGranted, grantTool, recallFacts, recentMessages } from './memory'
 import { rateLimit } from '../store/locks'
 import { chartRecord, type ChartSpec } from './chart'
+import { TextGate, type ToolShape } from './leak'
 
 /** Specialist tools are registered here so the loop and the skill router agree. */
 TOOL_MAP.set(extractTool.name, extractTool)
@@ -377,17 +378,28 @@ async function* runLoop(
   const skills = opts.skills.length ? opts.skills : selectSkills(lastUserText(state), { hasAttachment: state.inbox.length > 0, inFile: Boolean(state.fileId) })
   const names = allowedTools(skills, [...ALWAYS_TOOLS, 'extract_from_document', 'deep_analysis', ...WRITE_TOOL_NAMES])
   const specs = toolSpecs(names)
+  const shapes: ToolShape[] = specs.map((s) => ({
+    name: s.function.name,
+    properties: Object.keys(s.function.parameters.properties),
+    required: s.function.parameters.required ?? [],
+  }))
 
   try {
     for (let turn = 0; turn < 8; turn++) {
       let text = ''
       let announcedThinking = false
       const calls: ToolCall[] = []
+      const gate = new TextGate(shapes)
 
       for await (const chunk of streamChat({ messages: state.messages, tools: specs, temperature: 0.2, numCtx: 24576 })) {
         if (chunk.kind === 'text') {
-          text += chunk.text
-          yield { type: 'text', delta: chunk.text }
+          // Not every token is for the user: see leak.ts. What comes back here
+          // is the text; what the gate keeps is a call the model typed out.
+          const safe = gate.push(chunk.text)
+          if (safe) {
+            text += safe
+            yield { type: 'text', delta: safe }
+          }
         } else if (chunk.kind === 'thinking') {
           // The reasoning channel is not the answer, and showing it as one
           // would put half-formed conclusions in front of the user. It becomes
@@ -399,6 +411,23 @@ async function* runLoop(
         } else if (chunk.kind === 'tool_call') {
           calls.push(chunk.call)
         }
+      }
+
+      /*
+       * A call the model wrote instead of making becomes the call it meant.
+       *
+       * Only when it made none of its own: a model that narrates a call it is
+       * also making is describing itself, and running that twice would add the
+       * same rows twice. Either way the JSON stays off the screen, and the
+       * history below records a tool call rather than the prose, so the next
+       * turn sees the shape it should have used.
+       */
+      const kept = gate.end()
+      if (kept.calls.length > 0 && calls.length === 0) {
+        for (const call of kept.calls) calls.push(call)
+      } else if (kept.calls.length === 0 && kept.text) {
+        text += kept.text
+        yield { type: 'text', delta: kept.text }
       }
 
       state.assistantText += text
