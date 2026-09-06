@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Modal, ConfirmModal } from './ui/Modal'
 import { Icon } from './ui/Icons'
 import { toast } from './ui/Toast'
+import { ExportDialog } from './ExportDialog'
 import { del, get, patch, post } from '@/lib/client/api'
 
 type Profile = {
@@ -64,6 +65,7 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [phone, setPhone] = useState('')
   const [picture, setPicture] = useState('')
   const [busy, setBusy] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
   const [emptying, setEmptying] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -225,6 +227,23 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
           </p>
         )}
 
+        {/* Above the danger zone on purpose: someone reading their way down
+            to "delete my account" should pass the way to take their data with
+            them before they get to the button that destroys it. */}
+        <div className="mt-6 pt-5 border-t border-line">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium">Export your data</p>
+              <p className="text-[12px] text-muted mt-0.5 leading-relaxed">
+                Every folder and file, as a zip. Yours to keep, and readable without this app.
+              </p>
+            </div>
+            <button className="btn-outline h-8 text-[12.5px] pressable shrink-0" onClick={() => setExporting(true)}>
+              <Icon.Download size={14} /> Export
+            </button>
+          </div>
+        </div>
+
         <div className="mt-6 pt-5 border-t border-line">
           <p className="text-[11px] uppercase tracking-wide text-faint">Danger</p>
 
@@ -255,6 +274,8 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
           </div>
         </div>
       </Modal>
+
+      <ExportDialog open={exporting} onClose={() => setExporting(false)} />
 
       <ConfirmModal
         open={emptying}

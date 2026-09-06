@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from './ui/Modal'
 import { Icon } from './ui/Icons'
+import { ExportDialog } from './ExportDialog'
 import { get, post } from '@/lib/client/api'
 import { toast } from './ui/Toast'
 import type { StorageBackend } from '@/lib/model/types'
@@ -45,6 +46,7 @@ function size(bytes?: number): string {
 export function StorageDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [state, setState] = useState<StorageState | null>(null)
   const [busy, setBusy] = useState<StorageBackend | null>(null)
+  const [exporting, setExporting] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -140,6 +142,22 @@ export function StorageDialog({ open, onClose }: { open: boolean; onClose: () =>
           </p>
         </div>
       )}
+
+      {/* Where the files live is exactly where someone wonders how to get them
+          out, so the door is here as well as in the account screen. */}
+      <div className="mt-5 pt-4 border-t border-line flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium">Take a copy</p>
+          <p className="text-[12px] text-muted mt-0.5 leading-relaxed">
+            Every folder and file as a zip, in the same shape, readable without this app.
+          </p>
+        </div>
+        <button className="btn-outline h-8 text-[12.5px] pressable shrink-0" onClick={() => setExporting(true)}>
+          <Icon.Download size={14} /> Export
+        </button>
+      </div>
+
+      <ExportDialog open={exporting} onClose={() => setExporting(false)} />
     </Modal>
   )
 }

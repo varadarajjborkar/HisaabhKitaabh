@@ -57,10 +57,31 @@ export function toMarkdown(doc: SheetDoc): string {
   return [`# ${title}`, '', ...lines, '', table].join('\n')
 }
 
+/**
+ * CSV, for a machine to read.
+ *
+ * Amounts go out unformatted - 8900, not "8,900". A grouped figure is a string
+ * as far as every spreadsheet is concerned, so a column of them sums to zero,
+ * which is a nasty thing to discover after importing a year of expenses. The
+ * separators are for reading on a screen, and this file is not that.
+ */
+function csvCell(doc: SheetDoc, rowId: string, columnId: string): string {
+  const col = doc.columns.find((c) => c.id === columnId)
+  const row = doc.rows.find((r) => r.id === rowId)
+  if (!col || !row) return ''
+  const v = row.cells[columnId]
+  if (v == null || v === '') return ''
+  if (col.kind === 'amount' || col.kind === 'number') {
+    const n = numeric(v)
+    return Number.isFinite(n) ? String(n) : ''
+  }
+  return cellText(doc, rowId, columnId)
+}
+
 export function toCsv(doc: SheetDoc): string {
   const rows = liveRows(doc)
   const headers = doc.columns.map((c) => c.name)
-  const body = rows.map((r) => doc.columns.map((c) => cellText(doc, r.id, c.id)))
+  const body = rows.map((r) => doc.columns.map((c) => csvCell(doc, r.id, c.id)))
   const totals = computeTotals(doc)
   const totalRow = doc.columns.map((c, i) =>
     c.kind === 'amount' ? String(totals.total) : i === 1 ? 'TOTAL' : '',
