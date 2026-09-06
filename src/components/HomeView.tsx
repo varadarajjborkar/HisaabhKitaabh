@@ -11,6 +11,7 @@ import { del, get, patch, post } from '@/lib/client/api'
 import { toast } from './ui/Toast'
 import { relativeTime } from '@/lib/util/format'
 import { AnalyticsPanel } from './AnalyticsPanel'
+import { SearchBar } from './SearchBar'
 import { ChatDock } from './chat/ChatDock'
 import { ulid } from '@/lib/util/ids'
 
@@ -73,7 +74,11 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
             <AccountMenu session={session} />
           </>
         }
-      />
+      >
+        <div className="px-3 sm:px-5 pb-2.5">
+          <SearchBar className="max-w-xl" placeholder="Search folders, files and rows" />
+        </div>
+      </TopBar>
 
       <main className="flex-1 scroller px-3 sm:px-5 py-5 pb-24">
         <div className="max-w-5xl w-full mx-auto">

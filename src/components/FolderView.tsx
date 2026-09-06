@@ -14,6 +14,7 @@ import { ChatDock } from './chat/ChatDock'
 import { ulid } from '@/lib/util/ids'
 import { useFileDrop } from '@/lib/client/useFileDrop'
 import { useDismiss } from '@/lib/client/useDismiss'
+import { SearchBar } from './SearchBar'
 
 type Sort = 'recent' | 'name' | 'total' | 'rows' | 'created'
 
@@ -151,16 +152,12 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
         }
       >
         <div className="flex items-center gap-2 px-3 sm:px-5 pb-2.5">
-          <div className="relative flex-1 min-w-0">
-            <Icon.Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search files"
-              className="input h-9 pl-8 text-[13px]"
-              aria-label="Search files"
-            />
-          </div>
+          {/*
+            * The list keeps filtering by name as you type, and the dropdown
+            * offers what the name filter cannot see: a caption, a payment
+            * method, a date, an amount inside one of these files.
+            */}
+          <SearchBar folderId={folder.id} scoped value={query} onValueChange={setQuery} className="flex-1" />
           <SortMenu value={sort} onChange={setSort} />
           <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">
             <Icon.Plus size={15} />

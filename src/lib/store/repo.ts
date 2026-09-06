@@ -1,6 +1,6 @@
 import type { AttachmentRef, FileMeta, FolderMeta, SheetDoc, StorageBackend, User } from '../model/types'
 import { K, kv, backends } from './kv'
-import { accountFootprint, blobs, sqlEnabled } from '../db/sql'
+import { accountFootprint, blobs, searchOwnerKeys, sqlEnabled } from '../db/sql'
 import { LockTimeoutError, withLock } from './locks'
 import { applyOps, checkRev, computeTotals, docEtag, liveRows, newSheet, RevisionConflictError } from '../crdt/doc'
 import type { Op, OpBatch, StampedOp } from '../crdt/ops'
@@ -9,6 +9,7 @@ import { env } from '../env'
 import * as driveStore from '../drive/store'
 import { hasDrive } from '../drive/client'
 import { seedSampleFolder } from './seed'
+import { storageTerms } from '../search/rank'
 
 /**
  * The repository is the only thing in the app that touches persistence.
@@ -185,6 +186,36 @@ export class Repo {
     const folders = await this.listFolders()
     const lists = await Promise.all(folders.map((f) => this.listFiles(f.id)))
     return lists.flat()
+  }
+
+  /**
+   * Documents worth opening for a search, narrowed as far as the store allows.
+   *
+   * With Postgres behind it the narrowing happens in the database, so a query
+   * across a hundred files pulls back the two or three that could possibly
+   * match rather than all hundred. Anywhere else - the memory shim, or a Drive
+   * account whose documents are not ours to query - it falls back to reading,
+   * bounded, because a search that quietly skips half your files is worse than
+   * one that takes a moment.
+   *
+   * These are candidates, not results. A term can appear in a column id or a
+   * stamp as easily as in a caption; the ranker decides what actually matched.
+   */
+  async searchDocs(terms: string[], limit = 24): Promise<SheetDoc[]> {
+    if (terms.length === 0) return []
+    const backend = await this.backend()
+
+    if (sqlEnabled && backend === 'app') {
+      const keys = await searchOwnerKeys(this.uid, `${K.doc(this.uid, '')}*`, storageTerms(terms), limit * 2)
+      const prefix = K.doc(this.uid, '')
+      const ids = keys.map((k) => k.slice(prefix.length)).filter(Boolean)
+      const docs = await Promise.all(ids.slice(0, limit).map((id) => this.tryGetDoc(id)))
+      return docs.filter((d): d is SheetDoc => Boolean(d))
+    }
+
+    const files = (await this.listAllFiles()).slice(0, limit)
+    const docs = await Promise.all(files.map((f) => this.tryGetDoc(f.id)))
+    return docs.filter((d): d is SheetDoc => Boolean(d))
   }
 
   async createFile(input: { folderId: string; name: string; id?: string; seed?: SheetDoc }): Promise<SheetDoc> {

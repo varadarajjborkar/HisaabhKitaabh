@@ -408,6 +408,33 @@ export async function accountFootprint(owner: string): Promise<{ keys: number; j
   return { keys: Number(kvRow.keys), jsonBytes: Number(kvRow.bytes), blobBytes: blob.bytes, blobCount: blob.count }
 }
 
+/**
+ * Keys under one owner whose stored JSON mentions every term.
+ *
+ * The narrowing runs in the database rather than in this process, which is the
+ * whole reason it is worth having: a deep search otherwise means pulling every
+ * document across the wire to look at it, and the documents are the largest
+ * thing an account owns. What comes back is a candidate list - `v::text` sees
+ * ids and column names too, so a match here is a reason to open the document,
+ * not an answer - and the real scoring is done on what it finds.
+ *
+ * `ilike all(...)` requires every term, matching the ranking's rule that a
+ * result has to satisfy the whole query rather than any part of it.
+ */
+export async function searchOwnerKeys(owner: string, prefix: string, terms: string[], limit = 40): Promise<string[]> {
+  if (terms.length === 0) return []
+  await ready()
+  const patterns = terms.map((t) => `%${t.replace(/([%_\\])/g, '\\$1')}%`)
+  const rows = await db()<Array<{ k: string }>>`
+    select k from hk_kv
+    where owner = ${owner}
+      and k like ${likePattern(prefix)} escape '\\'
+      and (expires_at is null or expires_at > now())
+      and v::text ilike all(${patterns})
+    limit ${limit}`
+  return rows.map((r) => r.k)
+}
+
 /** Erase an account. Both tables carry the owner, so nothing is left orphaned. */
 export async function purgeAccount(owner: string): Promise<{ keys: number; blobs: number }> {
   await ready()
