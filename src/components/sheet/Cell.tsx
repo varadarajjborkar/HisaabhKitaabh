@@ -161,7 +161,10 @@ function TextCell({
       onKeyDown={(e) => {
         if (e.key === 'Enter') { e.currentTarget.blur(); onNavigate?.('down') }
         else if (e.key === 'Escape') { setDraft(committed.current); setEditing(false); e.currentTarget.blur() }
-        else if (e.key === 'Tab') { commit(); onNavigate?.(e.shiftKey ? 'prev' : 'next') }
+        // The grid moves focus itself, because native Tab cannot append a row
+        // when it falls off the last cell. Letting the default through as well
+        // would move twice and skip a column.
+        else if (e.key === 'Tab') { e.preventDefault(); commit(); onNavigate?.(e.shiftKey ? 'prev' : 'next') }
         else if (e.key === 'ArrowUp' && !isNumeric) onNavigate?.('up')
         else if (e.key === 'ArrowDown' && !isNumeric) onNavigate?.('down')
       }}
