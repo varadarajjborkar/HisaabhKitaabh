@@ -1,3 +1,4 @@
+import { isMarker } from './markers'
 import { K, kv } from '../store/kv'
 import { shortId } from '../util/ids'
 import { chatStructured } from './ollama'
@@ -61,7 +62,14 @@ export async function recentMessages(userId: string, threadId: string, limit = L
   return list.reverse() // stored newest-first, prompts read oldest-first
 }
 
-export type ThreadSummary = { id: string; title: string; at: number; renamed: boolean }
+export type ThreadSummary = {
+  id: string
+  title: string
+  at: number
+  renamed: boolean
+  /** The line that matched, when the list came back from a search. */
+  snippet?: string
+}
 
 export async function listThreads(userId: string, limit = 20): Promise<ThreadSummary[]> {
   const ids = await kv().zrange<string>(K.chatIndex(userId), 0, limit - 1, true)
@@ -83,6 +91,71 @@ export async function listThreads(userId: string, limit = 20): Promise<ThreadSum
     })
   }
   return out
+}
+
+/**
+ * Find a conversation again.
+ *
+ * Titles rank above content, and deliberately so: a title is what somebody
+ * remembers a conversation *as*, and a match there is nearly always the one
+ * they meant. Content is the fallback for the case a title cannot serve - "the
+ * chat where I worked out the Goa split" is a thing that was said, not a thing
+ * the conversation was called.
+ *
+ * A search reads more of each thread than the list does, but only of threads
+ * it is going to score, and it stops at a bounded number of them. The
+ * alternative - an index of every message - is a second store to keep
+ * consistent for a feature used a few times a week.
+ */
+export async function searchThreads(userId: string, query: string, limit = 20): Promise<ThreadSummary[]> {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return listThreads(userId, limit)
+
+  const ids = await kv().zrange<string>(K.chatIndex(userId), 0, 199, true)
+  const names = (await kv().hgetall<string>(K.chatTitles(userId))) ?? {}
+  const scored: Array<{ thread: ThreadSummary; score: number }> = []
+
+  for (const id of ids) {
+    const msgs = await kv().lrange<StoredMessage>(K.chat(userId, id), 0, 60)
+    if (msgs.length === 0) continue
+    const firstUser = [...msgs].reverse().find((m) => m.role === 'user')
+    const custom = names[id]
+    const title = (custom || firstUser?.content || 'Conversation').slice(0, MAX_TITLE)
+    const lowerTitle = title.toLowerCase()
+
+    let score = 0
+    let snippet: string | undefined
+
+    for (const term of terms) {
+      if (lowerTitle.includes(term)) { score += lowerTitle.startsWith(term) ? 12 : 8; continue }
+      // Machinery is not content. A search for "chart" should find the
+      // conversation where the user said chart, not every marker the app wrote.
+      const hit = msgs.find((m) => !isMarker(m.content) && m.content.toLowerCase().includes(term))
+      if (hit) {
+        score += 3
+        snippet ??= excerpt(hit.content, term)
+      }
+    }
+
+    // Every term has to land somewhere, or "goa cab" would match a thread
+    // that only ever mentioned cabs.
+    if (score > 0 && terms.every((t) => lowerTitle.includes(t) || msgs.some((m) => !isMarker(m.content) && m.content.toLowerCase().includes(t)))) {
+      scored.push({ thread: { id, title, at: msgs[0].at, renamed: Boolean(custom), snippet }, score })
+    }
+  }
+
+  return scored
+    .sort((a, b) => b.score - a.score || b.thread.at - a.thread.at)
+    .slice(0, limit)
+    .map((s) => s.thread)
+}
+
+/** A short window of text around the first hit, for the result row. */
+function excerpt(content: string, term: string): string {
+  const at = content.toLowerCase().indexOf(term)
+  const from = Math.max(0, at - 32)
+  const text = content.slice(from, from + 96).replace(/\s+/g, ' ').trim()
+  return `${from > 0 ? '…' : ''}${text}${from + 96 < content.length ? '…' : ''}`
 }
 
 const MAX_TITLE = 60

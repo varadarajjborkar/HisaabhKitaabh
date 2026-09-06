@@ -5,6 +5,7 @@ import type { AttachmentRef } from '@/lib/model/types'
 import { shortId } from '@/lib/util/ids'
 import { toast } from '@/components/ui/Toast'
 import { adoptStoredFormat } from './useDateFormat'
+import { isMarker, stripMarkers } from '@/lib/ai/markers'
 import { isPdf, pdfToImages, type PdfPage } from './pdf'
 import type { ChartSpec } from '@/lib/ai/chart'
 
@@ -119,7 +120,9 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
             ensureAssistant()
             const delta = String(evt.delta)
             setTurns((t) =>
-              t.map((x) => (x.id === assistantId && x.kind === 'assistant' ? { ...x, text: x.text + delta, thinking: false } : x)),
+              // A model that echoes a marker back gets it taken off here, so
+              // the machinery never reaches the transcript even for a frame.
+              t.map((x) => (x.id === assistantId && x.kind === 'assistant' ? { ...x, text: stripMarkers(x.text + delta), thinking: false } : x)),
             )
             break
           }
@@ -368,7 +371,7 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
       setTurns(
         messages
           .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .map((m): Turn => {
+          .map((m): Turn | null => {
             // A stored chart comes back as a chart. Reopening a conversation
             // and finding the text that described a picture, with no picture,
             // is worse than not keeping the conversation at all.
@@ -376,10 +379,15 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
             // A move is part of the conversation, so reopening one shows where
             // each stretch of it was happening.
             if (m.meta?.location) return { id: m.id, kind: 'location', label: m.meta.location }
+            // A marker whose meta did not survive is still a marker. It is
+            // dropped rather than printed: machinery on screen is worse than
+            // a missing divider.
+            if (m.role === 'assistant' && isMarker(m.content)) return null
             return m.role === 'user'
               ? { id: m.id, kind: 'user', text: m.content }
               : { id: m.id, kind: 'assistant', text: m.content, streaming: false }
-          }),
+          })
+          .filter((t): t is Turn => t !== null),
       )
     } catch {
       toast.error('Could not load that conversation.')

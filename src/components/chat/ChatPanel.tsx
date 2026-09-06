@@ -31,6 +31,8 @@ export function ChatPanel({
   onApplied,
   suggestions,
   compact = false,
+  wide = false,
+  onToggleWide,
   onClose,
   subtitle,
   incoming,
@@ -40,6 +42,9 @@ export function ChatPanel({
   onApplied?: (e: { fileId: string; rowCount: number; total: number }) => void
   suggestions?: string[]
   compact?: boolean
+  /** Taking over the screen rather than sitting in a column. */
+  wide?: boolean
+  onToggleWide?: () => void
   /** Present when the panel is an overlay that can be dismissed. */
   onClose?: () => void
   /** What the assistant is looking at, shown when it fills the screen. */
@@ -54,6 +59,7 @@ export function ChatPanel({
   const [threads, setThreads] = useState<Thread[]>([])
   const [showThreads, setShowThreads] = useState(false)
   const [loadingThreads, setLoadingThreads] = useState(false)
+  const [threadQuery, setThreadQuery] = useState('')
   const [dropping, setDropping] = useState(false)
   const dragDepth = useRef(0)
 
@@ -93,16 +99,36 @@ export function ChatPanel({
     consumedRef.current?.()
   }, [incoming])
 
-  const loadThreads = useCallback(async () => {
-    setShowThreads(true)
+  const fetchThreads = useCallback(async (query: string) => {
     setLoadingThreads(true)
     try {
-      const res = await get<{ threads: Thread[] }>('/api/chat/threads')
+      const res = await get<{ threads: Thread[] }>(`/api/chat/threads${query ? `?q=${encodeURIComponent(query)}` : ''}`)
       setThreads(res.threads)
     } finally {
       setLoadingThreads(false)
     }
   }, [])
+
+  const loadThreads = useCallback(async () => {
+    setShowThreads(true)
+    setThreadQuery('')
+    await fetchThreads('')
+  }, [fetchThreads])
+
+  /*
+   * Searching reads more of each conversation than listing does, so it is
+   * debounced rather than fired per keystroke - and a stale reply cannot land
+   * on a query already retyped, because only the latest one is accepted.
+   */
+  const searchSeq = useRef(0)
+  const searchThreads = useCallback((query: string) => {
+    setThreadQuery(query)
+    const seq = ++searchSeq.current
+    window.setTimeout(() => {
+      if (seq !== searchSeq.current) return
+      void fetchThreads(query.trim())
+    }, query.trim() ? 220 : 0)
+  }, [fetchThreads])
 
   const submit = () => {
     const text = input.trim()
@@ -200,6 +226,20 @@ export function ChatPanel({
           {/* The dismiss control belongs in the header row, not floating over
               it. As an absolutely-positioned overlay it landed on top of the
               "New" button at every width below the panel's widest. */}
+          {/* Room for a chart to be readable. A 400px column makes four bars
+              across three files too short to compare, which is the one thing a
+              bar chart is for. Desktop only: a phone is already full width. */}
+          {onToggleWide && (
+            <button
+              onClick={onToggleWide}
+              className="hidden sm:grid h-7 w-7 place-items-center rounded-md text-faint hover:text-ink hover:bg-raised transition-colors"
+              aria-label={wide ? 'Narrow the assistant' : 'Widen the assistant'}
+              aria-pressed={wide}
+              title={wide ? 'Back to the side' : 'Give it the screen'}
+            >
+              {wide ? <Icon.Chevron size={15} /> : <Icon.Columns size={15} />}
+            </button>
+          )}
           {onClose && (
             <button
               onClick={onClose}
@@ -218,7 +258,7 @@ export function ChatPanel({
         ref={scrollRef}
         className={`flex-1 scroller px-3 py-3.5 min-h-0 ${
           hasConversation ? 'space-y-3 sm:space-y-2.5' : 'flex flex-col justify-center sm:block'
-        }`}
+        } ${wide ? '[&>*]:max-w-[860px] [&>*]:mx-auto' : ''}`}
       >
         {!hasConversation && <Welcome scope={scope} suggestions={suggestions} onPick={(s) => void chat.send(s)} compact={compact} />}
 
@@ -470,6 +510,8 @@ export function ChatPanel({
           onClose={() => setShowThreads(false)}
           onOpen={(id) => { void chat.loadThread(id); setShowThreads(false) }}
           onChange={setThreads}
+          onSearch={searchThreads}
+          query={threadQuery}
         />
       )}
     </div>

@@ -1,15 +1,18 @@
 import { z } from 'zod'
 import { ok, parse, withAuth } from '@/lib/http/route'
-import { deleteThread, listThreads, recentMessages, renameThread, allFacts, forgetFact, revokeGrants } from '@/lib/ai/memory'
+import { deleteThread, listThreads, searchThreads, recentMessages, renameThread, allFacts, forgetFact, revokeGrants } from '@/lib/ai/memory'
 
 export const dynamic = 'force-dynamic'
 
 export const GET = withAuth(async ({ session }, req: Request) => {
-  const threadId = new URL(req.url).searchParams.get('threadId')
+  const params = new URL(req.url).searchParams
+  const threadId = params.get('threadId')
   if (threadId) {
     return ok({ messages: await recentMessages(session.userId, threadId, 60) })
   }
-  return ok({ threads: await listThreads(session.userId), facts: await allFacts(session.userId) })
+  const query = (params.get('q') ?? '').trim()
+  const threads = query ? await searchThreads(session.userId, query) : await listThreads(session.userId)
+  return ok({ threads, facts: await allFacts(session.userId) })
 })
 
 const Del = z.object({ threadId: z.string().optional(), factId: z.string().optional() })

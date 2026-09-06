@@ -34,6 +34,7 @@ const ASSISTANT_KEY = 'hisaabhkitaabh-assistant-open'
  * available and one that is simply there.
  */
 const BY_ROW = '__row__'
+const WIDE_KEY = 'hisaabhkitaabh-assistant-wide'
 const GROUP_KEY = (fileId: string) => `hisaabhkitaabh-gauge-group:${fileId}`
 
 /**
@@ -131,6 +132,14 @@ export function SheetView({
    * per-visit decision.
    */
   const [assistantOpen, setAssistantOpen] = useState(true)
+  // Remembered: someone who wants the wide view usually wants it next time too.
+  const [assistantWide, setAssistantWide] = useState(false)
+  useEffect(() => {
+    try { setAssistantWide(localStorage.getItem(WIDE_KEY) === '1') } catch { /* default is fine */ }
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem(WIDE_KEY, assistantWide ? '1' : '0') } catch { /* preference only */ }
+  }, [assistantWide])
 
   useEffect(() => {
     try {
@@ -427,13 +436,30 @@ export function SheetView({
         {/* The assistant is a permanent column on wide screens, a sheet elsewhere. */}
         {aiEnabled && (
           <>
+            {/*
+              * Wide, when the answer needs the room.
+              *
+              * 380px is right for "add 450 for a cab" and wrong for a chart
+              * comparing four categories across three files - the bars come
+              * out too short to compare, which is the one thing a bar chart is
+              * for. Widened, the assistant becomes the main thing on screen and
+              * the sheet keeps a usable strip rather than being covered over,
+              * so the rows a chart is about stay visible.
+              */}
             {assistantOpen && (
-              <aside className="hidden xl:flex w-[380px] 2xl:w-[420px] shrink-0 border-l border-line bg-surface flex-col overflow-hidden no-print animate-slide-l">
+              <aside
+                className={`hidden xl:flex shrink-0 border-l border-line bg-surface flex-col overflow-hidden no-print
+                            transition-[width] duration-300 ease-out ${
+                              assistantWide ? 'w-[min(1080px,68vw)]' : 'w-[380px] 2xl:w-[420px] animate-slide-l'
+                            }`}
+              >
                 <ChatPanel
                   scope={{ fileId, folderId }}
                   onApplied={onAssistantWrite}
                   onClose={toggleAssistant}
-                  compact
+                  compact={!assistantWide}
+                  wide={assistantWide}
+                  onToggleWide={() => setAssistantWide((w) => !w)}
                   suggestions={[
                     'Add 450 for a cab, paid by UPI',
                     'What did I spend the most on here?',

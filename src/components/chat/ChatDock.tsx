@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ChatPanel } from './ChatPanel'
 import type { ChatScope } from '@/lib/client/useChat'
 
@@ -15,6 +15,8 @@ import type { ChatScope } from '@/lib/client/useChat'
  * does the scrolling. That is what stops a flick in the conversation from
  * taking the page with it.
  */
+const WIDE_KEY = 'hisaabhkitaabh-assistant-wide'
+
 export function ChatDock({
   open,
   onClose,
@@ -32,6 +34,15 @@ export function ChatDock({
   incoming?: File[] | null
   onIncomingConsumed?: () => void
 }) {
+  // Remembered, because someone who wants the wide view usually wants it for
+  // the next question too.
+  const [wide, setWide] = useState(() => {
+    try { return localStorage.getItem(WIDE_KEY) === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(WIDE_KEY, wide ? '1' : '0') } catch { /* preference only */ }
+  }, [wide])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -59,10 +70,25 @@ export function ChatDock({
         * the last message were fighting over about two hundred pixels. A phone
         * chat is a screen, not a peek.
         */}
+      {/*
+        * Wide, when the answer needs the room.
+        *
+        * A 400px column is right for "add 450 for a cab" and wrong for a chart
+        * comparing four categories across three files - the bars end up too
+        * short to compare, which is the one thing a bar chart is for. Expanding
+        * takes over the screen rather than opening a second window, because
+        * the conversation is the task at that point, not a sidebar to it.
+        *
+        * On a phone it is already full width, so the control is desktop only.
+        */}
       <aside
-        className="fixed z-50 bg-surface border-line shadow-pop no-print overflow-hidden flex flex-col
-                   inset-0 h-dvh animate-rise
-                   sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[min(400px,100vw)] sm:h-auto sm:border-l sm:animate-slide-l"
+        className={`fixed z-50 bg-surface border-line shadow-pop no-print overflow-hidden flex flex-col
+                   inset-0 h-dvh animate-rise sm:inset-y-0 sm:right-0 sm:left-auto sm:h-auto sm:border-l
+                   transition-[width] duration-300 ease-out ${
+                     wide
+                       ? 'sm:w-[min(1100px,100vw)]'
+                       : 'sm:w-[min(400px,100vw)] sm:animate-slide-l'
+                   }`}
         role="dialog"
         aria-label="Assistant"
       >
@@ -73,7 +99,9 @@ export function ChatDock({
           subtitle={subtitle}
           incoming={incoming}
           onIncomingConsumed={onIncomingConsumed}
-          compact
+          compact={!wide}
+          wide={wide}
+          onToggleWide={() => setWide((w) => !w)}
         />
       </aside>
     </>

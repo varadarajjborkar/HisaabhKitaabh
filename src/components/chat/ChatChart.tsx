@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../ui/Icons'
 import { useIsDark } from '../charts/useTheme'
 import { useDismiss } from '@/lib/client/useDismiss'
@@ -34,12 +34,32 @@ export function ChatChart({ spec }: { spec: ChartSpec }) {
   const [menu, setMenu] = useState<'kind' | 'save' | null>(null)
   const ref = useDismiss<HTMLDivElement>(menu !== null, () => setMenu(null))
 
+  /*
+   * The chart is drawn at the width it is given, not at a constant.
+   *
+   * A fixed 340 was fine while the panel was always a column, and wrong the
+   * moment it could be widened - the bars stayed short in a space twice as
+   * large, which is exactly the comparison the extra room was for.
+   */
+  const box = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(340)
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      const next = Math.round(entry.contentRect.width)
+      if (next > 80) setWidth(next)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   const shown = useMemo(() => (kind ? { ...spec, kind } : spec), [spec, kind])
   const kinds = useMemo(() => availableKinds(spec), [spec])
 
   const svg = useMemo(
-    () => renderChartSvg(shown, { width: 340, theme: themeFor(dark) }),
-    [shown, dark],
+    () => renderChartSvg(shown, { width, theme: themeFor(dark) }),
+    [shown, dark, width],
   )
 
   return (
@@ -74,6 +94,7 @@ export function ChatChart({ spec }: { spec: ChartSpec }) {
         {/* The SVG is written by the renderer, not by JSX, so the markup here
             is identical to the file that comes out of the save menu. */}
         <div
+          ref={box}
           className="w-full [&>svg]:w-full [&>svg]:h-auto"
           dangerouslySetInnerHTML={{ __html: svg }}
         />

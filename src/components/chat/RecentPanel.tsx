@@ -6,7 +6,7 @@ import { del, patch } from '@/lib/client/api'
 import { relativeTime } from '@/lib/util/format'
 import { toast } from '../ui/Toast'
 
-export type Thread = { id: string; title: string; at: number; renamed?: boolean }
+export type Thread = { id: string; title: string; at: number; renamed?: boolean; snippet?: string }
 
 /**
  * Recent conversations, as a drawer inside the assistant.
@@ -27,12 +27,17 @@ export function RecentPanel({
   onClose,
   onOpen,
   onChange,
+  onSearch,
+  query,
 }: {
   threads: Thread[]
   loading: boolean
   onClose: () => void
   onOpen: (id: string) => void
   onChange: (next: Thread[]) => void
+  /** Runs the search; the caller owns fetching, this owns the box. */
+  onSearch: (query: string) => void
+  query: string
 }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -104,6 +109,34 @@ export function RecentPanel({
         </button>
       </header>
 
+      {/*
+        * Searching what was said, not only what it was called.
+        *
+        * A conversation is often remembered by a thing inside it - "the one
+        * where we worked out the Goa split" - which no title carries. Titles
+        * still rank first, because a title is what somebody remembers a
+        * conversation *as*, and a match there is nearly always the one meant.
+        */}
+      <div className="px-3 py-2 border-b border-line shrink-0 relative">
+        <Icon.Search size={13} className="absolute left-[22px] top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+        <input
+          value={query}
+          onChange={(e) => onSearch(e.target.value)}
+          placeholder="Search conversations"
+          aria-label="Search conversations"
+          className="input h-8 pl-7 pr-7 text-[12.5px]"
+        />
+        {query && (
+          <button
+            onClick={() => onSearch('')}
+            aria-label="Clear search"
+            className="absolute right-[22px] top-1/2 -translate-y-1/2 text-faint hover:text-ink transition-colors"
+          >
+            <Icon.Close size={13} />
+          </button>
+        )}
+      </div>
+
       <div className="flex-1 scroller">
         {loading && threads.length === 0 && (
           <div className="p-3 space-y-2">
@@ -114,8 +147,12 @@ export function RecentPanel({
         {!loading && threads.length === 0 && (
           <div className="p-8 text-center">
             <Icon.History size={20} className="mx-auto text-faint" />
-            <p className="text-[12.5px] text-muted mt-2.5">No earlier conversations.</p>
-            <p className="text-[11.5px] text-faint mt-1">They appear here once you have sent a message.</p>
+            <p className="text-[12.5px] text-muted mt-2.5">
+              {query ? `Nothing matches “${query}”.` : 'No earlier conversations.'}
+            </p>
+            <p className="text-[11.5px] text-faint mt-1">
+              {query ? 'Titles are searched first, then what was said inside.' : 'They appear here once you have sent a message.'}
+            </p>
           </div>
         )}
 
@@ -160,6 +197,9 @@ export function RecentPanel({
                     className="flex-1 min-w-0 text-left px-3 py-2.5 hover:bg-raised transition-colors"
                   >
                     <p className="text-[12.5px] text-ink truncate leading-snug">{t.title}</p>
+                    {/* The line that matched, when the title was not the
+                        reason this thread is in the list. */}
+                    {t.snippet && <p className="text-[11px] text-muted truncate leading-snug mt-0.5">{t.snippet}</p>}
                     <p className="text-[11px] text-faint mt-0.5 flex items-center gap-1.5">
                       {relativeTime(t.at)}
                       {t.renamed && <span className="text-faint/70">renamed</span>}
