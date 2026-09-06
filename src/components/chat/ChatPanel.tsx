@@ -324,6 +324,13 @@ export function ChatPanel({
       </div>
 
       <div className="border-t border-line p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-2.5 shrink-0 bg-surface">
+        {chat.converting && (
+          <div className="flex items-center gap-1.5 mb-2 text-[11.5px] text-muted animate-rise">
+            <Icon.Spinner />
+            <span className="truncate">Turning {chat.converting} into pages</span>
+          </div>
+        )}
+
         {chat.attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2 animate-rise">
             {chat.attachments.map((a) => (

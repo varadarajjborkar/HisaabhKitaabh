@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AttachmentRef } from '@/lib/model/types'
 import { shortId } from '@/lib/util/ids'
 import { toast } from '@/components/ui/Toast'
+import { isPdf, pdfToImages, type PdfPage } from './pdf'
 
 /**
  * Chat transport.
@@ -46,11 +47,16 @@ type Options = {
   threadId?: string
 }
 
+/** How many files one message may carry. */
+const MAX_ATTACHMENTS = 4
+
 export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
   const [threadId, setThreadId] = useState(() => fixedThread ?? `t_${shortId(12)}`)
   const [turns, setTurns] = useState<Turn[]>([])
   const [busy, setBusy] = useState(false)
   const [attachments, setAttachments] = useState<AttachmentRef[]>([])
+  /** The name of a PDF currently being turned into pages, for the composer. */
+  const [converting, setConverting] = useState<string | null>(null)
   const abort = useRef<AbortController | null>(null)
   const runId = useRef<string | null>(null)
 
@@ -252,22 +258,62 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
     }
   }, [consume, push])
 
-  const attach = useCallback(async (file: File) => {
+  const upload = useCallback(async (file: File): Promise<AttachmentRef | null> => {
     const form = new FormData()
     form.append('file', file)
     if (scopeRef.current.folderId) form.append('folderId', scopeRef.current.folderId)
+    const res = await fetch('/api/chat/attach', { method: 'POST', body: form })
+    const body = await res.json()
+    if (!res.ok) {
+      toast.error(String(body.message ?? 'That file could not be attached.'))
+      return null
+    }
+    return body.attachment as AttachmentRef
+  }, [])
+
+  /**
+   * Attach a file, turning a PDF into pictures of itself on the way.
+   *
+   * The assistant can read an image and could not read a PDF at all - it
+   * accepted one, stored it, and then said the format was unreadable, after the
+   * user had already spent the upload. Rendering the pages in the browser and
+   * sending those puts the document on a path that already works, without a PDF
+   * parser on the server or a native binary on a serverless host.
+   */
+  const attach = useCallback(async (file: File) => {
     try {
-      const res = await fetch('/api/chat/attach', { method: 'POST', body: form })
-      const body = await res.json()
-      if (!res.ok) {
-        toast.error(String(body.message ?? 'That file could not be attached.'))
+      if (!isPdf(file)) {
+        const ref = await upload(file)
+        if (ref) setAttachments((prev) => [...prev, ref].slice(0, MAX_ATTACHMENTS))
         return
       }
-      setAttachments((prev) => [...prev, body.attachment as AttachmentRef].slice(0, 4))
-    } catch {
-      toast.error('Upload failed.')
+
+      setConverting(file.name)
+      let pages: PdfPage[]
+      try {
+        pages = await pdfToImages(file)
+      } finally {
+        setConverting(null)
+      }
+      if (pages.length === 0) {
+        toast.error('That PDF has no pages to read.')
+        return
+      }
+      if (pages[0].pages > pages.length) {
+        toast.info(`Reading the first ${pages.length} of ${pages[0].pages} pages`, 'For anything longer, a CSV is a better shape.')
+      }
+
+      // Sequential, because each upload counts against the same slot budget and
+      // firing them together makes the cap a race.
+      for (const page of pages) {
+        const ref = await upload(page.file)
+        if (!ref) break
+        setAttachments((prev) => (prev.length >= MAX_ATTACHMENTS ? prev : [...prev, ref]))
+      }
+    } catch (err) {
+      toast.error('Could not attach that', err instanceof Error ? err.message : undefined)
     }
-  }, [])
+  }, [upload])
 
   const reset = useCallback(() => {
     abort.current?.abort()
@@ -302,5 +348,5 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
 
   useEffect(() => () => abort.current?.abort(), [])
 
-  return { threadId, turns, busy, attachments, send, decide, attach, reset, loadThread, setAttachments }
+  return { threadId, turns, busy, attachments, converting, send, decide, attach, reset, loadThread, setAttachments }
 }
