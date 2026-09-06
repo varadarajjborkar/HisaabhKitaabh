@@ -101,6 +101,16 @@ export type User = {
   id: string
   email: string
   name: string
+  /**
+   * A handle, unique across the install, and a second way to sign in.
+   *
+   * Optional. The sign-in form has always said "Email or username", and this is
+   * what finally makes that true for accounts other than the developer one.
+   */
+  username?: string
+  /** Optional, and never used for anything: a slot, because people want one. */
+  phone?: string
+  /** A Google avatar URL, or a small image the user chose, as a data URL. */
   picture?: string
   provider: 'google' | 'password' | 'dev'
   passwordHash?: string

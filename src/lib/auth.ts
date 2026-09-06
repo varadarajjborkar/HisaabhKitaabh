@@ -6,6 +6,7 @@ import { withLock } from './store/locks'
 import type { Session, StorageBackend, User } from './model/types'
 import { hashPassword, verifyPassword } from './util/hash'
 import { ulid } from './util/ids'
+import { purgeAccount, sqlEnabled } from './db/sql'
 
 const COOKIE = 'hisaabhkitaabh_session'
 const MAX_AGE = 60 * 60 * 24 * 30
@@ -96,6 +97,14 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return id ? getUser(id) : null
 }
 
+export async function getUserByUsername(username: string): Promise<User | null> {
+  const id = await kv().get<string>(K.userByUsername(username))
+  return id ? getUser(id) : null
+}
+
+/** What a handle is allowed to be. Short, unambiguous, and typeable on a phone. */
+export const USERNAME_RE = /^[a-z0-9](?:[a-z0-9._-]{1,22}[a-z0-9])$/i
+
 export async function saveUser(user: User): Promise<void> {
   await kv().set(K.user(user.id), user)
   await kv().set(K.userByEmail(user.email), user.id)
@@ -141,11 +150,30 @@ export async function registerWithPassword(input: { email: string; password: str
   }, { ttlMs: 10_000, waitMs: 8_000 })
 }
 
-export async function loginWithPassword(email: string, password: string): Promise<User> {
-  const user = await getUserByEmail(email.trim().toLowerCase())
-  if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
-    throw new Error('Email or password is incorrect')
-  }
+/**
+ * Sign in with either identifier.
+ *
+ * The form has said "Email or username" since the beginning and only the
+ * developer account could actually use the second half of it. An identifier
+ * with an @ in it is an email; anything else is looked up as a handle.
+ *
+ * Both failures give the same message on purpose. "No such username" tells an
+ * attacker which half of the guess was right.
+ */
+export async function loginWithPassword(identifier: string, password: string): Promise<User> {
+  const id = identifier.trim().toLowerCase()
+  const user = id.includes('@') ? await getUserByEmail(id) : await getUserByUsername(id)
+  if (!user) throw new Error('Email or password is incorrect')
+
+  // The developer account holds no hash - it is checked against the
+  // environment - so reaching it by a handle it has set for itself has to be
+  // checked the same way, or setting one would quietly lock it out.
+  const good =
+    user.provider === 'dev'
+      ? env.dev.enabled && password === env.dev.password
+      : Boolean(user.passwordHash) && verifyPassword(password, user.passwordHash!)
+
+  if (!good) throw new Error('Email or password is incorrect')
   return user
 }
 
@@ -226,6 +254,108 @@ export function toSession(user: User): Session {
     backend: user.backend,
     provider: user.provider,
   }
+}
+
+export type ProfilePatch = {
+  name?: string
+  username?: string | null
+  phone?: string | null
+  picture?: string | null
+}
+
+/** A data URL small enough to live in the user record without being a file store. */
+const MAX_PICTURE = 24_000
+
+/**
+ * Change the parts of an account a person owns.
+ *
+ * The handle is the only field with a constraint worth defending, and it is
+ * defended by claiming the index row rather than by looking first: two people
+ * choosing the same handle at the same moment would both find it free. The
+ * claim is atomic, so the second one loses and is told so.
+ *
+ * The avatar is a data URL, capped, because the alternative is an upload
+ * pipeline and a second place for an account's storage to grow. The client
+ * scales the image down before it ever gets here; the cap is what stops
+ * somebody skipping that step.
+ */
+export async function updateProfile(userId: string, patch: ProfilePatch): Promise<User> {
+  const user = await getUser(userId)
+  if (!user) throw new UnauthorizedError()
+
+  const next: User = { ...user }
+
+  if (patch.name !== undefined) {
+    const name = patch.name.trim()
+    if (!name) throw new Error('A name cannot be empty')
+    next.name = name.slice(0, 80)
+  }
+
+  if (patch.phone !== undefined) {
+    const phone = (patch.phone ?? '').trim()
+    if (phone && !/^[+\d][\d\s().-]{5,24}$/.test(phone)) throw new Error('That phone number does not look right')
+    next.phone = phone || undefined
+  }
+
+  if (patch.picture !== undefined) {
+    const picture = (patch.picture ?? '').trim()
+    if (picture && !/^(https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(picture)) {
+      throw new Error('That is not an image')
+    }
+    if (picture.length > MAX_PICTURE) throw new Error('That image is too large. Choose a smaller one.')
+    next.picture = picture || undefined
+  }
+
+  if (patch.username !== undefined) {
+    const wanted = (patch.username ?? '').trim().toLowerCase()
+    if (wanted && !USERNAME_RE.test(wanted)) {
+      throw new Error('Usernames are 3 to 24 characters: letters, numbers, dots, dashes and underscores')
+    }
+    // The developer account answers to its name before anything else does, so a
+    // handle that collides with it would be a handle that cannot sign in.
+    if (wanted && env.dev.enabled && wanted === env.dev.username.toLowerCase()) {
+      throw new Error('That username is taken')
+    }
+    if (wanted !== (user.username ?? '')) {
+      if (wanted) {
+        const claimed = await kv().set(K.userByUsername(wanted), user.id, { nx: true })
+        if (!claimed) {
+          const holder = await kv().get<string>(K.userByUsername(wanted))
+          if (holder !== user.id) throw new Error('That username is taken')
+        }
+      }
+      if (user.username) await kv().del(K.userByUsername(user.username))
+      next.username = wanted || undefined
+    }
+  }
+
+  await saveUser(next)
+  return next
+}
+
+/**
+ * Everything the account holds, gone; the account itself still standing.
+ *
+ * Separate from deleting the account because they are different intentions:
+ * starting over is not leaving. The seeded marker is deliberately left set, so
+ * the sample folder does not reappear five seconds after being cleared out and
+ * make the whole thing look like it failed.
+ */
+export async function emptyAccountData(userId: string, repo: { listFolders(): Promise<Array<{ id: string }>>; deleteFolder(id: string): Promise<void> }): Promise<number> {
+  const folders = await repo.listFolders()
+  for (const f of folders) await repo.deleteFolder(f.id)
+  await kv().set(K.seeded(userId), true)
+  return folders.length
+}
+
+/** Remove the account and everything filed under it, including the indexes. */
+export async function deleteAccount(user: User): Promise<void> {
+  await kv().srem(K.userIndex, user.id)
+  await kv().del(K.userByEmail(user.email))
+  if (user.username) await kv().del(K.userByUsername(user.username))
+  await kv().del(K.user(user.id))
+  await kv().del(K.folders(user.id), K.seeded(user.id), K.docIndex(user.id), K.memory(user.id), K.chatIndex(user.id))
+  if (sqlEnabled) await purgeAccount(user.id)
 }
 
 export async function updateSettings(userId: string, patch: Partial<User['settings']>): Promise<User> {

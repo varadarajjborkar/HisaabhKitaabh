@@ -124,12 +124,18 @@ export function ready(): Promise<void> {
  * nothing behind.
  */
 const OWNER_AT_1 = new Set(['d', 'c', 'chat', 'pend', 'mem', 'grant', 'rl', 'idem', 'oplog', 'gtok'])
+/** Second segments under `u:` that name an index rather than a user. */
+const U_INDEXES = new Set(['email', 'name', 'all'])
 
 export function ownerOf(key: string): string | null {
   const parts = key.split(':')
   if (parts.length < 2) return null
   if (OWNER_AT_1.has(parts[0])) return parts[1] || null
-  if (parts[0] === 'u' && parts[1] !== 'email' && parts[1] !== 'all') return parts[1] || null
+  // `u:<id>` belongs to that user; `u:email:...`, `u:name:...` and `u:all` are
+  // install-wide indexes and belong to nobody. Getting this wrong would file an
+  // index row under an owner called "name" and leave it behind when that
+  // account was deleted.
+  if (parts[0] === 'u' && !U_INDEXES.has(parts[1])) return parts[1] || null
   return null
 }
 

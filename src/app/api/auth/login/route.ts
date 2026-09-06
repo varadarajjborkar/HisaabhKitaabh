@@ -19,9 +19,14 @@ export async function POST(req: Request) {
 
     let user
     try {
-      user = identifier.includes('@')
-        ? await loginWithPassword(identifier, password)
-        : await loginAsDev(identifier, password)
+      /*
+       * Anything that is not an email used to be assumed to be the developer
+       * account, which was true right up until ordinary accounts could have a
+       * username. The developer login is one fixed credential, so it answers
+       * only to its own name and everything else goes to the real lookup.
+       */
+      const isDev = env.dev.enabled && identifier.trim().toLowerCase() === env.dev.username.toLowerCase()
+      user = isDev ? await loginAsDev(identifier, password) : await loginWithPassword(identifier, password)
     } catch (err) {
       await rateNote(key, 'auth', 300)
       throw err

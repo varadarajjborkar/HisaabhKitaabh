@@ -269,6 +269,7 @@ export function resetBackends(): void {
 export const K = {
   user: (id: string) => `u:${id}`,
   userByEmail: (email: string) => `u:email:${email.toLowerCase()}`,
+  userByUsername: (name: string) => `u:name:${name.toLowerCase()}`,
   userIndex: 'u:all',
   oauth: (state: string) => `oauth:${state}`,
   googleTokens: (userId: string) => `gtok:${userId}`,

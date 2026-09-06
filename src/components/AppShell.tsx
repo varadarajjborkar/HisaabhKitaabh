@@ -8,6 +8,7 @@ import { Logo } from './ui/Logo'
 import { Calculator, CalculatorButton } from './ui/Calculator'
 import { ThemeSwitch } from './ui/ThemeSwitch'
 import { StorageDialog } from './StorageDialog'
+import { ProfileDialog } from './ProfileDialog'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { post } from '@/lib/client/api'
 
@@ -98,6 +99,7 @@ export function TopBar({
 export function AccountMenu({ session }: { session: Session }) {
   const [open, setOpen] = useState(false)
   const [storage, setStorage] = useState(false)
+  const [profile, setProfile] = useState(false)
   const router = useRouter()
   const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false))
 
@@ -130,13 +132,19 @@ export function AccountMenu({ session }: { session: Session }) {
           className="absolute right-0 top-10 z-50 w-[264px] card shadow-pop py-1.5 animate-scale-in origin-top-right"
           role="menu"
         >
-          <div className="flex items-start gap-2.5 px-3.5 py-2.5 border-b border-line">
+          <button
+            onClick={() => { setOpen(false); setProfile(true) }}
+            role="menuitem"
+            className="w-full flex items-start gap-2.5 px-3.5 py-2.5 border-b border-line text-left
+                       hover:bg-raised transition-colors group"
+          >
             <Logo size={30} />
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium truncate">{session.name}</p>
               <p className="text-[11.5px] text-muted truncate">{session.email}</p>
             </div>
-          </div>
+            <Icon.Chevron size={13} className="text-faint group-hover:text-muted transition-colors mt-1 shrink-0" />
+          </button>
 
           <button
             onClick={() => { setOpen(false); setStorage(true) }}
@@ -174,6 +182,7 @@ export function AccountMenu({ session }: { session: Session }) {
       {/* Outside the menu, so choosing a backend does not unmount the dialog
           the moment the menu closes behind it. */}
       <StorageDialog open={storage} onClose={() => setStorage(false)} />
+      <ProfileDialog open={profile} onClose={() => setProfile(false)} />
     </div>
   )
 }
