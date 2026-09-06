@@ -37,8 +37,6 @@ export const SERIES_DARK = [
 export const MAX_SERIES = SERIES_LIGHT.length
 
 /** Sequential blue ramp, light → dark. For magnitude, never for identity. */
-export const SEQUENTIAL = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#2a78d6', '#256abf', '#184f95', '#0d366b'] as const
-
 export function seriesColor(index: number, dark: boolean): string {
   const set = dark ? SERIES_DARK : SERIES_LIGHT
   return set[index % set.length]

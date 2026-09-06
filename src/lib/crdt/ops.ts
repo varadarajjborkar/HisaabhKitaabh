@@ -24,12 +24,6 @@ export type Op =
 
 export type OpType = Op['type']
 
-export const WRITE_OPS: OpType[] = [
-  'row.insert', 'cell.set', 'row.move', 'row.delete', 'row.restore',
-  'column.insert', 'column.rename', 'column.retype', 'column.delete',
-  'doc.rename', 'doc.duration', 'doc.currency',
-]
-
 /** An op plus the provenance we need for stamping and for the audit trail. */
 export type StampedOp = Op & { actor: string; lamport: number; at: number }
 

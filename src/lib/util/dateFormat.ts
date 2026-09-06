@@ -61,18 +61,6 @@ export function applyDateFormat(date: Date, format: DateFormat | string): string
   })
 }
 
-/** An ISO day, or a "YYYY-MM" month, in the user's format. */
-export function formatIsoDate(iso: string, format: DateFormat | string): string {
-  if (!iso) return ''
-  const parts = iso.split('-')
-  if (parts.length === 2) {
-    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1)
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en', { month: 'short', year: 'numeric' })
-  }
-  const d = new Date(`${iso}T00:00:00`)
-  return Number.isNaN(d.getTime()) ? iso : applyDateFormat(d, format)
-}
-
 /** A timestamp in the user's format. */
 export function formatStamp(ts: number, format: DateFormat | string): string {
   return applyDateFormat(new Date(ts), format)

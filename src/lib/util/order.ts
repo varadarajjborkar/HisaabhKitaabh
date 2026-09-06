@@ -168,10 +168,6 @@ export function orderAfter(last: string | null): string {
   return orderBetween(last, null)
 }
 
-export function orderBefore(first: string | null): string {
-  return orderBetween(null, first)
-}
-
 /**
  * Sort by order key, breaking ties on id.
  *

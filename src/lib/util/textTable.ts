@@ -271,7 +271,3 @@ export function layoutTable(columns: TextColumn[], options: TableOptions = {}): 
   return out
 }
 
-/** The width the table will actually occupy, for a preview that has to fit. */
-export function tableWidth(lines: string[]): number {
-  return Math.max(0, ...lines.map(displayWidth))
-}

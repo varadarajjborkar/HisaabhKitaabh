@@ -259,11 +259,6 @@ export async function deleteSheet(userId: string, fileId: string): Promise<void>
   await forgetId(userId, key)
 }
 
-export async function renameSheetFile(userId: string, fileId: string, name: string): Promise<void> {
-  const id = await cachedId(userId, `sheet:${fileId}`)
-  if (id) await drive.updateMetadata(userId, id, { name: `${safeName(name)}.hisaab.json` })
-}
-
 export async function deleteFolderDir(userId: string, folderId: string): Promise<void> {
   const key = `folder:${folderId}`
   const id = (await cachedId(userId, key)) ?? (await drive.list(userId, `appProperties has { key='hisaabKey' and value='${esc(key)}' } and trashed=false`))[0]?.id

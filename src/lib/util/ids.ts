@@ -27,10 +27,6 @@ export function ulid(now = Date.now()): string {
   return ts + rand
 }
 
-export function uuid(): string {
-  return globalThis.crypto.randomUUID()
-}
-
 export function shortId(n = 8): string {
   const b = randomBytes(n)
   let s = ''

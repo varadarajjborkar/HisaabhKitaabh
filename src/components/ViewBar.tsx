@@ -16,8 +16,6 @@ export type Layout = 'grid' | 'list'
  * account grows to, and the largest option is still small enough to scroll past.
  */
 export const PAGE_SIZES = [12, 24, 48] as const
-export const PAGE_MAX = PAGE_SIZES[PAGE_SIZES.length - 1]
-
 type Prefs = { layout: Layout; pageSize: number }
 
 /** Remembered per surface, because folders and files are not looked at the same way. */

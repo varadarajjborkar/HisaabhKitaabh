@@ -278,14 +278,3 @@ async function describeFailure(res: Response): Promise<string> {
   return `Ollama request failed (${res.status})${text ? `: ${text.slice(0, 300)}` : ''}`
 }
 
-export async function listModels(): Promise<string[]> {
-  if (!env.ollama.enabled) return []
-  try {
-    const res = await fetch(`${env.ollama.host}/api/tags`, { headers: headers() })
-    if (!res.ok) return []
-    const data = (await res.json()) as { models?: Array<{ name: string }> }
-    return (data.models ?? []).map((m) => m.name)
-  } catch {
-    return []
-  }
-}

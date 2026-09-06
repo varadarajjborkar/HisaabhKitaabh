@@ -23,26 +23,6 @@ import { renderSkills } from './skills'
  * has a defined input, a defined output shape, and a bounded cost.
  */
 
-export type AgentId = 'main' | 'extractor' | 'analyst'
-
-export const AGENTS: Record<AgentId, { title: string; model: () => string; purpose: string }> = {
-  main: {
-    title: 'Assistant',
-    model: () => env.ollama.chatModel,
-    purpose: 'Talks to the user, plans changes, calls tools, and asks for approval before writing.',
-  },
-  extractor: {
-    title: 'Document reader',
-    model: () => env.ollama.visionModel,
-    purpose: 'Reads receipts, invoices, statements and screenshots into structured rows with per-row confidence.',
-  },
-  analyst: {
-    title: 'Analyst',
-    model: () => env.ollama.fastModel,
-    purpose: 'Answers questions about the numbers. Read-only, and never proposes a change.',
-  },
-}
-
 // --------------------------------------------------------------- system prompt
 
 export function buildSystemPrompt(params: {

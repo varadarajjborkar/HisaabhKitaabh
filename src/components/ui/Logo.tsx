@@ -23,11 +23,3 @@ export function Logo({ size = 32, className = '' }: { size?: number; className?:
 }
 
 /** Mark plus name, the lockup used in headers. */
-export function Wordmark({ size = 30, className = '' }: { size?: number; className?: string }) {
-  return (
-    <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <Logo size={size} />
-      <span className="text-[15px] font-semibold tracking-tight">HisaabhKitaabh</span>
-    </span>
-  )
-}

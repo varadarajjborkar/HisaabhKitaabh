@@ -61,10 +61,6 @@ export function loadSkills(): Skill[] {
   return cache
 }
 
-export function getSkill(name: string): Skill | undefined {
-  return loadSkills().find((s) => s.name === name)
-}
-
 /**
  * Route a request to skills without a model call.
  *

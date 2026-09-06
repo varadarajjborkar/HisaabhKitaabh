@@ -416,23 +416,3 @@ export function safeHref(href: string): string | null {
   return null
 }
 
-/** The text with its formatting removed, for titles and other flat contexts. */
-export function plainText(blocks: Block[]): string {
-  const inline = (kids: Inline[]): string =>
-    kids.map((k) => (k.t === 'text' ? k.v : k.t === 'code' ? k.v : inline(k.kids))).join('')
-  const walk = (bs: Block[]): string =>
-    bs
-      .map((b) => {
-        switch (b.t) {
-          case 'p': case 'h': return inline(b.kids)
-          case 'pre': return b.v
-          case 'quote': return walk(b.kids)
-          case 'list': return b.items.map(walk).join('\n')
-          case 'table': return [b.head, ...b.rows].map((r) => r.map(inline).join(' ')).join('\n')
-          case 'rule': return ''
-        }
-      })
-      .filter(Boolean)
-      .join('\n')
-  return walk(blocks)
-}

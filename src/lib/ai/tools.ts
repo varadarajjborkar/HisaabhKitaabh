@@ -1183,8 +1183,4 @@ export function toolSpecs(names: string[]): ToolSpec[] {
     }))
 }
 
-export function describePlanOps(plan: ToolPlan, doc: SheetDoc): string[] {
-  return plan.ops.map((op) => describeOp(op, doc.columns, doc.rows))
-}
-
 export { renderRow }

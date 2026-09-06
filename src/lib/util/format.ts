@@ -48,10 +48,6 @@ export function currencySymbol(code = 'INR'): string {
   return BY_CODE.get(code.toUpperCase())?.symbol ?? code.toUpperCase()
 }
 
-export function currencyName(code = 'INR'): string {
-  return BY_CODE.get(code.toUpperCase())?.name ?? code.toUpperCase()
-}
-
 function group(whole: string, indian: boolean): string {
   if (!indian) return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
   if (whole.length <= 3) return whole
@@ -102,15 +98,6 @@ export function compactMoney(amount: number, currency = 'INR', opts: { symbol?: 
   }
   if (abs >= 1e3) return `${head}${(abs / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}k`
   return formatMoney(amount, code, { decimals: false, symbol })
-}
-
-/** Indian digit grouping: ₹12,34,567.89 - not ₹1,234,567.89. */
-export function formatINR(amount: number, opts: { decimals?: boolean; symbol?: boolean } = {}): string {
-  return formatMoney(amount, 'INR', opts)
-}
-
-export function compactINR(amount: number): string {
-  return compactMoney(amount, 'INR')
 }
 
 export function formatDate(iso: string): string {

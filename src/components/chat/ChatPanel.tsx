@@ -8,7 +8,8 @@ import { ChatChart } from './ChatChart'
 import { RecentPanel, type Thread } from './RecentPanel'
 import type { ChatScope } from '@/lib/client/useChat'
 import { useChat } from '@/lib/client/useChat'
-import { formatMoney, humanSizeSafe } from '@/lib/util/uiformat'
+import { formatMoney } from '@/lib/util/format'
+import { humanSize } from '@/lib/util/mime'
 import { get } from '@/lib/client/api'
 
 /**
@@ -407,7 +408,7 @@ export function ChatPanel({
               <span key={a.id} className="chip max-w-full">
                 <Icon.Attach size={11} className="shrink-0" />
                 <span className="truncate max-w-[130px]">{a.name}</span>
-                <span className="text-faint shrink-0">{humanSizeSafe(a.size)}</span>
+                <span className="text-faint shrink-0">{humanSize(a.size)}</span>
                 <button
                   onClick={() => chat.setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
                   className="text-faint hover:text-bad ml-0.5 shrink-0"

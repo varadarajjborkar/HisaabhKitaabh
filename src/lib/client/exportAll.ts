@@ -113,15 +113,6 @@ function readme(folders: number, files: number, format: ExportFormat): string {
   ].join('\n')
 }
 
-/** Row counts and totals, for the confirmation before a long export. */
-export async function exportSummary(): Promise<{ folders: number; files: number }> {
-  const [{ folders }, { files }] = await Promise.all([
-    get<{ folders: FolderMeta[] }>('/api/folders'),
-    get<{ files: unknown[] }>('/api/files'),
-  ])
-  return { folders: folders.length, files: files.length }
-}
-
 export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

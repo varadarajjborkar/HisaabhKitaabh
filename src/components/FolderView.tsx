@@ -17,7 +17,6 @@ import { ulid } from '@/lib/util/ids'
 import { useFileDrop } from '@/lib/client/useFileDrop'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { SearchBar } from './SearchBar'
-import { useViewPrefs } from './ViewBar'
 
 type Sort = 'recent' | 'name' | 'total' | 'rows' | 'created'
 
@@ -50,7 +49,6 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
   const [refreshing, setRefreshing] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [dropped, setDropped] = useState<File[] | null>(null)
-  const [view] = useViewPrefs('files', { layout: 'list' as const, pageSize: 24 })
 
   /*
    * Dropping a statement or a receipt on the folder hands it to the assistant.

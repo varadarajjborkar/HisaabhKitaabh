@@ -260,12 +260,6 @@ export function kv(): KV {
   return (globalKV.__hisaabKV ??= router(backends()))
 }
 
-/** Only for tests, which swap the configuration between runs. */
-export function resetBackends(): void {
-  globalKV.__hisaabBackends = undefined
-  globalKV.__hisaabKV = undefined
-}
-
 export const K = {
   user: (id: string) => `u:${id}`,
   userByEmail: (email: string) => `u:email:${email.toLowerCase()}`,
