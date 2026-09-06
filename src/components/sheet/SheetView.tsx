@@ -18,6 +18,8 @@ import { Calculator } from '../ui/Calculator'
 import { numeric } from '@/lib/crdt/doc'
 import { del } from '@/lib/client/api'
 
+const ASSISTANT_KEY = 'hisaabhkitaabh-assistant-open'
+
 /**
  * The file editor.
  *
@@ -25,6 +27,10 @@ import { del } from '@/lib/client/api'
  * - collapsing to one column with the assistant behind a button on a phone.
  * The assistant is *in here*, not only on the home screen, because the moment
  * you want to say "fix all the Ubers" is the moment you are looking at them.
+ *
+ * The assistant column folds away, and the sheet takes the width back. Being
+ * able to say "not now" to a panel is the difference between a tool that is
+ * available and one that is simply there.
  */
 export function SheetView({
   fileId,
@@ -42,6 +48,31 @@ export function SheetView({
   const router = useRouter()
 
   const [chatOpen, setChatOpen] = useState(false)
+  /*
+   * Whether the permanent assistant column is showing.
+   *
+   * On a wide screen the panel was welded to the side of the page, taking 380
+   * pixels whether or not anyone wanted it there. It collapses now, and the
+   * sheet re-centres into the space rather than staying pinned left. The choice
+   * is remembered, because "I do not want this here" is a preference and not a
+   * per-visit decision.
+   */
+  const [assistantOpen, setAssistantOpen] = useState(true)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(ASSISTANT_KEY)
+      if (saved !== null) setAssistantOpen(saved === 'true')
+    } catch { /* showing it is the right default */ }
+  }, [])
+
+  const toggleAssistant = () => {
+    setAssistantOpen((v) => {
+      const next = !v
+      try { localStorage.setItem(ASSISTANT_KEY, String(next)) } catch { /* preference only */ }
+      return next
+    })
+  }
   const [calcOpen, setCalcOpen] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -205,13 +236,28 @@ export function SheetView({
               <Icon.Redo size={17} />
             </button>
             {aiEnabled && (
-              <button
-                onClick={() => setChatOpen((v) => !v)}
-                className={`btn-ghost h-9 w-9 px-0 pressable xl:hidden ${chatOpen ? 'text-accent bg-accent-soft' : ''}`}
-                aria-label="Assistant"
-              >
-                <Icon.Sparkle size={17} />
-              </button>
+              <>
+                {/* Two buttons rather than one that has to work out how wide
+                    the window is: below xl the assistant is a sheet, at xl it
+                    is the column beside the sheet, and they are not the same
+                    thing to open. */}
+                <button
+                  onClick={() => setChatOpen((v) => !v)}
+                  className={`btn-ghost h-9 w-9 px-0 pressable xl:hidden ${chatOpen ? 'text-accent bg-accent-soft' : ''}`}
+                  aria-label="Assistant"
+                >
+                  <Icon.Sparkle size={17} />
+                </button>
+                <button
+                  onClick={toggleAssistant}
+                  className={`btn-ghost h-9 w-9 px-0 pressable hidden xl:inline-flex ${assistantOpen ? 'text-accent bg-accent-soft' : ''}`}
+                  aria-label={assistantOpen ? 'Hide the assistant' : 'Show the assistant'}
+                  title={assistantOpen ? 'Hide the assistant' : 'Show the assistant'}
+                  aria-pressed={assistantOpen}
+                >
+                  <Icon.Sparkle size={17} />
+                </button>
+              </>
             )}
             <AccountMenu session={session} />
           </>
@@ -271,18 +317,21 @@ export function SheetView({
         {/* The assistant is a permanent column on wide screens, a sheet elsewhere. */}
         {aiEnabled && (
           <>
-            <aside className="hidden xl:flex w-[380px] 2xl:w-[420px] shrink-0 border-l border-line bg-surface flex-col overflow-hidden no-print">
-              <ChatPanel
-                scope={{ fileId, folderId }}
-                onApplied={onAssistantWrite}
-                compact
-                suggestions={[
-                  'Add 450 for a cab, paid by UPI',
-                  'What did I spend the most on here?',
-                  'Find anything entered twice',
-                ]}
-              />
-            </aside>
+            {assistantOpen && (
+              <aside className="hidden xl:flex w-[380px] 2xl:w-[420px] shrink-0 border-l border-line bg-surface flex-col overflow-hidden no-print animate-slide-l">
+                <ChatPanel
+                  scope={{ fileId, folderId }}
+                  onApplied={onAssistantWrite}
+                  onClose={toggleAssistant}
+                  compact
+                  suggestions={[
+                    'Add 450 for a cab, paid by UPI',
+                    'What did I spend the most on here?',
+                    'Find anything entered twice',
+                  ]}
+                />
+              </aside>
+            )}
 
             {chatOpen && (
               <>
