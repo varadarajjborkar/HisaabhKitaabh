@@ -1,19 +1,22 @@
 # Tests
 
-Five suites, from fastest and most isolated to slowest and most realistic.
+Eight suites, from fastest and most isolated to slowest and most realistic.
 The later ones exist because each caught a class of bug the earlier ones
 structurally could not.
 
 | Suite | Needs | What it covers |
 |---|---|---|
 | `test:engine` | nothing | The document engine, in-process. Ordering, merge, idempotency, the revision gate, undo inversion, totals, and how a file renders into a mail draft or the clipboard. |
+| `test:charts` | nothing | Chart geometry as data. That marks are proportional to their values, that nothing lands outside the canvas across every kind, shape of data and width, that no input produces NaN or an unparseable document. |
+| `test:leak` | nothing | The gate over the model's text channel. Mostly ordinary prose fed through one character at a time and required to come out identical, plus every envelope a model reaches for when it types a tool call instead of making it. |
 | `test:db` | `DATABASE_URL` | The Postgres store against a real database. Expiry, atomic claims, concurrent appends, per-account isolation and attribution, receipts through `bytea`. Skips itself when unset. |
 | `test:e2e` | a running server | The HTTP surface with a real session. Auth, seeding, parallel writers, conflicts, attachment refusal, storage backends, analytics. |
+| `test:reset` | a running server | Forgetting a password. Mostly what it refuses: naming an account, spending a code twice, replaying a ticket, guessing without limit, and the old password still working afterwards. Reads codes from `.mail-outbox.log`. |
 | `test:chat` | server + `OLLAMA_API_KEY` | The assistant against the live model and the live write path, including that instructions planted in the data are read as data. ~40s. |
 | `test:ui` | server + Chromium | A real browser. Editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, file drops, the theme switch, the mail dialog, the storage chooser, and the phone layout down to its tap targets. |
 
 ```bash
-npx next dev -p 3111 &     # the last three need this
+npx next dev -p 3111 &     # the last four need this
 BASE=http://localhost:3111 npm test
 ```
 

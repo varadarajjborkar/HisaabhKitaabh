@@ -61,6 +61,8 @@ Add these under **Project → Settings → Environment Variables**.
 | `DATABASE_URL` | **yes** | The pooled Postgres connection string. See below. |
 | `OLLAMA_API_KEY` | for the assistant | From [ollama.com/settings/keys](https://ollama.com/settings/keys) |
 | `APP_URL` | for Google sign-in | `https://your-app.vercel.app`. Must match the OAuth redirect exactly. Left unset, the deployment URL is used. |
+| `RESEND_API_KEY` | for "Forgot password" | From [resend.com](https://resend.com), 3,000 a month free. Or `BREVO_API_KEY`, 300 a day. Without one, the reset flow says it cannot send rather than pretending it did. |
+| `MAIL_FROM` | with the above | An address the provider will send as. Resend's `onboarding@resend.dev` needs no domain but only delivers to the account owner, so verify a domain for real users. |
 | `GOOGLE_CLIENT_ID` | for Drive | Optional feature |
 | `GOOGLE_CLIENT_SECRET` | for Drive | |
 | `UPSTASH_REDIS_REST_URL` | no | A speed-up, not a store |
