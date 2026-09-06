@@ -1,4 +1,4 @@
-import { formatMoney, compactMoney } from '../util/format'
+import { formatMoney } from '../util/format'
 import { textWidth, truncate, wrap } from './measure'
 import { band, extent, linear, niceTicks, type Band, type Linear } from './scale'
 import { arcPath, barPath, hBarPath, linePath, smoothPath, type Mark } from './marks'
@@ -79,8 +79,15 @@ export function buildPlot(spec: ChartSpec, opts: PlotOptions = {}): Plot {
   const money = spec.metric === 'count'
   const fmt = (v: number) =>
     money ? String(Math.round(v)) : formatMoney(v, currency ?? 'INR', { decimals: false, symbol: !!currency })
+  /*
+   * Axis figures are written out, not abbreviated.
+   *
+   * A tick reading "1.2L" is a rounded number that looks exact, and the gutter
+   * is measured from the labels anyway - so a longer one costs a few pixels of
+   * plot width rather than accuracy.
+   */
   const brief = (v: number) =>
-    money ? String(Math.round(v)) : compactMoney(v, currency ?? 'INR').replace(/^[^\d\-]+/, currency ? '' : '')
+    money ? String(Math.round(v)) : formatMoney(v, currency ?? 'INR', { symbol: false })
 
   const ctx: Ctx = {
     spec, theme, points, series, split, fmt, brief,

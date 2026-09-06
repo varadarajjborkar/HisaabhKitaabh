@@ -5,7 +5,7 @@ import type { FolderMeta } from '@/lib/model/types'
 import { get } from '@/lib/client/api'
 import { BarChart, DataTable, LineChart, StatTile } from './charts/Charts'
 import { Gauge } from './charts/Gauge'
-import { compactMoney, formatMoney } from '@/lib/util/format'
+import { formatMoney } from '@/lib/util/format'
 import { Icon } from './ui/Icons'
 
 type Analytics = {
@@ -86,7 +86,15 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
    */
   const code = data.summary.currency
   const money = (n: number, opts?: { decimals?: boolean }) => formatMoney(n, code ?? 'INR', { ...opts, symbol: !!code })
-  const short = (n: number) => (code ? compactMoney(n, code) : formatMoney(n, 'INR', { decimals: false, symbol: false }))
+  /*
+   * Figures here are written out in full.
+   *
+   * "₹1.2L" is a rounded number wearing the clothes of a precise one, and this
+   * is the screen people come to in order to find out what something actually
+   * cost. Decimals appear only when the amount has them, so a whole number of
+   * rupees is not padded with a pointless .00.
+   */
+  const short = (n: number) => formatMoney(n, code || 'INR', { symbol: Boolean(code) })
 
   return (
     <div className="space-y-3 animate-rise">

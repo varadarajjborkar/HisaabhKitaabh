@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { compactMoney, formatMoney } from '@/lib/util/format'
+import { formatMoney } from '@/lib/util/format'
 import { seriesColor, withOther } from './palette'
 import { useIsDark } from './useTheme'
 
@@ -103,8 +103,10 @@ export function Gauge({
    * type you can read beats 3,14,020 in type you cannot.
    */
   const hover3 = hover !== null && segments[hover] ? segments[hover] : null
-  const full = hover3 ? compactMoney(hover3.total, currency) : formatMoney(total, currency, { decimals: false })
-  const hero = full.length > 13 ? compactMoney(total, currency) : full
+  // The figure is never abbreviated. A long one is made to fit by sizing the
+  // type to it, below, rather than by rounding it into something else.
+  const full = hover3 ? formatMoney(hover3.total, currency) : formatMoney(total, currency)
+  const hero = full
   const ceiling = compact ? 24 : 30
   /*
    * The hole is 128 across at its widest and narrower where the type actually
@@ -171,8 +173,8 @@ export function Gauge({
           </span>
           {budgetPct != null && hover === null && (
             <span className={`text-[11px] mt-1 font-medium ${overBudget ? 'text-bad' : 'text-muted'}`}>
-              {Math.round(budgetPct * 100)}% of {compactMoney(budget!, currency)}
-              {overBudget && ` · over by ${compactMoney(total - budget!, currency)}`}
+              {Math.round(budgetPct * 100)}% of {formatMoney(budget!, currency)}
+              {overBudget && ` · over by ${formatMoney(total - budget!, currency)}`}
             </span>
           )}
         </div>

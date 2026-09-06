@@ -157,27 +157,19 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
           </>
         }
       >
-        <div className="flex items-center gap-2 px-3 sm:px-5 pb-2.5">
-          {/*
-            * The list keeps filtering by name as you type, and the dropdown
-            * offers what the name filter cannot see: a caption, a payment
-            * method, a date, an amount inside one of these files.
-            */}
-          <SearchBar folderId={folder.id} scoped value={query} onValueChange={setQuery} className="flex-1" />
-          <SortMenu value={sort} onChange={setSort} />
-          <ViewBar
-            pageSize={view.pageSize}
-            onPageSize={(pageSize) => setView({ pageSize })}
-            page={win.page}
-            pages={win.pages}
-            onPage={setPage}
-            total={visible.length}
-            noun="files"
-          />
-          <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">
-            <Icon.Plus size={15} />
-            <span className="hidden sm:inline">New file</span>
-          </button>
+        {/*
+          * Laid out exactly as the home screen is: the search box centred under
+          * the title bar, and the controls for the list down with the list they
+          * control. They used to share one crowded row here, which made the two
+          * screens read as different apps and squeezed the search into whatever
+          * space the buttons left over.
+          *
+          * The list keeps filtering by name as you type, and the dropdown
+          * offers what the name filter cannot see: a caption, a payment
+          * method, a date, an amount inside one of these files.
+          */}
+        <div className="px-3 sm:px-5 pb-2.5">
+          <SearchBar folderId={folder.id} scoped value={query} onValueChange={setQuery} className="max-w-xl mx-auto" />
         </div>
 
         {selected.size > 0 && (
@@ -193,6 +185,26 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
 
       <main {...drop.handlers} className="flex-1 scroller px-3 sm:px-5 py-4 pb-24 relative">
         <div className="max-w-4xl w-full mx-auto">
+        <section className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+          <h2 className="text-[13px] font-medium text-muted">Files</h2>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <SortMenu value={sort} onChange={setSort} />
+            <ViewBar
+              pageSize={view.pageSize}
+              onPageSize={(pageSize) => setView({ pageSize })}
+              page={win.page}
+              pages={win.pages}
+              onPage={setPage}
+              total={visible.length}
+              noun="files"
+            />
+            <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">
+              <Icon.Plus size={15} />
+              <span className="hidden sm:inline">New file</span>
+            </button>
+          </div>
+        </section>
+
         {visible.length === 0 ? (
           <EmptyFiles query={query} onCreate={() => setCreating(true)} />
         ) : (

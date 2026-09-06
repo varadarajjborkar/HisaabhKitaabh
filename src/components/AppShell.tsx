@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@/lib/model/types'
 import { Icon } from './ui/Icons'
 import { Calculator, CalculatorButton } from './ui/Calculator'
-import { ThemeSwitch } from './ui/ThemeSwitch'
+import { ThemeSwitch, BrightnessSlider } from './ui/ThemeSwitch'
 import { StorageDialog } from './StorageDialog'
 import { ProfileDialog } from './ProfileDialog'
 import { useDismiss } from '@/lib/client/useDismiss'
@@ -208,6 +208,7 @@ export function AccountMenu({ session }: { session: Session }) {
           <div className="px-3.5 py-3 border-b border-line">
             <p className="text-[11px] uppercase tracking-wide text-faint mb-2">Appearance</p>
             <ThemeSwitch />
+            <BrightnessSlider />
           </div>
 
           <button

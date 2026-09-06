@@ -95,15 +95,15 @@ function evaluate(input: string): number {
 }
 
 /** How many decimals a person actually wants to look at. */
-const DP = 6
+const DP = 2
 
 /*
  * Binary floating point cannot hold a tenth, so 0.1 + 0.2 comes out as
  * 0.30000000000000004 and a third of ten runs to sixteen digits. Neither is
- * information. Six decimals is past anything a ledger needs and short enough to
- * read, and it is applied everywhere a number is shown or handed on rather than
- * only in the preview - otherwise pressing equals put the full tail back into
- * the input you were about to reuse.
+ * information. Two decimals is what money has, and it is applied everywhere a
+ * number is shown or handed on rather than only in the preview - otherwise
+ * pressing equals put the full tail back into the input you were about to
+ * reuse.
  */
 export function tidy(n: number): number {
   if (!Number.isFinite(n)) return n
@@ -154,6 +154,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
   const [result, setResult] = useState<string>('')
   const [error, setError] = useState('')
   const [tape, setTape] = useState<Array<{ expr: string; value: number }>>([])
+  const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const [dragging, setDragging] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -198,6 +199,31 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
       setError(e instanceof Error ? e.message : 'Invalid')
     }
   }, [expr])
+
+  /**
+   * What the copy button takes.
+   *
+   * The answer when there is one, because that is what a calculator is for.
+   * The expression when there is not - a sum still being written, or one with
+   * a syntax error in it, is often exactly the thing worth pasting elsewhere,
+   * and refusing to copy it because it does not evaluate would be unhelpful.
+   */
+  const copy = useCallback(() => {
+    const text = result ? result.replace(/,/g, '') : expr.trim()
+    if (!text) return
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1200) }
+    navigator.clipboard?.writeText(text).then(done).catch(() => {
+      // Clipboard needs a secure context; the textarea works everywhere else.
+      const area = document.createElement('textarea')
+      area.value = text
+      area.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
+      document.body.appendChild(area)
+      area.select()
+      document.execCommand('copy')
+      area.remove()
+      done()
+    })
+  }, [expr, result])
 
   const commit = useCallback(() => {
     if (!expr.trim()) return
@@ -324,8 +350,25 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
           aria-label="Expression"
           className="w-full bg-transparent text-right text-[19px] tnum outline-none placeholder:text-faint select-text"
         />
-        <div className="text-right text-[12px] mt-1 h-4 tnum">
-          {error ? <span className="text-bad">{error}</span> : <span className="text-muted">{result && `= ${result}`}</span>}
+        {/* Copy sits in the corner of the display it copies from. What it takes
+            is whatever is worth taking: the answer once there is one, and the
+            expression itself while it is still being written - a half-typed
+            sum is often exactly the thing you want to paste somewhere. */}
+        <div className="flex items-end justify-between gap-2 mt-1 h-5">
+          <button
+            onClick={copy}
+            disabled={!expr.trim()}
+            aria-label="Copy"
+            title={result ? `Copy ${result}` : 'Copy the expression'}
+            className="text-[10px] font-medium tracking-wide px-1.5 h-5 rounded
+                       border border-line text-faint hover:text-ink hover:bg-raised
+                       disabled:opacity-0 transition-colors pressable"
+          >
+            {copied ? 'COPIED' : 'COPY'}
+          </button>
+          <span className="text-[12px] tnum text-right min-w-0 truncate">
+            {error ? <span className="text-bad">{error}</span> : <span className="text-muted">{result && `= ${result}`}</span>}
+          </span>
         </div>
       </div>
 

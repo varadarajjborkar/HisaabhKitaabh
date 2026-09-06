@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { compactMoney, formatDate, formatMoney } from '@/lib/util/format'
+import { formatDate, formatMoney } from '@/lib/util/format'
 import { niceTicks, seriesColor } from './palette'
 import { useIsDark } from './useTheme'
 
@@ -168,7 +168,7 @@ export function LineChart({
             <g key={t}>
               <line x1={PAD_L} x2={W - PAD_R} y1={y(t)} y2={y(t)} className="stroke-line" strokeWidth={1} />
               <text x={PAD_L - 8} y={y(t) + 4} textAnchor="end" className="fill-faint text-[10px] tnum">
-                {compactMoney(t, currency ?? 'INR').replace(/^[^\d-]+/, '')}
+                {formatMoney(t, currency ?? 'INR', { symbol: false })}
               </text>
             </g>
           ))}

@@ -31,7 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Applied before first paint so a dark-theme user never sees a white flash. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('hisaabhkitaabh-theme');if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t)}catch(e){}`,
+            // Theme and brightness are applied before the first paint. Doing
+            // either in React would show a white flash and then dim it, which
+            // is worse than not offering the setting at all.
+            __html: `try{var d=document.documentElement,t=localStorage.getItem('hisaabhkitaabh-theme');if(t&&t!=='system')d.setAttribute('data-theme',t);var lit=t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches),b=parseFloat(localStorage.getItem('hisaabhkitaabh-brightness'));if(lit&&b>0&&b<1){b=Math.max(0.62,b);var P={bg:[249,248,246],surface:[255,255,255],raised:[244,243,240],line:[226,224,219],'accent-soft':[232,240,252]};for(var k in P)d.style.setProperty('--'+k,P[k].map(function(c){return Math.round(26+(c-26)*b)}).join(' '))}}catch(e){}`,
           }}
         />
       </head>

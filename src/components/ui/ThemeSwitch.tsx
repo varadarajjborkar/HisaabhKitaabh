@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icons'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { useThemeMode, type ThemeMode } from '@/lib/client/useThemeMode'
+import { applyBrightness, clampLevel, isLightNow, MAX, MIN, readLevel, storeLevel } from '@/lib/client/brightness'
 
 const OPTIONS: Array<{ value: ThemeMode; label: string; icon: (p: { size?: number }) => React.ReactElement }> = [
   { value: 'light', label: 'Light', icon: Icon.Sun },
@@ -320,6 +321,82 @@ export function ThemeCycleButton({ className = '' }: { className?: string }) {
             })}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * How bright the light theme is.
+ *
+ * Only shown while the page is actually rendering light - which includes
+ * System when the machine is set to light, because "System" is a way of
+ * choosing light, not a third appearance. It disappears in dark, where there
+ * is nothing to dim.
+ *
+ * The floor is not a preference. Dragging all the way down on an unclamped
+ * version leaves a page nobody can read, so the range stops well above that
+ * and the label says what the number means.
+ */
+export function BrightnessSlider() {
+  const [level, setLevel] = useState(MAX)
+  const [light, setLight] = useState(false)
+
+  useEffect(() => {
+    const resolve = () => {
+      const isLight = isLightNow()
+      setLight(isLight)
+      const stored = readLevel()
+      setLevel(stored)
+      applyBrightness(stored, isLight)
+    }
+    resolve()
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    media.addEventListener('change', resolve)
+    // The theme toggle stamps data-theme, so watch that as well as the OS.
+    const observer = new MutationObserver(resolve)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => { media.removeEventListener('change', resolve); observer.disconnect() }
+  }, [])
+
+  if (!light) return null
+
+  const change = (next: number) => {
+    const clamped = clampLevel(next)
+    setLevel(clamped)
+    applyBrightness(clamped, true)
+    storeLevel(clamped)
+  }
+
+  const pct = Math.round(((level - MIN) / (MAX - MIN)) * 100)
+
+  return (
+    <div className="mt-2.5 pt-2.5 border-t border-line animate-rise">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] uppercase tracking-wide text-faint">Brightness</span>
+        <span className="text-[11px] text-faint tnum">{pct}%</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Icon.Sun size={12} className="text-faint shrink-0 opacity-50" />
+        <input
+          type="range"
+          min={MIN}
+          max={MAX}
+          step={0.01}
+          value={level}
+          onChange={(e) => change(Number(e.target.value))}
+          aria-label="Brightness"
+          aria-valuetext={`${pct} percent`}
+          className="flex-1 h-1.5 min-w-0 appearance-none rounded-full bg-raised cursor-pointer
+                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5
+                     [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full
+                     [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:border-0
+                     [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:h-3.5
+                     [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full
+                     [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
+        />
+        <Icon.Sun size={16} className="text-faint shrink-0" />
       </div>
     </div>
   )
