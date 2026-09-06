@@ -10,6 +10,7 @@ import { formatMoney } from '../util/format'
 import { isImage, isTabularText } from '../util/mime'
 import { parseTable } from '../util/table'
 import { convertAmount, currencyCode, describeConversion, describeRate, knownCurrency, rateFor } from '../util/currency'
+import { buildChart, chartIsEmpty, describeChart, type ChartGroup, type ChartKind, type ChartMetric } from './chart'
 
 /**
  * Tools available to the assistant.
@@ -411,6 +412,98 @@ const computeStats: ToolDef = {
         groups,
       },
     }
+  },
+}
+
+/**
+ * Draw a chart from the user's own rows.
+ *
+ * A read tool, because a chart changes nothing: there is no approval card and
+ * no undo step, and there does not need to be.
+ *
+ * The parameters are deliberately a *question about the data* rather than a set
+ * of numbers. Asking the model for the bars themselves gets bars it half
+ * remembers from a tool result three steps ago, and nobody - including the
+ * model - can tell afterwards which rows they came from. Asking it which files,
+ * which rows count, and what to group by gets a chart drawn from the ledger,
+ * with a line under it saying exactly what was counted.
+ */
+const makeChart: ToolDef = {
+  name: 'make_chart',
+  description:
+    'Draw a chart from the rows. Say which files to read, which words select the rows you care about (for travel: cab, taxi, flight, train, fuel), and what to group the bars by. Do not pass numbers - the figures are computed from the rows so they can be checked. Use this when the user wants to compare, see a breakdown, or see a trend.',
+  mode: 'read',
+  risk: 'none',
+  parameters: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'What the chart shows, in the user\'s own terms. "Travel: Goa vs Bangalore".' },
+      kind: { type: 'string', enum: ['bar', 'line', 'donut'], description: 'bar to compare, line for a trend over days, donut for a breakdown of one total.' },
+      files: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'File names or ids to read. Omit for the open file, or every file in the open folder.',
+      },
+      match: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Words that select the rows. A row counts if any of them appears anywhere in it. Omit to count every row.',
+      },
+      groupBy: { type: 'string', enum: ['file', 'folder', 'category', 'column', 'day'], description: 'What each bar or point stands for.' },
+      column: { type: 'string', description: 'Column name when groupBy is column.' },
+      metric: { type: 'string', enum: ['sum', 'count', 'average'], description: 'Defaults to sum.' },
+    },
+    required: ['title', 'kind', 'groupBy'],
+  },
+  async run(args, ctx) {
+    const names = arr<string>(args.files).map((f) => str(f).trim()).filter(Boolean)
+    const folders = await ctx.repo.listFolders()
+    const folderName = (id: string) => folders.find((f) => f.id === id)?.name ?? ''
+
+    let docs: SheetDoc[] = []
+    if (names.length > 0) {
+      const all = await ctx.repo.listAllFiles()
+      const wanted = new Set(names.map((n) => n.toLowerCase()))
+      const picked = all.filter((f) => wanted.has(f.id.toLowerCase()) || wanted.has(f.name.toLowerCase()))
+      // Fall back to a loose name match: models pass "Goa" for "Goa trip".
+      const loose = picked.length
+        ? picked
+        : all.filter((f) => names.some((n) => f.name.toLowerCase().includes(n.toLowerCase())))
+      docs = (await Promise.all(loose.slice(0, 12).map((f) => ctx.repo.tryGetDoc(f.id)))).filter((d): d is SheetDoc => Boolean(d))
+      if (docs.length === 0) {
+        return { kind: 'error', message: `No file matches ${names.join(', ')}. Call list_files and use the names it returns.` }
+      }
+    } else if (ctx.fileId) {
+      docs = [await resolveDoc(ctx)]
+    } else if (ctx.folderId) {
+      const files = await ctx.repo.listFiles(ctx.folderId)
+      docs = (await Promise.all(files.slice(0, 12).map((f) => ctx.repo.tryGetDoc(f.id)))).filter((d): d is SheetDoc => Boolean(d))
+    } else {
+      const files = (await ctx.repo.listAllFiles()).slice(0, 12)
+      docs = (await Promise.all(files.map((f) => ctx.repo.tryGetDoc(f.id)))).filter((d): d is SheetDoc => Boolean(d))
+    }
+
+    if (docs.length === 0) return { kind: 'error', message: 'There are no files to chart yet.' }
+
+    const spec = buildChart({
+      kind: (str(args.kind, 'bar') as ChartKind),
+      title: str(args.title, 'Chart'),
+      docs,
+      folderName,
+      match: arr<string>(args.match).map((m) => str(m).trim().toLowerCase()).filter(Boolean).slice(0, 12),
+      group: (str(args.groupBy, 'file') as ChartGroup),
+      column: str(args.column) || undefined,
+      metric: (str(args.metric, 'sum') as ChartMetric),
+    })
+
+    if (chartIsEmpty(spec)) {
+      return {
+        kind: 'error',
+        message: `Nothing to draw: ${spec.note} Try different words, or drop the filter and chart everything.`,
+      }
+    }
+
+    return { kind: 'data', data: { chart: spec }, display: describeChart(spec) }
   },
 }
 
@@ -989,7 +1082,7 @@ const askUser: ToolDef = {
 }
 
 export const TOOLS: ToolDef[] = [
-  listFolders, listFiles, getFile, listColumns, queryRows, computeStats, readAttachment, buildExport,
+  listFolders, listFiles, getFile, listColumns, queryRows, computeStats, readAttachment, buildExport, makeChart,
   addRows, updateRows, deleteRows, addColumn, renameColumn, deleteColumn, setPeriod, renameFile,
   createFile, createFolder, convertCurrency,
   askUser,
@@ -998,7 +1091,7 @@ export const TOOLS: ToolDef[] = [
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]))
 
 /** Tools every request gets regardless of which skill matched. */
-export const ALWAYS_TOOLS = ['get_file', 'list_folders', 'list_files', 'query_rows', 'compute_stats', 'convert_currency', 'ask_user']
+export const ALWAYS_TOOLS = ['get_file', 'list_folders', 'list_files', 'query_rows', 'compute_stats', 'convert_currency', 'make_chart', 'ask_user']
 
 export function toolSpecs(names: string[]): ToolSpec[] {
   return names

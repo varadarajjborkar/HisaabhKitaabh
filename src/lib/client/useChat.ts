@@ -5,6 +5,7 @@ import type { AttachmentRef } from '@/lib/model/types'
 import { shortId } from '@/lib/util/ids'
 import { toast } from '@/components/ui/Toast'
 import { isPdf, pdfToImages, type PdfPage } from './pdf'
+import type { ChartSpec } from '@/lib/ai/chart'
 
 /**
  * Chat transport.
@@ -31,6 +32,7 @@ export type PendingAction = {
 
 export type Turn =
   | { id: string; kind: 'user'; text: string; attachments?: string[] }
+  | { id: string; kind: 'chart'; spec: ChartSpec }
   | { id: string; kind: 'assistant'; text: string; streaming: boolean; thinking?: boolean }
   | { id: string; kind: 'tool'; label: string; status: 'running' | 'ok' | 'failed'; detail?: string }
   | { id: string; kind: 'permission'; action: PendingAction; runId: string; resolved?: 'allow' | 'allow_always' | 'deny' | 'guide' }
@@ -170,6 +172,10 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
             push({ id: `ask_${shortId(8)}`, kind: 'ask', question: String(evt.question), options: (evt.options as string[]) ?? [] })
             break
 
+          case 'chart':
+            push({ id: `chart_${shortId(8)}`, kind: 'chart', spec: evt.spec as ChartSpec })
+            break
+
           case 'error':
             push({ id: `err_${shortId(8)}`, kind: 'error', message: String(evt.message), fatal: Boolean(evt.fatal) })
             break
@@ -191,7 +197,16 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
     }
   }, [push])
 
-  const send = useCallback(async (message: string) => {
+  /*
+   * Graph mode is a per-message flag, not a memory.
+   *
+   * It is sent with the request and read once while the prompt is built.
+   * Nothing about it is stored in the thread, so there is no state to keep in
+   * sync, no summary that can disagree with the switch, and turning it off
+   * takes effect on the very next message rather than whenever the history
+   * happens to be re-read.
+   */
+  const send = useCallback(async (message: string, options?: { graphMode?: boolean }) => {
     const text = message.trim()
     if (!text || busy) return
 
@@ -214,6 +229,7 @@ export function useChat({ scope, onApplied, threadId: fixedThread }: Options) {
           fileId: scopeRef.current.fileId,
           folderId: scopeRef.current.folderId,
           attachments: sending,
+          graphMode: options?.graphMode ?? false,
         }),
       })
       if (!res.ok) {

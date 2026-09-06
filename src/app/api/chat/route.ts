@@ -12,6 +12,7 @@ const Body = z.object({
   threadId: z.string().min(4).max(64),
   message: z.string().min(1).max(8000),
   fileId: z.string().nullable().optional(),
+  graphMode: z.boolean().optional(),
   folderId: z.string().nullable().optional(),
   attachments: z
     .array(
@@ -43,6 +44,7 @@ export const POST = withAuth(async ({ session, repo }, req: Request) => {
     folderId: body.folderId ?? null,
     message: body.message,
     inbox: (body.attachments ?? []) as AttachmentRef[],
+    graphMode: body.graphMode ?? false,
   })
 
   return sseStream(events)

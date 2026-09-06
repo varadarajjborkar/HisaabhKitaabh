@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '../ui/Icons'
 import { PermissionCard } from './PermissionCard'
+import { ChatChart } from './ChatChart'
 import { RecentPanel, type Thread } from './RecentPanel'
 import type { ChatScope } from '@/lib/client/useChat'
 import { useChat } from '@/lib/client/useChat'
@@ -48,6 +49,7 @@ export function ChatPanel({
 }) {
   const chat = useChat({ scope, onApplied })
   const [input, setInput] = useState('')
+  const [graphMode, setGraphMode] = useState(false)
   const [threads, setThreads] = useState<Thread[]>([])
   const [showThreads, setShowThreads] = useState(false)
   const [loadingThreads, setLoadingThreads] = useState(false)
@@ -106,7 +108,7 @@ export function ChatPanel({
     if (!text) return
     setInput('')
     if (textRef.current) textRef.current.style.height = 'auto'
-    void chat.send(text)
+    void chat.send(text, { graphMode })
   }
 
   /*
@@ -284,6 +286,9 @@ export function ChatPanel({
                 </div>
               )
 
+            case 'chart':
+              return <ChatChart key={turn.id} spec={turn.spec} />
+
             case 'conflict':
               return (
                 <div key={turn.id} className="card border-warn/40 px-3 py-2.5 animate-rise">
@@ -324,6 +329,16 @@ export function ChatPanel({
       </div>
 
       <div className="border-t border-line p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-2.5 shrink-0 bg-surface">
+        {graphMode && (
+          <div className="flex items-center gap-1.5 mb-2 text-[11.5px] text-accent animate-rise">
+            <Icon.Chart size={13} className="shrink-0" />
+            <span className="min-w-0">Graph mode: the answer comes back as a chart.</span>
+            <button onClick={() => setGraphMode(false)} className="text-faint hover:text-ink transition-colors ml-auto shrink-0">
+              Turn off
+            </button>
+          </div>
+        )}
+
         {chat.converting && (
           <div className="flex items-center gap-1.5 mb-2 text-[11.5px] text-muted animate-rise">
             <Icon.Spinner />
@@ -351,6 +366,25 @@ export function ChatPanel({
         )}
 
         <div className="flex items-end gap-1.5">
+          {/*
+            * Graph mode is a switch the user throws, not something inferred
+            * from a sentence. It sits next to the paperclip because it belongs
+            * to the message being written rather than to the conversation, and
+            * it says what it is doing in words the moment it is on - a mode you
+            * cannot see is a mode you forget you left on.
+            */}
+          <button
+            onClick={() => setGraphMode((v) => !v)}
+            aria-pressed={graphMode}
+            className={`h-11 w-11 sm:h-9 sm:w-9 px-0 shrink-0 pressable grid place-items-center rounded-lg border transition-colors ${
+              graphMode ? 'bg-accent-soft border-accent/40 text-accent' : 'border-transparent text-muted hover:text-ink hover:bg-raised'
+            }`}
+            title={graphMode ? 'Graph mode is on: answers come back as charts' : 'Graph mode: answer with a chart'}
+            aria-label={graphMode ? 'Turn graph mode off' : 'Turn graph mode on'}
+          >
+            <Icon.Chart size={19} className="sm:hidden" />
+            <Icon.Chart size={17} className="hidden sm:block" />
+          </button>
           <button
             onClick={() => fileRef.current?.click()}
             className="btn-ghost h-11 w-11 sm:h-9 sm:w-9 px-0 shrink-0 pressable"

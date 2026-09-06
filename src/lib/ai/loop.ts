@@ -10,6 +10,7 @@ import { analystTool, buildSystemPrompt, extractTool } from './agents'
 import { allowedTools, selectSkills, toolBudget, type Skill } from './skills'
 import { appendMessage, getSummary, isGranted, grantTool, recallFacts, recentMessages } from './memory'
 import { rateLimit } from '../store/locks'
+import type { ChartSpec } from './chart'
 
 /** Specialist tools are registered here so the loop and the skill router agree. */
 TOOL_MAP.set(extractTool.name, extractTool)
@@ -60,6 +61,8 @@ export type AgentEvent =
   | { type: 'tool_result'; name: string; ok: boolean; summary: string }
   | { type: 'permission'; action: PendingAction }
   | { type: 'ask'; question: string; options: string[] }
+  /** A chart the assistant drew from the rows. Nothing is written, so nothing is approved. */
+  | { type: 'chart'; spec: ChartSpec }
   | { type: 'applied'; fileId: string; rev: number; total: number; rowCount: number; summary: string; currency?: string }
   | { type: 'conflict'; message: string; fileId: string }
   | { type: 'error'; message: string; fatal: boolean }
@@ -112,8 +115,11 @@ export async function startRun(params: {
   folderId: string | null
   message: string
   inbox: AttachmentRef[]
+  /** The user has asked for answers as charts. A per-message flag, not a memory. */
+  graphMode?: boolean
 }): Promise<AsyncGenerator<AgentEvent>> {
   const { session, repo, threadId, fileId, folderId, message, inbox } = params
+  const graphMode = params.graphMode ?? false
 
   const gate = await rateLimit(session.userId, 'chat', 40, 60)
   if (!gate.ok) {
@@ -140,6 +146,7 @@ export async function startRun(params: {
     summary,
     scope,
     storage: storage.backend,
+    graphMode,
   })
 
   const messages: Msg[] = [{ role: 'system', content: system }]
@@ -425,9 +432,15 @@ async function* runLoop(
 
         if (result.kind === 'data') {
           const payload = JSON.stringify(result.data)
-          const digest = summarise(tool.name, result.data)
+          const digest = result.display ?? summarise(tool.name, result.data)
           state.callLog = { ...(state.callLog ?? {}), [signature]: digest }
           yield { type: 'tool_result', name: tool.name, ok: true, summary: digest }
+
+          // A chart goes to the transcript as a chart. The model still gets the
+          // figures as text, so it can say something about what it drew rather
+          // than narrating a picture it cannot see.
+          const drawn = (result.data as { chart?: ChartSpec } | null)?.chart
+          if (drawn) yield { type: 'chart', spec: drawn }
           state.messages.push({
             role: 'tool',
             // Cap the payload: a huge tool result crowds out the conversation

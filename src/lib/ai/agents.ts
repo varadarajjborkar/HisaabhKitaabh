@@ -52,6 +52,8 @@ export function buildSystemPrompt(params: {
   summary: string
   scope: { fileName?: string; folderName?: string; columns?: string[]; rowCount?: number; total?: number; currency?: string; period?: string | null }
   storage: string
+  /** The user has switched the answers over to charts for this message. */
+  graphMode?: boolean
 }): string {
   const { scope } = params
 
@@ -133,6 +135,39 @@ export function buildSystemPrompt(params: {
       'These are things they told you previously. Apply them; do not recite them back.',
     )
   }
+
+  /*
+   * Graph mode.
+   *
+   * A switch the user throws, not something inferred from a sentence. Both
+   * states are stated because the failure that matters is the mismatch: a
+   * switch left on from the last question, and then a question that has no
+   * chart in it. Silently answering the other way would be the assistant
+   * deciding the switch was a mistake, and a switch that quietly ignores you is
+   * worse than no switch. So it asks, once, with the choice in it - and the
+   * user's answer settles the whole turn.
+   *
+   * The reverse case is not symmetrical and should not be. With the switch off,
+   * "chart that" is an instruction and gets a chart with no ceremony; it is
+   * only the *implied* chart - a comparison, a breakdown, a trend - that is
+   * worth a one-line offer.
+   */
+  blocks.push(
+    '',
+    '## Graph mode',
+    params.graphMode
+      ? [
+          'The user has graph mode ON. Answer with a chart: call make_chart, then say in one or two lines what it shows.',
+          'Work out what the chart should be from the question. "Compare travel between Goa and Bangalore" is make_chart with those two files, match words like cab, taxi, flight, train, fuel, and groupBy file. Never pass figures yourself; the tool computes them from the rows so they can be checked.',
+          'A request to change something - add a row, rename a file, fix a value - is not affected by this switch. Do it. The approval card is already where the user checks the change, and asking about charts first would be one question too many.',
+          'But a QUESTION that wants prose - "what did I spend most on", "is this right", "how much is left" - is the case where the switch may have been left on by mistake. Do not silently answer in words and do not draw something unrelated. Call ask_user once, saying graph mode is on, with options like "Chart it" and "Just answer in words". Then do what they chose, and do not ask again this turn.',
+        ].join('\n')
+      : [
+          'The user has graph mode OFF. Answer in words.',
+          'If they explicitly ask for a chart, graph or plot, just call make_chart - the switch is not a prohibition and asking would be pedantic.',
+          'If they have asked for something a chart would answer far better - comparing two files, a breakdown by category, a trend over time - answer in words first, then offer in one line: "I can chart this if you want." Do not ask before answering.',
+        ].join('\n'),
+  )
 
   const skillText = renderSkills(params.skills)
   if (skillText) {
