@@ -68,7 +68,7 @@ export function BarChart({
                 {/* Direct label on every bar: the light palette needs the relief. */}
                 <span className="text-[12.5px] text-muted tnum shrink-0">
                   {formatMoney(r.total, currency ?? 'INR', { decimals: false, symbol: !!currency })}
-                  {r.count != null && <span className="text-faint ml-1.5">·{r.count}</span>}
+                  {r.count != null && <span className="text-faint ml-1.5">· {r.count}</span>}
                 </span>
               </div>
               {/* Track is a lighter step of the surface; the fill carries the value. */}
@@ -208,7 +208,7 @@ export function StatTile({
   tone?: 'neutral' | 'good' | 'bad'
 }) {
   return (
-    <div className="card px-4 py-3.5">
+    <div className="card px-4 py-3.5 h-full flex flex-col justify-center">
       <p className="text-[11.5px] text-muted">{label}</p>
       {/* Proportional figures: a standalone value reads loose with tabular digits. */}
       <p className={`text-[21px] font-semibold leading-tight mt-1 tracking-tight ${

@@ -21,6 +21,7 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
   const { session, aiEnabled } = useShell()
   const [folders, setFolders] = useState(initialFolders)
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<FolderMeta | null>(null)
   const [analytics, setAnalytics] = useState(analyticsEnabled)
   const [refreshing, setRefreshing] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -90,7 +91,7 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
           <ul className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 stagger">
             {folders.map((folder) => (
               <li key={folder.id}>
-                <FolderCard folder={folder} onChanged={refresh} />
+                <FolderCard folder={folder} onChanged={refresh} onEdit={setEditing} />
               </li>
             ))}
           </ul>
@@ -116,12 +117,22 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
         </div>
       </main>
 
-      <NewFolderModal
+      <FolderModal
         open={creating}
         onClose={() => setCreating(false)}
-        onCreated={(folder) => {
+        onSaved={(folder) => {
           setFolders((prev) => [folder, ...prev])
           setCreating(false)
+        }}
+      />
+
+      <FolderModal
+        open={editing !== null}
+        folder={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(folder) => {
+          setFolders((prev) => prev.map((f) => (f.id === folder.id ? { ...f, ...folder } : f)))
+          setEditing(null)
         }}
       />
 
@@ -130,7 +141,7 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
   )
 }
 
-function FolderCard({ folder, onChanged }: { folder: FolderMeta; onChanged: () => void }) {
+function FolderCard({ folder, onChanged, onEdit }: { folder: FolderMeta; onChanged: () => void; onEdit: (f: FolderMeta) => void }) {
   const [menu, setMenu] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const menuRef = useDismiss<HTMLDivElement>(menu, () => setMenu(false))
@@ -185,6 +196,12 @@ function FolderCard({ folder, onChanged }: { folder: FolderMeta; onChanged: () =
       {menu && (
         <div ref={menuRef} className="absolute right-2 top-9 z-50 w-44 card shadow-pop py-1 animate-scale-in origin-top-right">
           <button
+            onClick={() => { setMenu(false); onEdit(folder) }}
+            className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-raised flex items-center gap-2 transition-colors"
+          >
+            <Icon.Pencil size={14} /> Edit folder
+          </button>
+          <button
             onClick={() => { setMenu(false); setConfirming(true) }}
             className="w-full text-left px-3 py-2 text-[12.5px] text-bad hover:bg-raised flex items-center gap-2 transition-colors"
           >
@@ -220,24 +237,52 @@ function EmptyFolders({ onCreate }: { onCreate: () => void }) {
   )
 }
 
-function NewFolderModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (f: FolderMeta) => void }) {
+/**
+ * One form for making a folder and for changing one.
+ *
+ * The two differ by a verb and an endpoint; everything a person actually
+ * interacts with - the name, the icon, the colour - is identical, and keeping
+ * two copies of it in sync is how one of them ends up missing a colour.
+ */
+function FolderModal({
+  open,
+  folder,
+  onClose,
+  onSaved,
+}: {
+  open: boolean
+  /** Present when editing, absent when creating. */
+  folder?: FolderMeta | null
+  onClose: () => void
+  onSaved: (f: FolderMeta) => void
+}) {
+  const editing = Boolean(folder)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState(ICONS[0])
   const [color, setColor] = useState(COLORS[0])
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (open) { setName(''); setIcon(ICONS[0]); setColor(COLORS[0]) }
-  }, [open])
+    if (!open) return
+    setName(folder?.name ?? '')
+    setIcon(folder?.icon ?? ICONS[0])
+    setColor(folder?.color ?? COLORS[0])
+  }, [open, folder])
 
-  const create = async () => {
+  const save = async () => {
     if (!name.trim()) return
     setBusy(true)
     try {
-      // Client-minted id: a double-tap or a retry can't create two folders.
-      const res = await post<{ folder: FolderMeta }>('/api/folders', { name: name.trim(), icon, color, id: ulid() })
-      toast.success(`Created "${res.folder.name}"`)
-      onCreated(res.folder)
+      if (folder) {
+        const res = await patch<{ folder: FolderMeta }>(`/api/folders/${folder.id}`, { name: name.trim(), icon, color })
+        toast.success(`Saved "${res.folder.name}"`)
+        onSaved(res.folder)
+      } else {
+        // Client-minted id: a double-tap or a retry can't create two folders.
+        const res = await post<{ folder: FolderMeta }>('/api/folders', { name: name.trim(), icon, color, id: ulid() })
+        toast.success(`Created "${res.folder.name}"`)
+        onSaved(res.folder)
+      }
     } finally {
       setBusy(false)
     }
@@ -247,13 +292,13 @@ function NewFolderModal({ open, onClose, onCreated }: { open: boolean; onClose: 
     <Modal
       open={open}
       onClose={onClose}
-      title="New folder"
-      description="Group related files together: a trip, a month, a project."
+      title={editing ? 'Edit folder' : 'New folder'}
+      description={editing ? 'Rename it, or give it a different icon and colour.' : 'Group related files together: a trip, a month, a project.'}
       footer={
         <>
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary pressable" onClick={create} disabled={!name.trim() || busy}>
-            {busy ? <Icon.Spinner /> : 'Create folder'}
+          <button className="btn-primary pressable" onClick={save} disabled={!name.trim() || busy}>
+            {busy ? <Icon.Spinner /> : editing ? 'Save changes' : 'Create folder'}
           </button>
         </>
       }
@@ -264,7 +309,7 @@ function NewFolderModal({ open, onClose, onCreated }: { open: boolean; onClose: 
         className="input"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) void create() }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) void save() }}
         placeholder="October trip"
         autoFocus
         maxLength={80}

@@ -94,6 +94,27 @@ export function Gauge({
 
   const size = compact ? 'h-[124px]' : 'h-[150px]'
 
+  /*
+   * The hero figure has to live inside the hole in the middle of the donut,
+   * which is 128px across and does not grow just because the total did. A fixed
+   * size was fine until the first six-figure total, which ran out over the arc
+   * on both sides. So the type shrinks to fit, and past the point where
+   * shrinking would make it unreadable the figure goes compact instead: 3.1L in
+   * type you can read beats 3,14,020 in type you cannot.
+   */
+  const hover3 = hover !== null && segments[hover] ? segments[hover] : null
+  const full = hover3 ? compactMoney(hover3.total, currency) : formatMoney(total, currency, { decimals: false })
+  const hero = full.length > 13 ? compactMoney(total, currency) : full
+  const ceiling = compact ? 24 : 30
+  /*
+   * The hole is 128 across at its widest and narrower where the type actually
+   * sits, so the budget is 104: it leaves a clear ten pixels either side rather
+   * than letting the figure graze the arc, which is what "just fits" looks like.
+   * 0.55em per character is measured, not guessed - a seven-character total
+   * renders 114.8px wide at 30px in this face.
+   */
+  const heroSize = Math.max(14, Math.min(ceiling, Math.floor(104 / (hero.length * 0.55))))
+
   return (
     <div className="flex flex-col items-center">
       <div className={`relative w-[220px] ${size}`}>
@@ -136,8 +157,12 @@ export function Gauge({
 
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pointer-events-none">
           {/* Hero figure: proportional digits, not tabular - tabular looks loose at display size. */}
-          <span className={`font-semibold leading-none tracking-tight ${compact ? 'text-[24px]' : 'text-[30px]'}`}>
-            {hover !== null && segments[hover] ? compactMoney(segments[hover].total, currency) : formatMoney(total, currency, { decimals: false })}
+          <span
+            className="font-semibold leading-none tracking-tight max-w-[130px] truncate"
+            style={{ fontSize: `${heroSize}px` }}
+            title={hero}
+          >
+            {hero}
           </span>
           <span className="text-[11.5px] text-muted mt-1.5 max-w-[180px] truncate">
             {hover !== null && segments[hover]

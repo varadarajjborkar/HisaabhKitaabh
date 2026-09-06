@@ -94,6 +94,24 @@ function evaluate(input: string): number {
   return Math.round(stack[0] * 1e10) / 1e10
 }
 
+/** How many decimals a person actually wants to look at. */
+const DP = 6
+
+/*
+ * Binary floating point cannot hold a tenth, so 0.1 + 0.2 comes out as
+ * 0.30000000000000004 and a third of ten runs to sixteen digits. Neither is
+ * information. Six decimals is past anything a ledger needs and short enough to
+ * read, and it is applied everywhere a number is shown or handed on rather than
+ * only in the preview - otherwise pressing equals put the full tail back into
+ * the input you were about to reuse.
+ */
+export function tidy(n: number): number {
+  if (!Number.isFinite(n)) return n
+  return Math.round(n * 10 ** DP) / 10 ** DP
+}
+
+const show = (n: number) => tidy(n).toLocaleString('en-IN', { maximumFractionDigits: DP })
+
 /**
  * Clear entry.
  *
@@ -138,7 +156,18 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
   const [tape, setTape] = useState<Array<{ expr: string; value: number }>>([])
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const dragFrom = useRef<{ dx: number; dy: number } | null>(null)
+
+  /*
+   * Closing runs the panel out rather than blinking it away. Everything that
+   * can close it goes through here, so the escape key and the cross and the
+   * "use value" button all leave the same way.
+   */
+  const dismiss = useCallback(() => {
+    setLeaving(true)
+    setTimeout(() => { setLeaving(false); onClose() }, 130)
+  }, [onClose])
 
   // Restore where the user last parked it, then keep it inside the viewport.
   useEffect(() => {
@@ -162,7 +191,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
     if (!expr.trim()) { setResult(''); setError(''); return }
     try {
       const v = evaluate(expr)
-      setResult(v.toLocaleString('en-IN', { maximumFractionDigits: 6 }))
+      setResult(show(v))
       setError('')
     } catch (e) {
       setResult('')
@@ -173,7 +202,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
   const commit = useCallback(() => {
     if (!expr.trim()) return
     try {
-      const v = evaluate(expr)
+      const v = tidy(evaluate(expr))
       setTape((t) => [{ expr, value: v }, ...t].slice(0, 8))
       setExpr(String(v))
     } catch { /* the inline error already says why */ }
@@ -191,7 +220,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onClose()
+      if (e.key === 'Escape') return dismiss()
       if (e.key === 'Enter') { e.preventDefault(); return commit() }
       if (e.key === 'Backspace') { e.preventDefault(); return setExpr((v) => v.slice(0, -1)) }
       if (e.key === 'Delete') { e.preventDefault(); return setExpr(clearEntry) }
@@ -199,7 +228,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose, commit])
+  }, [open, dismiss, commit])
 
   // Dragging is tracked on the window, not the handle, so a fast pointer that
   // outruns the panel does not drop the grab.
@@ -232,8 +261,14 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
 
   return (
     <div
+      /*
+       * The entry animation is not conditional on dragging. It used to be, so
+       * letting go of the panel re-added the class and replayed the whole
+       * scale-in - which is the twitch you saw the moment you dropped it. A
+       * class that never changes runs once, when the panel mounts.
+       */
       className={`hidden sm:flex fixed z-50 card shadow-pop flex-col no-print select-none
-                  ${dragging ? '' : 'animate-scale-in transition-shadow'}`}
+                  ${leaving ? 'animate-scale-out' : 'animate-scale-in'}`}
       style={{ left: pos.x, top: pos.y, width: PANEL.w }}
       role="dialog"
       aria-label="Calculator"
@@ -251,7 +286,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
         <Icon.Grip size={14} className="text-faint" />
         <span className="text-[12px] font-medium text-muted flex items-center gap-1.5">Calculator</span>
         <button
-          onClick={onClose}
+          onClick={dismiss}
           onPointerDown={(e) => e.stopPropagation()}
           className="ml-auto text-faint hover:text-ink hover:bg-raised rounded p-1 -mr-0.5 transition-colors"
           aria-label="Close calculator"
@@ -274,7 +309,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
                 className="w-full text-right text-[11px] text-faint hover:text-muted tnum block truncate"
                 title={`${t.expr} = ${t.value}`}
               >
-                {t.expr} = <span className="text-muted">{t.value.toLocaleString('en-IN')}</span>
+                {t.expr} = <span className="text-muted">{show(t.value)}</span>
               </button>
             ))}
           </div>
@@ -317,7 +352,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
           <button
             className="btn-primary h-8 w-full text-[12px]"
             disabled={!result || Boolean(error)}
-            onClick={() => { try { onUse(evaluate(expr)); onClose() } catch { /* disabled when invalid */ } }}
+            onClick={() => { try { onUse(tidy(evaluate(expr))); dismiss() } catch { /* disabled when invalid */ } }}
           >
             Use value
           </button>

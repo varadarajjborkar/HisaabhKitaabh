@@ -13,8 +13,17 @@ import { toast } from './ui/Toast'
 import { ChatDock } from './chat/ChatDock'
 import { ulid } from '@/lib/util/ids'
 import { useFileDrop } from '@/lib/client/useFileDrop'
+import { useDismiss } from '@/lib/client/useDismiss'
 
-type Sort = 'recent' | 'name' | 'total' | 'rows'
+type Sort = 'recent' | 'name' | 'total' | 'rows' | 'created'
+
+const SORTS: Array<{ value: Sort; label: string }> = [
+  { value: 'recent', label: 'Recently updated' },
+  { value: 'created', label: 'Recently created' },
+  { value: 'name', label: 'Name' },
+  { value: 'total', label: 'Total' },
+  { value: 'rows', label: 'Rows' },
+]
 
 /**
  * The file list, modelled on a mail inbox.
@@ -70,6 +79,7 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
     if (sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
     else if (sort === 'total') sorted.sort((a, b) => b.total - a.total)
     else if (sort === 'rows') sorted.sort((a, b) => b.rowCount - a.rowCount)
+    else if (sort === 'created') sorted.sort((a, b) => b.createdAt - a.createdAt)
     else sorted.sort((a, b) => b.updatedAt - a.updatedAt)
     return sorted
   }, [files, query, sort])
@@ -151,17 +161,7 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
               aria-label="Search files"
             />
           </div>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as Sort)}
-            className="input h-9 w-auto text-[12.5px] pr-8 shrink-0"
-            aria-label="Sort by"
-          >
-            <option value="recent">Recent</option>
-            <option value="name">Name</option>
-            <option value="total">Total</option>
-            <option value="rows">Rows</option>
-          </select>
+          <SortMenu value={sort} onChange={setSort} />
           <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">
             <Icon.Plus size={15} />
             <span className="hidden sm:inline">New file</span>
@@ -194,8 +194,9 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
                 aria-label="Select all"
               />
               <span className="flex-1">Name</span>
-              <span className="w-20 text-right">Rows</span>
+              <span className="w-16 text-right">Rows</span>
               <span className="w-28 text-right">Total</span>
+              <span className="w-24 text-right">Created</span>
               <span className="w-24 text-right">Updated</span>
             </div>
 
@@ -225,9 +226,10 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
                             {file.rowCount} rows · {formatMoney(file.total, file.currency, { decimals: false })} · {relativeTime(file.updatedAt)}
                           </p>
                         </div>
-                        <span className="hidden sm:block w-20 text-right text-[12.5px] text-muted tnum">{file.rowCount}</span>
+                        <span className="hidden sm:block w-16 text-right text-[12.5px] text-muted tnum">{file.rowCount}</span>
                         <span className="hidden sm:block w-28 text-right text-[13px] tnum font-medium">{formatMoney(file.total, file.currency, { decimals: false })}</span>
-                        <span className="hidden sm:block w-24 text-right text-[11.5px] text-faint">{relativeTime(file.updatedAt)}</span>
+                        <span className="hidden sm:block w-24 text-right text-[11.5px] text-faint" title={new Date(file.createdAt).toLocaleString()}>{relativeTime(file.createdAt)}</span>
+                        <span className="hidden sm:block w-24 text-right text-[11.5px] text-faint" title={new Date(file.updatedAt).toLocaleString()}>{relativeTime(file.updatedAt)}</span>
                       </Link>
                     </div>
                   </li>
@@ -271,6 +273,57 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
         />
       )}
     </>
+  )
+}
+
+/**
+ * Sort, as a menu rather than a select.
+ *
+ * A native select shows the current value, so the control read "Recent" - which
+ * is an answer to a question the page never asked. Someone looking for how to
+ * sort had nothing to look for. The button says what it does, and the menu says
+ * what is currently chosen, which is the way round those two belong.
+ */
+function SortMenu({ value, onChange }: { value: Sort; onChange: (s: Sort) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false))
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="btn-outline h-9 text-[12.5px] pressable"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={`Sorted by ${SORTS.find((s) => s.value === value)?.label.toLowerCase()}`}
+      >
+        <Icon.Sort size={15} />
+        <span className="hidden sm:inline">Sort</span>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Sort by"
+          className="absolute right-0 top-full mt-1.5 z-50 w-52 card shadow-pop py-1 animate-scale-in origin-top-right"
+        >
+          {SORTS.map((s) => (
+            <button
+              key={s.value}
+              role="option"
+              aria-selected={s.value === value}
+              onClick={() => { onChange(s.value); setOpen(false) }}
+              className={`w-full text-left px-3 py-2 text-[12.5px] hover:bg-raised flex items-center gap-2 transition-colors ${
+                s.value === value ? 'text-accent' : ''
+              }`}
+            >
+              <span className="w-3.5 shrink-0">{s.value === value && <Icon.Check size={14} />}</span>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

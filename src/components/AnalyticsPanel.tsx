@@ -30,18 +30,25 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
   const [data, setData] = useState<Analytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [folderId, setFolderId] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string[]>([])
+  /*
+   * null means "not chosen yet", which is what asks the server for its default
+   * of everything. An empty array means the user unpicked the last one, and
+   * that has to survive: it used to collapse back into null on the next load
+   * and quietly reselect all of them, so the one thing you could not express
+   * was the thing you had just asked for.
+   */
+  const [selected, setSelected] = useState<string[] | null>(null)
   const [showTable, setShowTable] = useState(false)
 
-  const load = useCallback(async (folder: string | null, files: string[]) => {
+  const load = useCallback(async (folder: string | null, files: string[] | null) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (folder) params.set('folderId', folder)
-      for (const f of files) params.append('fileId', f)
+      for (const f of files ?? []) params.append('fileId', f)
       const res = await get<Analytics>(`/api/analytics?${params}`)
       setData(res)
-      if (files.length === 0) setSelected(res.selection.fileIds)
+      if (files === null) setSelected(res.selection.fileIds)
     } finally {
       setLoading(false)
     }
@@ -49,10 +56,21 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
 
   useEffect(() => { void load(folderId, selected) }, [folderId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const picked = selected ?? []
+  const nonePicked = selected !== null && selected.length === 0
+
   const toggleFile = (id: string) => {
-    const next = selected.includes(id) ? selected.filter((f) => f !== id) : [...selected, id]
+    const next = picked.includes(id) ? picked.filter((f) => f !== id) : [...picked, id]
     setSelected(next)
-    void load(folderId, next)
+    // Nothing picked is a valid answer, and the server has nothing to say about
+    // it, so do not go and ask.
+    if (next.length > 0) void load(folderId, next)
+  }
+
+  const pickAll = () => {
+    const all = data?.files.map((f) => f.id) ?? []
+    setSelected(all)
+    if (all.length > 0) void load(folderId, all)
   }
 
   if (loading && !data) return <AnalyticsSkeleton />
@@ -76,7 +94,7 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
       <div className="card p-3 flex flex-wrap items-center gap-2">
         <select
           value={folderId ?? ''}
-          onChange={(e) => { setFolderId(e.target.value || null); setSelected([]) }}
+          onChange={(e) => { setFolderId(e.target.value || null); setSelected(null) }}
           className="input h-8 w-auto text-[12.5px] pr-8"
           aria-label="Folder"
         >
@@ -88,7 +106,7 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
 
         <div className="flex flex-wrap gap-1.5 min-w-0">
           {data.files.slice(0, 12).map((f) => {
-            const on = selected.includes(f.id)
+            const on = picked.includes(f.id)
             return (
               <button
                 key={f.id}
@@ -103,9 +121,23 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
           })}
           {data.files.length === 0 && <span className="text-[12px] text-faint px-1">No files in this folder yet.</span>}
         </div>
+
+        {nonePicked && data.files.length > 0 && (
+          <button onClick={pickAll} className="btn-ghost h-7 text-[12px] pressable ml-auto">
+            Select all
+          </button>
+        )}
       </div>
 
-      {!hasData ? (
+      {nonePicked ? (
+        <div className="card p-10 text-center">
+          <Icon.Chart size={24} className="mx-auto text-faint" />
+          <p className="text-[13.5px] font-medium mt-3">Nothing picked</p>
+          <p className="text-[12.5px] text-muted mt-1.5">
+            Choose a file above and the charts come back.
+          </p>
+        </div>
+      ) : !hasData ? (
         <div className="card p-10 text-center">
           <Icon.Chart size={24} className="mx-auto text-faint" />
           <p className="text-[13.5px] font-medium mt-3">Nothing to chart yet</p>
@@ -130,7 +162,9 @@ export function AnalyticsPanel({ folders }: { folders: FolderMeta[] }) {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 content-start">
+            {/* auto-rows-fr, so the four split the gauge's height evenly instead
+                of hugging the top and leaving a gap above the line chart. */}
+            <div className="grid grid-cols-2 gap-3 auto-rows-fr">
               <StatTile label="Total" value={money(data.summary.total, { decimals: false })} hint={`${data.summary.files} file${data.summary.files === 1 ? '' : 's'}`} />
               <StatTile label="Rows" value={String(data.summary.rows)} hint={`avg ${short(data.summary.average)}`} />
               <StatTile
