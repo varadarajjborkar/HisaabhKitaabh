@@ -12,6 +12,7 @@ import { toast } from './ui/Toast'
 import { relativeTime } from '@/lib/util/format'
 import { AnalyticsPanel } from './AnalyticsPanel'
 import { SearchBar } from './SearchBar'
+import { ViewBar, useViewPrefs, windowOf, type Layout } from './ViewBar'
 import { ChatDock } from './chat/ChatDock'
 import { ulid } from '@/lib/util/ids'
 
@@ -23,6 +24,11 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
   const [folders, setFolders] = useState(initialFolders)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<FolderMeta | null>(null)
+  const [view, setView] = useViewPrefs('folders', { layout: 'grid' as Layout, pageSize: 12 })
+  const [page, setPage] = useState(0)
+  const [selecting, setSelecting] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [confirmBulk, setConfirmBulk] = useState(false)
   const [analytics, setAnalytics] = useState(analyticsEnabled)
   const [refreshing, setRefreshing] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -50,6 +56,47 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
   }
 
   const total = folders.reduce((s, f) => s + f.fileCount, 0)
+  const win = windowOf(folders, page, view.pageSize)
+  const pageAllPicked = win.slice.length > 0 && win.slice.every((f) => picked.has(f.id))
+
+  const togglePick = (id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Select-all covers what is on screen, not the whole account. Selecting three
+  // hundred folders from a button that says "all" while twelve are visible is
+  // how people delete things they never saw.
+  const toggleAllOnPage = () => {
+    setPicked((prev) => {
+      const next = new Set(prev)
+      for (const f of win.slice) pageAllPicked ? next.delete(f.id) : next.add(f.id)
+      return next
+    })
+  }
+
+  const stopSelecting = () => { setSelecting(false); setPicked(new Set()) }
+
+  const deletePicked = async () => {
+    const ids = [...picked]
+    const backup = folders
+    setFolders((prev) => prev.filter((f) => !picked.has(f.id)))
+    setPicked(new Set())
+    setSelecting(false)
+    try {
+      // No bulk endpoint: a handful of folders is a handful of requests, and a
+      // partial failure leaves the ones that did go rather than pretending.
+      await Promise.all(ids.map((id) => del(`/api/folders/${id}`)))
+      toast.success(`Deleted ${ids.length} folder${ids.length === 1 ? '' : 's'}`)
+    } catch {
+      setFolders(backup)
+      toast.error('Could not delete them all', 'The list has been put back.')
+    }
+  }
 
   return (
     <>
@@ -82,21 +129,79 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
 
       <main className="flex-1 scroller px-3 sm:px-5 py-5 pb-24">
         <div className="max-w-5xl w-full mx-auto">
-        <section className="flex items-center justify-between mb-4">
+        <section className="flex items-center justify-between gap-2 mb-4 flex-wrap">
           <h2 className="text-[13px] font-medium text-muted">Folders</h2>
-          <button onClick={() => setCreating(true)} className="btn-outline h-8 text-[12.5px] pressable">
-            <Icon.Plus size={15} />
-            New folder
-          </button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <ViewBar
+              layout={view.layout}
+              onLayout={(layout) => setView({ layout })}
+              selecting={selecting}
+              onSelecting={(v) => (v ? setSelecting(true) : stopSelecting())}
+              pageSize={view.pageSize}
+              onPageSize={(pageSize) => setView({ pageSize })}
+              page={win.page}
+              pages={win.pages}
+              onPage={setPage}
+              total={folders.length}
+              noun="folders"
+            />
+            <button onClick={() => setCreating(true)} className="btn-outline h-8 text-[12.5px] pressable">
+              <Icon.Plus size={15} />
+              <span className="hidden sm:inline">New folder</span>
+            </button>
+          </div>
         </section>
+
+        {selecting && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg border border-line bg-accent-soft/50 animate-rise">
+            <span className="text-[12.5px] font-medium text-accent">
+              {picked.size} selected
+            </span>
+            <button onClick={toggleAllOnPage} className="btn-ghost h-7 text-[12px]">
+              {pageAllPicked ? 'Clear page' : 'Select all on this page'}
+            </button>
+            <button onClick={stopSelecting} className="btn-ghost h-7 text-[12px]">Done</button>
+            <button
+              onClick={() => setConfirmBulk(true)}
+              disabled={picked.size === 0}
+              className="btn-ghost h-7 text-[12px] text-bad ml-auto pressable disabled:opacity-40"
+            >
+              <Icon.Trash size={14} /> Delete
+            </button>
+          </div>
+        )}
 
         {folders.length === 0 ? (
           <EmptyFolders onCreate={() => setCreating(true)} />
-        ) : (
+        ) : view.layout === 'grid' ? (
           <ul className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 stagger">
-            {folders.map((folder) => (
+            {win.slice.map((folder) => (
               <li key={folder.id}>
-                <FolderCard folder={folder} onChanged={refresh} onEdit={setEditing} />
+                <FolderCard
+                  folder={folder}
+                  layout="grid"
+                  selecting={selecting}
+                  selected={picked.has(folder.id)}
+                  onToggle={() => togglePick(folder.id)}
+                  onChanged={refresh}
+                  onEdit={setEditing}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="card overflow-hidden stagger">
+            {win.slice.map((folder) => (
+              <li key={folder.id} className="border-b border-line last:border-0">
+                <FolderCard
+                  folder={folder}
+                  layout="list"
+                  selecting={selecting}
+                  selected={picked.has(folder.id)}
+                  onToggle={() => togglePick(folder.id)}
+                  onChanged={refresh}
+                  onEdit={setEditing}
+                />
               </li>
             ))}
           </ul>
@@ -122,6 +227,14 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
         </div>
       </main>
 
+      <ConfirmModal
+        open={confirmBulk}
+        onClose={() => setConfirmBulk(false)}
+        onConfirm={deletePicked}
+        title={`Delete ${picked.size} folder${picked.size === 1 ? '' : 's'}?`}
+        body="Every file inside them goes too. This cannot be undone."
+      />
+
       <FolderModal
         open={creating}
         onClose={() => setCreating(false)}
@@ -146,7 +259,35 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
   )
 }
 
-function FolderCard({ folder, onChanged, onEdit }: { folder: FolderMeta; onChanged: () => void; onEdit: (f: FolderMeta) => void }) {
+/**
+ * One folder, as a card or as a row.
+ *
+ * Two shapes rather than two components, because everything about a folder that
+ * matters - the icon, the name, the count, the menu, whether it is picked - is
+ * the same in both and only the arrangement differs. Splitting them is how one
+ * of the two ends up without the edit option.
+ *
+ * While selecting, the whole thing is a checkbox: the link is suppressed, so a
+ * tap picks rather than navigates. A row that both selects and opens depending
+ * on where exactly you hit it is a row nobody can use confidently.
+ */
+function FolderCard({
+  folder,
+  layout,
+  selecting = false,
+  selected = false,
+  onToggle,
+  onChanged,
+  onEdit,
+}: {
+  folder: FolderMeta
+  layout: Layout
+  selecting?: boolean
+  selected?: boolean
+  onToggle?: () => void
+  onChanged: () => void
+  onEdit: (f: FolderMeta) => void
+}) {
   const [menu, setMenu] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const menuRef = useDismiss<HTMLDivElement>(menu, () => setMenu(false))
@@ -157,41 +298,15 @@ function FolderCard({ folder, onChanged, onEdit }: { folder: FolderMeta; onChang
     onChanged()
   }
 
-  return (
-    <div className="relative group h-full">
-      <Link
-        href={`/folder/${folder.id}`}
-        className="card lift block p-3.5 sm:p-4 h-full hover:border-faint transition-colors"
-      >
-        {/*
-         * The right padding is the options button's seat. It sits outside this
-         * link, floated over the card's corner, so nothing in here knows to get
-         * out of its way - which put it straight on top of the sample chip.
-         * Reserving the space unconditionally keeps the chip still: paying for
-         * it only on hover would slide the chip sideways under the cursor.
-         */}
-        <div className="flex items-start justify-between gap-2 pr-8">
-          <span
-            className="w-9 h-9 rounded-lg grid place-items-center text-[17px] shrink-0"
-            style={{ background: `${folder.color}1a` }}
-          >
-            {folder.icon}
-          </span>
-          {folder.sample && <span className="chip h-5 px-2 text-[10px] shrink-0">sample</span>}
-        </div>
+  const badge = folder.sample && <span className="chip h-5 px-2 text-[10px] shrink-0">sample</span>
 
-        <p className="text-[13.5px] font-medium mt-3 leading-snug line-clamp-2">{folder.name}</p>
-        <p className="text-[11.5px] text-muted mt-1">
-          {folder.fileCount} file{folder.fileCount === 1 ? '' : 's'}
-          <span className="text-faint"> · {relativeTime(folder.updatedAt)}</span>
-        </p>
-      </Link>
-
+  const menuNode = (
+    <>
       <button
         onClick={(e) => { e.preventDefault(); setMenu((v) => !v) }}
-        className="absolute top-2.5 right-2.5 h-7 w-7 rounded-md grid place-items-center text-faint
-                   opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100
-                   hover:bg-raised hover:text-ink transition-all"
+        className={`h-7 w-7 rounded-md grid place-items-center text-faint transition-all
+                    hover:bg-raised hover:text-ink focus:opacity-100 [@media(hover:none)]:opacity-100
+                    ${layout === 'grid' ? 'absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100' : 'shrink-0'}`}
         aria-label={`Options for ${folder.name}`}
         aria-expanded={menu}
       >
@@ -222,6 +337,96 @@ function FolderCard({ folder, onChanged, onEdit }: { folder: FolderMeta; onChang
         title={`Delete "${folder.name}"?`}
         body="Every file in this folder goes with it. This cannot be undone."
       />
+    </>
+  )
+
+  const tick = selecting && (
+    <span
+      className={`w-[18px] h-[18px] rounded-[5px] border grid place-items-center shrink-0 transition-colors ${
+        selected ? 'bg-accent border-accent text-white' : 'border-faint bg-surface'
+      }`}
+      aria-hidden
+    >
+      {selected && <Icon.Check size={12} />}
+    </span>
+  )
+
+  if (layout === 'list') {
+    const body = (
+      <>
+        {tick}
+        <span className="w-8 h-8 rounded-lg grid place-items-center text-[15px] shrink-0" style={{ background: `${folder.color}1a` }}>
+          {folder.icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13.5px] font-medium truncate">{folder.name}</span>
+          <span className="block text-[11.5px] text-muted">
+            {folder.fileCount} file{folder.fileCount === 1 ? '' : 's'}
+            <span className="text-faint"> · {relativeTime(folder.updatedAt)}</span>
+          </span>
+        </span>
+        {badge}
+      </>
+    )
+
+    return (
+      <div className={`relative flex items-center gap-3 px-3.5 py-2.5 transition-colors ${selected ? 'bg-accent-soft/50' : 'hover:bg-raised/60'}`}>
+        {selecting ? (
+          <button onClick={onToggle} className="flex items-center gap-3 flex-1 min-w-0 text-left" aria-pressed={selected}>
+            {body}
+          </button>
+        ) : (
+          <Link href={`/folder/${folder.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+            {body}
+          </Link>
+        )}
+        {menuNode}
+      </div>
+    )
+  }
+
+  const cardBody = (
+    <>
+      {/*
+       * The right padding is the options button's seat. It sits outside this
+       * link, floated over the card's corner, so nothing in here knows to get
+       * out of its way - which put it straight on top of the sample chip.
+       * Reserving the space unconditionally keeps the chip still: paying for
+       * it only on hover would slide the chip sideways under the cursor.
+       */}
+      <div className="flex items-start justify-between gap-2 pr-8">
+        <span className="flex items-center gap-2 min-w-0">
+          {tick}
+          <span
+            className="w-9 h-9 rounded-lg grid place-items-center text-[17px] shrink-0"
+            style={{ background: `${folder.color}1a` }}
+          >
+            {folder.icon}
+          </span>
+        </span>
+        {badge}
+      </div>
+
+      <p className="text-[13.5px] font-medium mt-3 leading-snug line-clamp-2">{folder.name}</p>
+      <p className="text-[11.5px] text-muted mt-1">
+        {folder.fileCount} file{folder.fileCount === 1 ? '' : 's'}
+        <span className="text-faint"> · {relativeTime(folder.updatedAt)}</span>
+      </p>
+    </>
+  )
+
+  const cardClass = `card lift block p-3.5 sm:p-4 h-full w-full text-left transition-colors ${
+    selected ? 'border-accent/50 bg-accent-soft/40' : 'hover:border-faint'
+  }`
+
+  return (
+    <div className="relative group h-full">
+      {selecting ? (
+        <button onClick={onToggle} className={cardClass} aria-pressed={selected}>{cardBody}</button>
+      ) : (
+        <Link href={`/folder/${folder.id}`} className={cardClass}>{cardBody}</Link>
+      )}
+      {menuNode}
     </div>
   )
 }

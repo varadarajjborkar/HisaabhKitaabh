@@ -128,6 +128,15 @@ export const Icon = {
   Sparkle: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" /><path d="M18.5 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z" /></svg>
   ),
+  Grid: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg>
+  ),
+  List: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M4 6.5h.01M4 12h.01M4 17.5h.01M8.5 6.5H20M8.5 12H20M8.5 17.5H20" /></svg>
+  ),
+  CheckSquare: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><path d="M8 12.2l2.8 2.8L16 9.8" /></svg>
+  ),
   Chart: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
   ),

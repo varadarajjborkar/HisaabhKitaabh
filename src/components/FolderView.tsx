@@ -15,6 +15,7 @@ import { ulid } from '@/lib/util/ids'
 import { useFileDrop } from '@/lib/client/useFileDrop'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { SearchBar } from './SearchBar'
+import { ViewBar, useViewPrefs, windowOf } from './ViewBar'
 
 type Sort = 'recent' | 'name' | 'total' | 'rows' | 'created'
 
@@ -46,6 +47,8 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
   const [refreshing, setRefreshing] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [dropped, setDropped] = useState<File[] | null>(null)
+  const [view, setView] = useViewPrefs('files', { layout: 'list' as const, pageSize: 24 })
+  const [page, setPage] = useState(0)
 
   /*
    * Dropping a statement or a receipt on the folder hands it to the assistant.
@@ -94,7 +97,10 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
    */
   const currencies = new Set(files.map((f) => (f.currency || 'INR').toUpperCase()))
   const folderCurrency = currencies.size === 1 ? [...currencies][0] : null
-  const allSelected = visible.length > 0 && visible.every((f) => selected.has(f.id))
+  const win = windowOf(visible, page, view.pageSize)
+  // Select-all covers the page in front of you, not everything the filter
+  // matched somewhere off screen.
+  const allSelected = win.slice.length > 0 && win.slice.every((f) => selected.has(f.id))
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -105,7 +111,7 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
   }
 
   const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(visible.map((f) => f.id)))
+    setSelected(allSelected ? new Set() : new Set(win.slice.map((f) => f.id)))
   }
 
   const deleteSelected = async () => {
@@ -159,6 +165,15 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
             */}
           <SearchBar folderId={folder.id} scoped value={query} onValueChange={setQuery} className="flex-1" />
           <SortMenu value={sort} onChange={setSort} />
+          <ViewBar
+            pageSize={view.pageSize}
+            onPageSize={(pageSize) => setView({ pageSize })}
+            page={win.page}
+            pages={win.pages}
+            onPage={setPage}
+            total={visible.length}
+            noun="files"
+          />
           <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">
             <Icon.Plus size={15} />
             <span className="hidden sm:inline">New file</span>
@@ -198,7 +213,7 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
             </div>
 
             <ul className="stagger">
-              {visible.map((file) => {
+              {win.slice.map((file) => {
                 const isSelected = selected.has(file.id)
                 return (
                   <li
