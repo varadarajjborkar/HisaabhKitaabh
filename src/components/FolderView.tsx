@@ -179,21 +179,37 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
           <SearchBar folderId={folder.id} scoped value={query} onValueChange={setQuery} className="max-w-xl mx-auto" />
         </div>
 
-        {selected.size > 0 && (
-          <div className="flex items-center gap-2 px-3 sm:px-5 py-2 border-t border-line bg-accent-soft/50 animate-rise">
-            <span className="text-[12.5px] font-medium text-accent">{selected.size} selected</span>
-            <button onClick={() => setSelected(new Set())} className="btn-ghost h-7 text-[12px]">Clear</button>
-            <button onClick={() => setConfirmDelete(true)} className="btn-ghost h-7 text-[12px] text-bad ml-auto pressable">
-              <Icon.Trash size={14} /> Delete
-            </button>
-          </div>
-        )}
       </TopBar>
 
       <main {...drop.handlers} className="flex-1 scroller px-3 sm:px-5 py-4 pb-24 relative">
         <div className="max-w-4xl w-full mx-auto">
         <section className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-          <h2 className="text-[13px] font-medium text-muted">Files</h2>
+          {/*
+            * The count and its actions belong next to the list they act on. They
+            * used to appear as a strip under the search box, up in the title bar
+            * - which pushed the whole page down the moment you ticked one file,
+            * and put Delete about as far from the files as it could get. Here
+            * they share the row with the sort control, so nothing moves and the
+            * only destructive button on the screen is at the opposite end from
+            * New file.
+            */}
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <h2 className="text-[13px] font-medium text-muted">Files</h2>
+            {selected.size > 0 && (
+              <>
+                <span className="text-[12.5px] font-medium text-accent whitespace-nowrap">
+                  · {selected.size} selected
+                </span>
+                <button onClick={() => setSelected(new Set())} className="btn-ghost h-7 text-[12px]">Clear</button>
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="btn-ghost h-7 text-[12px] text-bad pressable whitespace-nowrap"
+                >
+                  <Icon.Trash size={14} /> Delete
+                </button>
+              </>
+            )}
+          </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <SortMenu value={sort} onChange={setSort} />
             <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">

@@ -143,7 +143,35 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
       <main className="flex-1 scroller px-3 sm:px-5 py-5 pb-24">
         <div className="max-w-5xl w-full mx-auto">
         <section className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-          <h2 className="text-[13px] font-medium text-muted">Folders</h2>
+          {/*
+            * Picking does not get a bar of its own. It used to: a strip that
+            * appeared under this row, pushed the folders down, and put Delete
+            * on a line by itself where nothing else was - which is the one
+            * place a destructive button should not be, big and alone and the
+            * only thing to press. Now the count and its two actions land in
+            * this row beside the heading, the list stays where it was, and
+            * Delete sits at the far end from New folder rather than next to it.
+            */}
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <h2 className="text-[13px] font-medium text-muted">Folders</h2>
+            {selecting && (
+              <>
+                <span className="text-[12.5px] font-medium text-accent whitespace-nowrap">
+                  · {picked.size} selected
+                </span>
+                <button onClick={toggleAllOnPage} className="btn-ghost h-7 text-[12px] whitespace-nowrap">
+                  {pageAllPicked ? 'Clear page' : <><span className="sm:hidden">All</span><span className="hidden sm:inline">Select all on this page</span></>}
+                </button>
+                <button
+                  onClick={() => setConfirmBulk(true)}
+                  disabled={picked.size === 0}
+                  className="btn-ghost h-7 text-[12px] text-bad pressable disabled:opacity-40 whitespace-nowrap"
+                >
+                  <Icon.Trash size={14} /> Delete
+                </button>
+              </>
+            )}
+          </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <ViewBar
               layout={view.layout}
@@ -164,27 +192,6 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
             </button>
           </div>
         </section>
-
-        {/* The bar wraps rather than clipping: at 390px the four controls do not
-            fit on one line, and the one that ran off the end was Delete. */}
-        {selecting && (
-          <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5 mb-3 px-3 py-2 rounded-lg border border-line bg-accent-soft/50 animate-rise">
-            <span className="text-[12.5px] font-medium text-accent whitespace-nowrap mr-1">
-              {picked.size} selected
-            </span>
-            <button onClick={toggleAllOnPage} className="btn-ghost h-7 text-[12px] whitespace-nowrap">
-              {pageAllPicked ? 'Clear page' : <><span className="sm:hidden">All</span><span className="hidden sm:inline">Select all on this page</span></>}
-            </button>
-            <button onClick={stopSelecting} className="btn-ghost h-7 text-[12px]">Done</button>
-            <button
-              onClick={() => setConfirmBulk(true)}
-              disabled={picked.size === 0}
-              className="btn-ghost h-7 text-[12px] text-bad ml-auto pressable disabled:opacity-40 whitespace-nowrap"
-            >
-              <Icon.Trash size={14} /> Delete
-            </button>
-          </div>
-        )}
 
         {folders.length === 0 ? (
           <EmptyFolders onCreate={() => setCreating(true)} />
