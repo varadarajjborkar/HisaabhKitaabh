@@ -152,7 +152,7 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
         }
         actions={
           <>
-            <button onClick={refresh} className="btn-ghost h-9 w-9 px-0 pressable" aria-label="Refresh">
+            <button onClick={refresh} className="btn-ghost h-9 w-9 px-0 pressable hidden sm:inline-flex" aria-label="Refresh">
               <Icon.Refresh size={17} className={refreshing ? 'animate-spin' : ''} />
             </button>
             {aiEnabled && (
@@ -211,6 +211,17 @@ export function FolderView({ folder, initialFiles }: { folder: FolderMeta; initi
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Phone only. The header carries this on a wider screen, but on a
+                390px bar it was the button that pushed the folder's own name
+                into an ellipsis, and a name you cannot read is worse than a
+                reload you have to reach one row further for. */}
+            <button
+              onClick={refresh}
+              className="btn-outline h-9 w-9 px-0 sm:hidden pressable"
+              aria-label="Refresh"
+            >
+              <Icon.Refresh size={15} className={refreshing ? 'animate-spin' : ''} />
+            </button>
             <SortMenu value={sort} onChange={setSort} />
             <button onClick={() => setCreating(true)} className="btn-primary h-9 shrink-0 pressable">
               <Icon.Plus size={15} />

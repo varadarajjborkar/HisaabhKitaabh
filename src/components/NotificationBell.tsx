@@ -93,8 +93,16 @@ export function NotificationBell({ email, feedbackEnabled }: { email: string; fe
 
       {open && (
         <div
-          className="absolute right-0 top-11 z-50 w-[min(340px,calc(100vw-24px))] card shadow-pop
-                     animate-scale-in origin-top-right overflow-hidden"
+          /*
+           * On a phone this is pinned to the viewport, not hung off the bell.
+           * The bell is not the last thing in the bar, so anchoring the panel's
+           * right edge to it put 78px of a 340px panel off the left of a 390px
+           * screen. Gutters on both sides instead, and the anchored dropdown
+           * comes back once there is room for it.
+           */
+          className="fixed left-3 right-3 top-14 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-11
+                     sm:w-[340px] card shadow-pop animate-scale-in origin-top sm:origin-top-right
+                     overflow-hidden"
           role="menu"
         >
           <p className="px-3.5 pt-3 pb-2 text-[11px] uppercase tracking-wide text-faint">Notifications</p>

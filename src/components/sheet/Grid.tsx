@@ -312,7 +312,9 @@ function MobileCards({ doc, rows, columns, sheet, selected, toggle, highlighted 
                   type="checkbox"
                   checked={selected.has(row.id)}
                   onChange={() => toggle(row.id)}
-                  className="accent-accent w-[18px] h-[18px] shrink-0 mr-1"
+                  /* Sized for a thumb. This is the phone row; the pointer
+                     version of the same control is the 14px one above. */
+                  className="accent-accent w-[22px] h-[22px] shrink-0 mr-1 my-2"
                   aria-label={`Select row ${index + 1}`}
                 />
 

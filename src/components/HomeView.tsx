@@ -114,7 +114,7 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
         subtitle={`${folders.length} folder${folders.length === 1 ? '' : 's'} · ${total} file${total === 1 ? '' : 's'}`}
         actions={
           <>
-            <button onClick={refresh} className="btn-ghost h-9 w-9 px-0 pressable" aria-label="Refresh" title="Refresh">
+            <button onClick={refresh} className="btn-ghost h-9 w-9 px-0 pressable hidden sm:inline-flex" aria-label="Refresh" title="Refresh">
               <Icon.Refresh size={17} className={refreshing ? 'animate-spin' : ''} />
             </button>
             {aiEnabled && (
@@ -174,6 +174,8 @@ export function HomeView({ initialFolders, analyticsEnabled }: { initialFolders:
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <ViewBar
+              onRefresh={refresh}
+              refreshing={refreshing}
               layout={view.layout}
               onLayout={(layout) => setView({ layout })}
               selecting={selecting}
@@ -326,9 +328,12 @@ function FolderCard({
     <>
       <button
         onClick={(e) => { e.preventDefault(); setMenu((v) => !v) }}
-        className={`h-7 w-7 rounded-md grid place-items-center text-faint transition-all
+        /* Bigger where it is tapped rather than pointed at. Seven-by-seven is
+           a comfortable mouse target and a poor thumb one, and this one sits a
+           few pixels from the edge of a card that navigates when touched. */
+        className={`h-9 w-9 sm:h-7 sm:w-7 rounded-md grid place-items-center text-faint transition-all
                     hover:bg-raised hover:text-ink focus:opacity-100 [@media(hover:none)]:opacity-100
-                    ${layout === 'grid' ? 'absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100' : 'shrink-0'}`}
+                    ${layout === 'grid' ? 'absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 opacity-0 group-hover:opacity-100' : 'shrink-0'}`}
         aria-label={`Options for ${folder.name}`}
         aria-expanded={menu}
       >

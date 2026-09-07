@@ -1,0 +1,28 @@
+Copyright (c) 2026 Varadaraj Borkar. All rights reserved.
+
+This software and its source code are proprietary. They are made visible for
+reference and evaluation only. Being able to read this code is not permission
+to use it.
+
+No permission is granted to any person to use, copy, modify, adapt, merge,
+publish, distribute, sublicense, sell, host, or create derivative works from
+this software, in whole or in part, without the prior written permission of
+the copyright holder.
+
+Where this repository is hosted on a public platform, any viewing, forking, or
+copying that the platform's own terms of service permit is limited to what
+those terms require and grants nothing further. In particular, a fork does not
+carry a licence to run, publish, or build upon this software.
+
+Permission, where granted, is granted in writing, is limited to the use it
+names, and may be withdrawn.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Third-party dependencies are covered by their own licences, which are not
+affected by this notice.
