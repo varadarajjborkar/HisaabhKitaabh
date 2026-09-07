@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { compactMoney, formatMoney } from '@/lib/util/format'
+import { formatMoney } from '@/lib/util/format'
 import { seriesColor, withOther } from './palette'
 import { useIsDark } from './useTheme'
 
@@ -114,24 +114,24 @@ export function Gauge({
    * 0.55em per character is measured, not guessed - a seven-character total
    * renders 114.8px wide at 30px in this face.
    */
-  const fit = (text: string) => Math.max(14, Math.min(ceiling, Math.floor(104 / (text.length * 0.55))))
+  const fit = (text: string) => Math.max(12, Math.min(ceiling, Math.floor(104 / (text.length * 0.55))))
   /*
-   * Shrink the type to fit the figure, and past the point where shrinking would
-   * make it unreadable, shorten the figure instead: 3.1L in type you can read
-   * beats 3,14,020 in type you cannot. The exact amount is on the element
-   * either way, so nothing is lost by rounding it here.
+   * The figure itself is never shortened. This is the one number the whole
+   * screen is built around, and a reader who has to hover the centre of a
+   * donut to find out what it says is not reading it. Only the type gives way:
+   * it shrinks to whatever fits, down to 12px, which is small but still the
+   * number rather than a summary of it.
    */
-  const hero = fit(full) > 16 ? full : compactMoney(shown, currency)
+  const hero = full
   const heroSize = fit(hero)
   /*
-   * Whatever the figure lost on the way in - the paise `full` drops, or the
-   * digits the compact form drops on top of that - the pointer puts back. The
-   * swap is a CSS rule on two spans rather than a tooltip, so it lands on the
-   * frame the pointer arrives and cannot be positioned anywhere but here. The
-   * exact form is set at its own fitted size; the line box is still the hero's,
-   * so the label underneath does not move.
+   * The paise `full` drops are the only thing left to put back, so the pointer
+   * only offers when there are some - a whole-rupee total flickering to ".00"
+   * would read as a glitch, not an answer. The exact form is set at its own
+   * fitted size while the line box stays the hero's, so the label underneath
+   * does not move.
    */
-  const revealable = exact !== hero
+  const revealable = Math.abs(shown - Math.round(shown)) > 0.005
 
   return (
     <div className="flex flex-col items-center">
@@ -176,8 +176,7 @@ export function Gauge({
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pointer-events-none">
           {/* Hero figure: proportional digits, not tabular - tabular looks loose at display size. */}
           <span
-            className={`group/hero font-semibold leading-none tracking-tight max-w-[130px] truncate
-                        pointer-events-auto ${revealable ? 'cursor-help' : ''}`}
+            className="group/hero font-semibold leading-none tracking-tight max-w-[130px] truncate pointer-events-auto"
             style={{ fontSize: `${heroSize}px` }}
           >
             <span className={revealable ? 'group-hover/hero:hidden' : ''}>{hero}</span>

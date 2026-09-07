@@ -107,6 +107,14 @@ export const Icon = {
   Columns: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15M15 4.5v15" /></svg>
   ),
+  /* Out to the corners, and back in from them: the pair reads as one control
+     that goes both ways, which is what the button under it is. */
+  Expand: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M9 4.5H4.5V9M15 4.5h4.5V9M9 19.5H4.5V15M15 19.5h4.5V15" /></svg>
+  ),
+  Shrink: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M4.5 9H9V4.5M19.5 9H15V4.5M4.5 15H9v4.5M19.5 15H15v4.5" /></svg>
+  ),
   Calendar: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" /></svg>
   ),

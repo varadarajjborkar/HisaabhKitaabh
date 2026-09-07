@@ -55,9 +55,23 @@ export function ChatDock({
   return (
     <>
       {/* No scrim on a phone: the panel covers the screen, so a dimmed strip
-          behind it would only be visible during the animation. */}
+          behind it would only be visible during the animation.
+
+          The drawer's scrim is a hint - the page behind it is still the thing
+          being discussed and should stay readable. The centred window's is not:
+          nothing out there is in play while it is open, so the page goes soft
+          and out of focus and the window is the only thing with an edge.
+
+          Which is also why it outranks the floating calculator when centred.
+          At z-40 the calculator sat level with the scrim and later in the DOM,
+          so it stayed sharp and clickable on top of a blurred page - one button
+          poking through the frosting. Beside the drawer it can stay: the page
+          there is still live, and reaching for a calculator mid-conversation is
+          a reasonable thing to do. */}
       <button
-        className="hidden sm:block fixed inset-0 z-40 bg-black/25 backdrop-blur-[1px] animate-fade cursor-default no-print"
+        className={`hidden sm:block fixed inset-0 animate-fade cursor-default no-print transition-colors ${
+          wide ? 'z-[45] bg-black/40 backdrop-blur-md' : 'z-40 bg-black/25 backdrop-blur-[1px]'
+        }`}
         onClick={onClose}
         aria-label="Close assistant"
         tabIndex={-1}
@@ -71,25 +85,37 @@ export function ChatDock({
         * chat is a screen, not a peek.
         */}
       {/*
-        * Wide, when the answer needs the room.
+        * Two shapes, because there are two ways to use this.
         *
-        * A 400px column is right for "add 450 for a cab" and wrong for a chart
-        * comparing four categories across three files - the bars end up too
-        * short to compare, which is the one thing a bar chart is for. Expanding
-        * takes over the screen rather than opening a second window, because
-        * the conversation is the task at that point, not a sidebar to it.
+        * A 400px drawer down the right edge is right for "add 450 for a cab":
+        * the page stays where it was, and the answer arrives beside the thing
+        * it is about. It is wrong for a chart comparing four categories across
+        * three files - the bars end up too short to compare, which is the one
+        * thing a bar chart is for.
         *
-        * On a phone it is already full width, so the control is desktop only.
+        * So the other shape is a window in the middle of the screen at nine
+        * tenths of it, with the page blurred out behind. Not a wider drawer:
+        * a drawer that grows to fill the screen is still hung off one edge,
+        * still reads as an attachment to the page, and still puts the reading
+        * column wherever the right margin happens to leave it. Centred, it is
+        * the thing you are doing, and the margin is even on both sides.
+        *
+        * A tenth of the screen of page left showing on every side is what keeps
+        * it a window rather than a second app - enough blurred context to know
+        * what you are still on top of, and an obvious place to click to leave.
+        *
+        * On a phone it is already the whole screen, so the control is desktop
+        * only and neither shape applies below `sm`.
         */}
       <aside
         className={`fixed z-50 bg-surface border-line shadow-pop no-print overflow-hidden flex flex-col
-                   inset-0 h-dvh animate-rise sm:inset-y-0 sm:right-0 sm:left-auto sm:h-auto sm:border-l
-                   transition-[width] duration-300 ease-out ${
+                   inset-0 h-dvh animate-rise ${
                      wide
-                       ? 'sm:w-[min(1100px,100vw)]'
-                       : 'sm:w-[min(400px,100vw)] sm:animate-slide-l'
+                       ? 'sm:inset-0 sm:m-auto sm:w-[90vw] sm:h-[90dvh] sm:border sm:rounded-xl2 sm:animate-scale-in'
+                       : 'sm:inset-y-0 sm:right-0 sm:left-auto sm:h-auto sm:w-[min(400px,100vw)] sm:border-l sm:animate-slide-l'
                    }`}
         role="dialog"
+        aria-modal={wide}
         aria-label="Assistant"
       >
         <ChatPanel

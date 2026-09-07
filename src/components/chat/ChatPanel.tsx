@@ -234,11 +234,11 @@ export function ChatPanel({
             <button
               onClick={onToggleWide}
               className="hidden sm:grid h-7 w-7 place-items-center rounded-md text-faint hover:text-ink hover:bg-raised transition-colors"
-              aria-label={wide ? 'Narrow the assistant' : 'Widen the assistant'}
+              aria-label={wide ? 'Dock the assistant to the side' : 'Open the assistant in the middle'}
               aria-pressed={wide}
-              title={wide ? 'Back to the side' : 'Give it the screen'}
+              title={wide ? 'Back to the side' : 'Open in the middle'}
             >
-              {wide ? <Icon.Chevron size={15} /> : <Icon.Columns size={15} />}
+              {wide ? <Icon.Shrink size={15} /> : <Icon.Expand size={15} />}
             </button>
           )}
           {onClose && (

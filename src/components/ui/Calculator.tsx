@@ -154,7 +154,6 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
   const [result, setResult] = useState<string>('')
   const [error, setError] = useState('')
   const [tape, setTape] = useState<Array<{ expr: string; value: number }>>([])
-  const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const [dragging, setDragging] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -211,9 +210,13 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
   const copy = useCallback(() => {
     const text = result ? result.replace(/,/g, '') : expr.trim()
     if (!text) return
-    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1200) }
-    navigator.clipboard?.writeText(text).then(done).catch(() => {
-      // Clipboard needs a secure context; the textarea works everywhere else.
+    /*
+     * The clipboard API needs a secure context, and where there is none it is
+     * not a promise that rejects - the property is simply absent. Reaching it
+     * through `?.` short-circuited the whole chain, `.catch` included, so the
+     * fallback below could never run on the one kind of page that needed it.
+     */
+    const viaTextarea = () => {
       const area = document.createElement('textarea')
       area.value = text
       area.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
@@ -221,8 +224,9 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
       area.select()
       document.execCommand('copy')
       area.remove()
-      done()
-    })
+    }
+    if (!navigator.clipboard) { viaTextarea(); return }
+    navigator.clipboard.writeText(text).catch(viaTextarea)
   }, [expr, result])
 
   const commit = useCallback(() => {
@@ -353,7 +357,13 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
         {/* Copy sits in the corner of the display it copies from. What it takes
             is whatever is worth taking: the answer once there is one, and the
             expression itself while it is still being written - a half-typed
-            sum is often exactly the thing you want to paste somewhere. */}
+            sum is often exactly the thing you want to paste somewhere.
+
+            The label does not change. It used to flip to COPIED for a beat and
+            back, which is a button rewriting itself under the finger that just
+            pressed it - motion in the corner of a panel whose whole job is to
+            sit still while you read a number off it. The press is its own
+            confirmation. */}
         <div className="flex items-end justify-between gap-2 mt-1 h-5">
           <button
             onClick={copy}
@@ -364,7 +374,7 @@ export function Calculator({ open, onClose, onUse }: { open: boolean; onClose: (
                        border border-line text-faint hover:text-ink hover:bg-raised
                        disabled:opacity-0 transition-colors pressable"
           >
-            {copied ? 'COPIED' : 'COPY'}
+            COPY
           </button>
           <span className="text-[12px] tnum text-right min-w-0 truncate">
             {error ? <span className="text-bad">{error}</span> : <span className="text-muted">{result && `= ${result}`}</span>}

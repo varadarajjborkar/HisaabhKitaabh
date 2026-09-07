@@ -81,6 +81,32 @@ body {
 /* Numbers must line up column-to-column. Everywhere, without exception. */
 .tnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
 
+/* ── A money figure: short only where a pointer can ask for the rest ────────
+ *
+ * Four totals side by side are comparable when they are short and accurate
+ * when they are not, and on a desktop the pointer settles it: the exact figure
+ * replaces the rounded one in place, on the frame the pointer arrives.
+ *
+ * A touch screen has no pointer to settle it with. Rather than leave a phone
+ * holding "1.2L" and no gesture that will open it, a device that cannot hover
+ * is given the whole figure to begin with. It is the same number the rest of
+ * the app prints, and a phone is reading one column anyway, not comparing four
+ * across a row.
+ *
+ * Media queries rather than a device check in JS: the server renders the same
+ * markup either way, and a laptop with a touchscreen and a mouse gets the
+ * behaviour its mouse earns rather than the one its screen implies.
+ */
+.fig-short, .fig-exact { display: none; }
+.fig-plain { display: inline; }
+
+@media (hover: hover) and (pointer: fine) {
+  .fig-plain { display: none; }
+  .fig-short { display: inline; }
+  .fig:hover .fig-short { display: none; }
+  .fig:hover .fig-exact { display: inline; }
+}
+
 ::selection { background: rgb(var(--accent) / 0.22); }
 
 :where(button, a, input, select, textarea):focus-visible {
