@@ -125,6 +125,7 @@ export function ProfileDialog({ open, onClose }: { open: boolean; onClose: () =>
   const emptyAccount = async () => {
     const res = await post<{ folders: number }>('/api/account/empty')
     toast.success(`Cleared ${res.folders} folder${res.folders === 1 ? '' : 's'}`)
+    window.dispatchEvent(new Event('storageChanged'))
     onClose()
     router.refresh()
   }

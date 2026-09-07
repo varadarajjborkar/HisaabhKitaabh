@@ -7,6 +7,7 @@ import { formatMoney } from '@/lib/util/format'
 import { humanSize } from '@/lib/util/mime'
 import { Icon } from '../ui/Icons'
 import { toast } from '../ui/Toast'
+import { shrinkImage } from '@/lib/client/shrinkImage'
 
 /**
  * One editable cell.
@@ -227,19 +228,32 @@ function AttachmentCell({
   const depth = useRef(0)
   const input = useRef<HTMLInputElement>(null)
 
-  const upload = async (file: File) => {
+  const upload = async (raw: File) => {
     setBusy(true)
     try {
+      /*
+       * Shrunk here rather than on the way in. A phone photograph of a receipt
+       * is several megabytes of paper texture, and the account it is going into
+       * has ten in total - so the reduction happens before the upload, which
+       * also spares whatever connection the user is on.
+       */
+      const { file } = await shrinkImage(raw)
       const form = new FormData()
       form.append('file', file)
       const res = await fetch(`/api/files/${fileId}/attachments`, { method: 'POST', body: form })
       const body = await res.json()
       if (!res.ok) {
         toast.error(String(body.message ?? 'Upload failed'))
+        // A refusal for want of room is exactly when the notice should appear,
+        // rather than at the next five-minute poll.
+        window.dispatchEvent(new Event('storageChanged'))
         return
       }
       onChange([...value, body.attachment as AttachmentRef])
       toast.success(`Attached ${file.name}`)
+      // The bell is watching this: an upload is the only thing that moves the
+      // storage number, so it is the only moment worth re-checking on.
+      window.dispatchEvent(new Event('storageChanged'))
     } catch {
       toast.error('Upload failed.')
     } finally {

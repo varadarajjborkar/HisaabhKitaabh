@@ -68,7 +68,8 @@ Add these under **Project → Settings → Environment Variables**.
 | `UPSTASH_REDIS_REST_URL` | no | A speed-up, not a store |
 | `UPSTASH_REDIS_REST_TOKEN` | no | |
 | `DEV_LOGIN_ENABLED` | no | Off in production by default. See below. |
-| `MAX_STORAGE_BYTES_PER_USER` | no | Default 512 MB of attachments per account |
+| `FEEDBACK_TO` | for the feedback door | Your own address. Users writing in - including "I have run out of space" - land there, with their registered address as the reply-to. Unset, the door is not shown at all. |
+| `MAX_STORAGE_BYTES_PER_USER` | no | Default 10 MB per account, out of the pool below - not the size of the pool |
 
 > **The developer login.** `varad` / `varad[123]` grants an admin session, and
 > the password is published in `.env.example`. In production it is **off** and
@@ -135,10 +136,27 @@ would cost a third more space and a parse of the whole blob on every read.
 | Locks | 10-25s | Self-expiring; a crashed writer never wedges a file |
 | Idempotency keys | 24h | What makes a retried save a no-op |
 
-0.5 GB is a lot of expense rows. It is not a lot of receipt photos - budget
-roughly 1,500 of them, and lower `MAX_STORAGE_BYTES_PER_USER` if you expect
-many accounts to fill up. Users who attach heavily are exactly the users who
-should be nudged towards Drive.
+0.5 GB is a lot of expense rows and not a lot of receipt photos, and the two
+numbers here are easy to confuse. `MAX_STORAGE_BYTES_PER_USER` is a **share** of
+that half-gigabyte, not a copy of it: it used to default to the whole 512 MB,
+which read as a generous allowance and was in fact a licence for the first
+account to take the entire database.
+
+Of the 512 MB, budget about **400 MB** as usable - indexes, row overhead and
+write-ahead logs take the rest, and a JPEG in a `bytea` column does not
+compress. At the 10 MB default that is roughly forty accounts.
+
+Ten megabytes is about forty receipts, because the browser shrinks a photo to
+1600px on the long edge and re-encodes it before uploading - a tenfold
+reduction on a phone photograph, and the reason the cap can be this small
+without being mean. Raise it the day the database is bigger; it is one
+variable and nothing migrates.
+
+Nobody is cut off silently. At three quarters, then nine tenths, then full, a
+notice appears under the bell in the top bar carrying the three ways out: take
+a copy, clear the account, or write to whoever runs the deployment and ask for
+more. Accounts kept in Drive are never warned about a quota this app does not
+control.
 
 ---
 

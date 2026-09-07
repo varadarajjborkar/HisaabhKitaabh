@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:engine && npm run test:charts && npm run test:leak && npm run test:db && npm run test:e2e && npm run test:reset && npm run test:chat && npm run test:ui",
+    "test": "npm run test:engine && npm run test:charts && npm run test:leak && npm run test:db && npm run test:e2e && npm run test:reset && npm run test:storage && npm run test:chat && npm run test:ui",
     "test:engine": "node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/engine.test.mjs",
     "test:e2e": "node tests/e2e.test.mjs",
     "test:reset": "node tests/reset.test.mjs",
@@ -16,7 +16,8 @@
     "test:ui": "node tests/ui.test.mjs",
     "test:db": "node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/db.test.mjs",
     "test:charts": "node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/charts.test.mjs",
-    "test:leak": "node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/leak.test.mjs"
+    "test:leak": "node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/leak.test.mjs",
+    "test:storage": "node --experimental-strip-types --import ./tests/resolve-hook-register.mjs tests/storage.test.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.34.3",

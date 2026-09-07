@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session) redirect('/login')
 
   return (
-    <AppShell session={session} aiEnabled={env.ollama.enabled}>
+    <AppShell session={session} aiEnabled={env.ollama.enabled} feedbackEnabled={env.feedback.enabled}>
       {children}
     </AppShell>
   )

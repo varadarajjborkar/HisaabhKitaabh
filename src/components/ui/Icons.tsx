@@ -115,6 +115,12 @@ export const Icon = {
   Shrink: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><path d="M4.5 9H9V4.5M19.5 9H15V4.5M4.5 15H9v4.5M19.5 15H15v4.5" /></svg>
   ),
+  Bell: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M18 8.5a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16s-2-1.5-2-6.5" /><path d="M13.7 19a2 2 0 0 1-3.4 0" /></svg>
+  ),
+  Send: ({ size = 18, className }: P) => (
+    <svg {...base(size)} className={className}><path d="M20 4L3.5 10.2l6.6 2.7 2.7 6.6z" /><path d="M20 4l-9.9 8.9" /></svg>
+  ),
   Calendar: ({ size = 18, className }: P) => (
     <svg {...base(size)} className={className}><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" /></svg>
   ),

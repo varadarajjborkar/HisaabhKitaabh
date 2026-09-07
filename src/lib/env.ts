@@ -126,13 +126,44 @@ export const env = {
     },
   },
 
+  /**
+   * Where "I have run out of room" goes.
+   *
+   * An address rather than a form that files a ticket nowhere: this is a
+   * one-person deployment and the honest answer to a full disk is that a person
+   * has to decide whether to buy more of it. Unset, the feedback door is simply
+   * not shown - offering to pass a message to nobody is worse than not offering.
+   */
+  feedback: {
+    to: opt('FEEDBACK_TO'),
+    get enabled(): boolean {
+      return Boolean(opt('FEEDBACK_TO')) && (env.mail.enabled || !isProd)
+    },
+  },
+
   limits: {
     maxRowsPerFile: Number(opt('MAX_ROWS_PER_FILE') ?? 5000),
     maxColumnsPerFile: Number(opt('MAX_COLUMNS_PER_FILE') ?? 32),
-    maxAttachmentBytes: Number(opt('MAX_ATTACHMENT_BYTES') ?? 15 * 1024 * 1024),
+    /*
+     * One attachment may not be half the account's whole allowance. Five
+     * megabytes is a generous scan of a multi-page invoice; a phone photo of a
+     * receipt is shrunk in the browser long before it gets here.
+     */
+    maxAttachmentBytes: Number(opt('MAX_ATTACHMENT_BYTES') ?? 5 * 1024 * 1024),
     maxAttachmentsPerUser: Number(opt('MAX_ATTACHMENTS_PER_USER') ?? 2000),
-    /** Total attachment bytes one account may hold. Keeps one user off the disk. */
-    maxStorageBytesPerUser: Number(opt('MAX_STORAGE_BYTES_PER_USER') ?? 512 * 1024 * 1024),
+    /**
+     * Everything one account may hold - sheet data and receipt bytes together.
+     *
+     * Ten megabytes, not because that is generous but because the pool it comes
+     * out of is 512 MB on a free Postgres tier and this number is a share of it,
+     * not a copy of it. It used to default to the whole 512, which read as an
+     * allowance and was in fact a licence for one account to take the database.
+     *
+     * Ten is about forty receipts once the browser has shrunk them, which is a
+     * year for most people, and it leaves room for roughly forty accounts.
+     * Raise it the day the database is bigger; it is one variable.
+     */
+    maxStorageBytesPerUser: Number(opt('MAX_STORAGE_BYTES_PER_USER') ?? 10 * 1024 * 1024),
   },
 }
 

@@ -102,7 +102,7 @@ receipt: anyone who can get a row into a ledger can get words in front of the
 model. Instructions come from the person in the chat box and nowhere else, so
 `<admin>` in the middle of a caption is a word somebody typed.
 
-Around 750 assertions across eight suites cover this, from the merge rules in
+Around 760 assertions across nine suites cover this, from the merge rules in
 process to a real browser clicking through the real thing.
 
 ```bash

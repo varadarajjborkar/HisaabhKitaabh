@@ -28,6 +28,16 @@ export type Mail = {
   /** Both parts are required. A code-carrying email that renders blank in a plain-text client has failed. */
   text: string
   html: string
+  /**
+   * Who a reply should go to, when that is not the sender.
+   *
+   * Forwarded user feedback is the case. The message leaves from the app's own
+   * address because that is the only one either provider will send as, but the
+   * useful action on reading it is answering the person who wrote it - and
+   * having to copy an address out of the body to do that is how a reply does
+   * not get sent.
+   */
+  replyTo?: string
 }
 
 export class MailNotConfiguredError extends Error {
@@ -74,7 +84,14 @@ function viaResend(mail: Mail): Promise<Response> {
   return fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.mail.resendKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: env.mail.from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+    body: JSON.stringify({
+      from: env.mail.from,
+      to: [mail.to],
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+      ...(mail.replyTo ? { reply_to: [mail.replyTo] } : {}),
+    }),
   })
 }
 
@@ -89,6 +106,7 @@ function viaBrevo(mail: Mail): Promise<Response> {
       subject: mail.subject,
       textContent: mail.text,
       htmlContent: mail.html,
+      ...(mail.replyTo ? { replyTo: { email: mail.replyTo } } : {}),
     }),
   })
 }

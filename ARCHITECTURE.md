@@ -483,6 +483,7 @@ npm run test:engine            # or one at a time
 | `test:db` | 30 | The Postgres store against a real database - expiry, atomic claims, concurrent appends, per-account isolation, receipts through `bytea`. Skips itself unless `DATABASE_URL` is set |
 | `test:e2e` | 38 | The HTTP surface with a real session - parallel writers, conflicts, attachment refusal, storage backends |
 | `test:reset` | 17 | Forgetting a password, mostly what it refuses: naming an account, a code twice, a ticket twice, unlimited guesses, the old password still working |
+| `test:storage` | 15 | The share of the database an account gets - where each warning threshold fires, when the dot on the bell lights again, that a phone photo shrinks tenfold before it is sent, and that feedback reaches the owner carrying the sender rather than asking for them |
 | `test:chat` | 24 | The assistant against the live model and the live write path, including where its instructions may come from and that a foreign-currency amount is converted rather than asked about |
 | `test:ui` | 48 | A real browser - editing, saving, undo/redo, the approval card, popover dismissal, drag to reorder, the theme switch and the stack it drags, the mail dialog, the storage chooser, the currency picker, the phone layout down to its tap targets, and where things actually land on the page |
 

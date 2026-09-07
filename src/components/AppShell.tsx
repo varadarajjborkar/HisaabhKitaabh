@@ -8,10 +8,12 @@ import { Calculator, CalculatorButton } from './ui/Calculator'
 import { ThemeSwitch, BrightnessSlider } from './ui/ThemeSwitch'
 import { StorageDialog } from './StorageDialog'
 import { ProfileDialog } from './ProfileDialog'
+import { FeedbackDialog } from './FeedbackDialog'
+import { NotificationBell } from './NotificationBell'
 import { useDismiss } from '@/lib/client/useDismiss'
 import { post } from '@/lib/client/api'
 
-type ShellCtx = { session: Session; aiEnabled: boolean; openCalculator: () => void }
+type ShellCtx = { session: Session; aiEnabled: boolean; feedbackEnabled: boolean; openCalculator: () => void }
 const Ctx = createContext<ShellCtx | null>(null)
 
 export function useShell(): ShellCtx {
@@ -30,7 +32,18 @@ export function useShell(): ShellCtx {
  * each region its own scroller keeps the toolbar, the totals rail and the
  * assistant composer exactly where the user left them.
  */
-export function AppShell({ session, aiEnabled, children }: { session: Session; aiEnabled: boolean; children: React.ReactNode }) {
+export function AppShell({
+  session,
+  aiEnabled,
+  feedbackEnabled,
+  children,
+}: {
+  session: Session
+  aiEnabled: boolean
+  /** Whether this deployment has somewhere to send a message. See env.feedback. */
+  feedbackEnabled: boolean
+  children: React.ReactNode
+}) {
   const [calcOpen, setCalcOpen] = useState(false)
   const pathname = usePathname()
 
@@ -39,7 +52,7 @@ export function AppShell({ session, aiEnabled, children }: { session: Session; a
   const hideLauncher = pathname.startsWith('/file/')
 
   return (
-    <Ctx.Provider value={{ session, aiEnabled, openCalculator: () => setCalcOpen(true) }}>
+    <Ctx.Provider value={{ session, aiEnabled, feedbackEnabled, openCalculator: () => setCalcOpen(true) }}>
       <div className="h-dvh flex flex-col overflow-hidden">{children}</div>
       <Calculator open={calcOpen} onClose={() => setCalcOpen(false)} />
       {!calcOpen && !hideLauncher && <CalculatorButton onClick={() => setCalcOpen(true)} />}
@@ -69,6 +82,7 @@ export function TopBar({
   children?: React.ReactNode
 }) {
   const router = useRouter()
+  const { session, feedbackEnabled } = useShell()
 
   return (
     <header className="shrink-0 z-30 bg-bg/90 backdrop-blur-md border-b border-line no-print">
@@ -88,7 +102,13 @@ export function TopBar({
           {subtitle && <div className="text-[11.5px] text-muted leading-tight truncate mt-0.5">{subtitle}</div>}
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">{actions}</div>
+        {/* The bell before the screen's own controls, so it is in the same
+            place on every screen rather than wherever that screen's actions
+            happen to leave room. */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <NotificationBell email={session.email} feedbackEnabled={feedbackEnabled} />
+          {actions}
+        </div>
       </div>
       {children}
     </header>
@@ -144,6 +164,8 @@ export function AccountMenu({ session }: { session: Session }) {
   const [open, setOpen] = useState(false)
   const [storage, setStorage] = useState(false)
   const [profile, setProfile] = useState(false)
+  const [feedback, setFeedback] = useState(false)
+  const { feedbackEnabled } = useShell()
   const router = useRouter()
   const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false))
 
@@ -216,6 +238,23 @@ export function AccountMenu({ session }: { session: Session }) {
             <BrightnessSlider />
           </div>
 
+          {/* Above sign out, and inside the menu rather than in a footer. A
+              footer could have carried more - links, a version, a changelog -
+              but it would have to be somewhere, and every screen here is a
+              working surface with its own scroll. This is where someone already
+              goes to find the things that are about them rather than about
+              their data. */}
+          {feedbackEnabled && (
+            <button
+              onClick={() => { setOpen(false); setFeedback(true) }}
+              role="menuitem"
+              className="w-full text-left px-3.5 py-2.5 text-[13px] hover:bg-raised flex items-center gap-2.5 text-muted hover:text-ink transition-colors border-b border-line"
+            >
+              <Icon.Send size={15} />
+              Send feedback
+            </button>
+          )}
+
           <button
             onClick={signOut}
             role="menuitem"
@@ -231,6 +270,7 @@ export function AccountMenu({ session }: { session: Session }) {
           the moment the menu closes behind it. */}
       <StorageDialog open={storage} onClose={() => setStorage(false)} />
       <ProfileDialog open={profile} onClose={() => setProfile(false)} />
+      <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} email={session.email} />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 # Tests
 
-Eight suites, from fastest and most isolated to slowest and most realistic.
+Nine suites, from fastest and most isolated to slowest and most realistic.
 The later ones exist because each caught a class of bug the earlier ones
 structurally could not.
 
@@ -12,6 +12,7 @@ structurally could not.
 | `test:db` | `DATABASE_URL` | The Postgres store against a real database. Expiry, atomic claims, concurrent appends, per-account isolation and attribution, receipts through `bytea`. Skips itself when unset. |
 | `test:e2e` | a running server | The HTTP surface with a real session. Auth, seeding, parallel writers, conflicts, attachment refusal, storage backends, analytics. |
 | `test:reset` | a running server | Forgetting a password. Mostly what it refuses: naming an account, spending a code twice, replaying a ticket, guessing without limit, and the old password still working afterwards. Reads codes from `.mail-outbox.log`. |
+| `test:storage` | a running server | The share of the database an account gets. Where each warning threshold fires and where it deliberately does not, when the dot on the bell lights again, that a 4000px photo shrinks tenfold before it is uploaded, and that feedback reaches the owner carrying the sender rather than asking for them. |
 | `test:chat` | server + `OLLAMA_API_KEY` | The assistant against the live model and the live write path, including that instructions planted in the data are read as data. ~40s. |
 | `test:ui` | server + Chromium | A real browser. Editing, saving, undo/redo, the approval card, popover dismissal, drag-to-reorder, file drops, the theme switch, the mail dialog, the storage chooser, and the phone layout down to its tap targets. |
 

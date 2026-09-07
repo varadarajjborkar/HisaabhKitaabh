@@ -291,5 +291,8 @@ export const K = {
   memory: (userId: string) => `mem:${userId}`,
   grants: (userId: string, threadId: string) => `grant:${userId}:${threadId}`,
 
+  /** The highest storage notice this account has already been shown. */
+  noticesSeen: (userId: string) => `noti:${userId}:seen`,
+
   rate: (userId: string, bucket: string) => `rl:${userId}:${bucket}`,
 } as const
