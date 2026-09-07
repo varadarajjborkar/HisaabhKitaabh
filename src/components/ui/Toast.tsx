@@ -101,9 +101,15 @@ export function Toaster() {
     <div
       ref={ref}
       popover="manual"
-      // The popover default styles would centre it in the viewport and give it
-      // a border, so the box is reset and positioned the same way it always was.
-      className={`fixed z-[100] bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0
+      /*
+       * The popover default styles have to be undone, not merely competed with.
+       * The UA sheet gives an open popover `inset: 0` and `margin: auto`, and
+       * `inset` is four properties: setting only `bottom` left `top: 0` in
+       * place, so the box stretched the full height of the viewport and the
+       * toasts stacked at the top of it, flush against the browser chrome.
+       * `top-auto` is what makes `bottom-4` mean what it says.
+       */
+      className={`fixed z-[100] top-auto bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0
                  flex-col gap-2 w-[calc(100vw-2rem)] sm:w-[360px] no-print
                  bg-transparent border-0 p-0 m-0 overflow-visible
                  [&:popover-open]:flex ${list.length === 0 ? 'hidden' : 'flex'}`}
