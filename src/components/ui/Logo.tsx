@@ -15,7 +15,7 @@ export function Logo({ size = 32, className = '' }: { size?: number; className?:
       alt=""
       width={size}
       height={size}
-      className={`shrink-0 object-cover bg-[#050608] ${className}`}
+      className={`shrink-0 object-cover bg-[#121b2f] ${className}`}
       style={{ width: size, height: size, borderRadius: radius }}
       draggable={false}
     />
