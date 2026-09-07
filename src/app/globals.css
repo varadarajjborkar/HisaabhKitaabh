@@ -312,14 +312,52 @@ body {
  * one step off the page so the two halves of the split read as two surfaces.
  * Everything is a gradient, so it costs no requests and stays crisp at any DPI.
  */
+/*
+ * The pitch panel.
+ *
+ * Artwork rather than a painted gradient, which means the panel is now dark in
+ * both themes instead of following the one in use. That is a decision the text
+ * on it has to be told about: the light palette's ink is near-black and would
+ * vanish into this. So the panel redefines the palette variables for its own
+ * subtree - every colour in there is already expressed as `var(--ink)` and
+ * friends, so nothing in the markup has to know.
+ *
+ * The scrim over the image is not decoration. The artwork has bright blooms in
+ * the lower left and along the right edge, which is exactly where the heading
+ * and the bullets sit, and white text over a white bloom is unreadable. It is
+ * weighted to the left, and it falls away fast rather than evenly: the text
+ * block ends a little under halfway across, so everything past that can carry
+ * the artwork at close to full strength. An even fade would have had to be
+ * dark enough for the words at every point along it, which meant dimming the
+ * half of the panel that has no words on it for no reason.
+ */
 .auth-bg {
-  background-color: rgb(var(--raised));
+  --ink: 244 246 250;
+  --muted: 176 184 200;
+  --faint: 128 137 155;
+  --line: 255 255 255;
+  --accent: 130 174 255;
+
+  /*
+   * Set explicitly, not left to inherit. `body` resolves `var(--ink)` once and
+   * children inherit the resolved colour, not the variable - so redefining
+   * --ink here moves everything with a `text-*` class and leaves the bare
+   * heading holding the light theme's near-black. The panel has to re-resolve
+   * it for its own subtree.
+   */
+  color: rgb(var(--ink));
+
+  background-color: #04060b;
   background-image:
-    radial-gradient(circle at 1px 1px, rgb(var(--faint) / .16) 1px, transparent 0),
-    radial-gradient(46rem 34rem at 12% 8%, rgb(var(--accent) / .13), transparent 62%),
-    radial-gradient(38rem 30rem at 88% 96%, rgb(var(--accent) / .10), transparent 60%),
-    linear-gradient(160deg, rgb(var(--surface) / .55), transparent 55%);
-  background-size: 22px 22px, auto, auto, auto;
+    linear-gradient(103deg, rgb(4 6 11 / .93) 0%, rgb(4 6 11 / .86) 42%, rgb(4 6 11 / .34) 76%, rgb(4 6 11 / .14) 100%),
+    url('/login-bg.webp');
+  background-size: auto, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+
+  /* The divider is drawn from the panel's own --line, now white, so it has to
+     be dialled back to a hairline rather than left as a stripe. */
+  border-right-color: rgb(255 255 255 / .10);
 }
 
 /* A hairline of light along the split, so the divider does not read as a crack. */

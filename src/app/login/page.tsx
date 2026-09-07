@@ -49,7 +49,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
          * not centred across.
          */}
         <div className="absolute top-12 left-12 xl:top-14 xl:left-14 flex items-center gap-3">
-          <Logo size={34} />
+          {/* A hairline around the mark. Its own ground is nearly the colour of
+              the panel behind it, so without an edge it reads as a smudge
+              rather than a tile. */}
+          <Logo size={34} className="ring-1 ring-white/15" />
           <span className="text-[16px] font-semibold tracking-tight">HisaabhKitaabh</span>
         </div>
 
