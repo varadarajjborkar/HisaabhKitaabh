@@ -68,7 +68,7 @@ export function BarChart({
                 <span className="text-[12.5px] text-ink truncate min-w-0" title={r.key}>{r.key}</span>
                 {/* Direct label on every bar: the light palette needs the relief. */}
                 <span className="text-[12.5px] text-muted tnum shrink-0">
-                  <Figure value={r.total} currency={currency} align="right" />
+                  <Figure value={r.total} currency={currency} />
                   {r.count != null && <span className="text-faint ml-1.5">· {r.count}</span>}
                 </span>
               </div>
@@ -152,11 +152,11 @@ export function LineChart({
             {active ? (
               <>
                 <span>{formatDate(active.day)} ·</span>
-                <Figure value={active.value} currency={currency} align="right" />
+                <Figure value={active.value} currency={currency} />
               </>
             ) : (
               <>
-                <Figure value={last.value} currency={currency} align="right" />
+                <Figure value={last.value} currency={currency} />
                 <span>latest</span>
               </>
             )}

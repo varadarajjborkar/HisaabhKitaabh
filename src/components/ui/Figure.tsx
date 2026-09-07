@@ -1,6 +1,3 @@
-'use client'
-
-import { useState } from 'react'
 import { compactMoney, formatMoney } from '@/lib/util/format'
 
 /**
@@ -11,30 +8,31 @@ import { compactMoney, formatMoney } from '@/lib/util/format'
  * "₹1,20,450" against "₹94,310" is arithmetic. But a rounded figure is not the
  * figure, and this is the screen people open to find out what something cost.
  *
- * So the short form is what is on the page and the exact one is a hover away,
- * to the paisa. The exact figure comes up in place, over the short one, rather
- * than replacing it: swapping the text would reflow the tile every time the
- * pointer crossed it, and four tiles doing that is a page that will not sit
- * still.
+ * So the short form is on the page and the pointer swaps it for the exact one,
+ * to the paisa, for as long as it rests there. The swap is two spans and a CSS
+ * rule: no state, no re-render, no transition to sit through. It happens on the
+ * same frame the pointer arrives, which is the only thing that makes a gesture
+ * this small feel worth making.
  *
- * The gesture is not hover alone. It is also focus, so a keyboard reaches it,
- * and tap, so a phone does. `title` covers the rest.
+ * There is no popover. A panel floating over the number has to be positioned,
+ * kept inside the viewport and animated in, and every one of those is a way for
+ * it to end up somewhere the pointer is not. Replacing the text in place cannot
+ * miss.
+ *
+ * Not a tab stop. A screen reader is read the exact figure and never the
+ * rounded one, and a keyboard without one has the table under the charts, where
+ * every number is already printed in full.
  */
 export function Figure({
   value,
   currency,
-  align = 'left',
   className = '',
 }: {
   value: number
   /** null or omitted when a selection spans currencies: the figure prints bare. */
   currency?: string | null
-  /** Which edge the exact figure grows from. Right, for a right-aligned column. */
-  align?: 'left' | 'right'
   className?: string
 }) {
-  const [open, setOpen] = useState(false)
-
   const code = currency || 'INR'
   const symbol = Boolean(currency)
   const short = compactMoney(value, code, { symbol })
@@ -46,38 +44,15 @@ export function Figure({
   if (short === plain) return <span className={className}>{plain}</span>
 
   return (
-    <span className={`relative inline-block ${className}`}>
-      <span
-        role="button"
-        tabIndex={0}
-        aria-label={`${short}, exactly ${exact}`}
-        aria-expanded={open}
-        title={exact}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setOpen((v) => !v)
-          }
-        }}
-        className="cursor-help underline decoration-dotted decoration-from-font underline-offset-[3px] decoration-line outline-none rounded focus-visible:ring-2 focus-visible:ring-accent/40"
-      >
-        {short}
-      </span>
-      {open && (
-        <span
-          aria-hidden
-          className={`absolute -top-1 z-30 whitespace-nowrap rounded-lg border border-line bg-raised px-2 py-1 shadow-pop animate-fade ${
-            align === 'right' ? 'right-0' : 'left-0'
-          } ${align === 'right' ? 'origin-right' : 'origin-left'}`}
-        >
-          {exact}
-        </span>
-      )}
+    /*
+     * A named group, because the bar rows are themselves `group` and a bare
+     * `group-hover` is a descendant selector: hovering anywhere on the row
+     * would expand a figure the pointer never went near.
+     */
+    <span data-figure className={`group/fig cursor-help ${className}`}>
+      <span aria-hidden className="group-hover/fig:hidden">{short}</span>
+      <span aria-hidden className="hidden group-hover/fig:inline">{exact}</span>
+      <span className="sr-only">{exact}</span>
     </span>
   )
 }

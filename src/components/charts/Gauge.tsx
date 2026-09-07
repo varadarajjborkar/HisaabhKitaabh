@@ -123,6 +123,15 @@ export function Gauge({
    */
   const hero = fit(full) > 16 ? full : compactMoney(shown, currency)
   const heroSize = fit(hero)
+  /*
+   * Whatever the figure lost on the way in - the paise `full` drops, or the
+   * digits the compact form drops on top of that - the pointer puts back. The
+   * swap is a CSS rule on two spans rather than a tooltip, so it lands on the
+   * frame the pointer arrives and cannot be positioned anywhere but here. The
+   * exact form is set at its own fitted size; the line box is still the hero's,
+   * so the label underneath does not move.
+   */
+  const revealable = exact !== hero
 
   return (
     <div className="flex flex-col items-center">
@@ -167,11 +176,16 @@ export function Gauge({
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pointer-events-none">
           {/* Hero figure: proportional digits, not tabular - tabular looks loose at display size. */}
           <span
-            className={`font-semibold leading-none tracking-tight max-w-[130px] truncate pointer-events-auto ${hero === full ? '' : 'cursor-help'}`}
+            className={`group/hero font-semibold leading-none tracking-tight max-w-[130px] truncate
+                        pointer-events-auto ${revealable ? 'cursor-help' : ''}`}
             style={{ fontSize: `${heroSize}px` }}
-            title={exact}
           >
-            {hero}
+            <span className={revealable ? 'group-hover/hero:hidden' : ''}>{hero}</span>
+            {revealable && (
+              <span className="hidden group-hover/hero:inline" style={{ fontSize: `${fit(exact)}px` }}>
+                {exact}
+              </span>
+            )}
           </span>
           <span className="text-[11.5px] text-muted mt-1.5 max-w-[180px] truncate">
             {hover !== null && segments[hover]
